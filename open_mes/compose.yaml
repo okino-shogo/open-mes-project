@@ -1,0 +1,24 @@
+services:
+  open_mes:
+    build:
+      context: ./image/
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./scr:/open_mes
+    ports:
+      - "8000:8000"
+    container_name: open_mes
+    tty: true
+    working_dir: '/open_mes'
+    user: app_user
+    # command: "python3 manage.py runserver 0.0.0.0:8000"
+
+    networks:
+      - open_mes
+
+networks:
+  open_mes:
+    external: true
+
+# 起動前に下記を実行してdocker networkを作成すること
+# docker network create open_mes
