@@ -1,0 +1,59 @@
+{% load md5url %}
+<!doctype html>
+
+<html lang="jp">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="keywords" content="open_mes"/>
+        <meta name="description" content="open_mes"/>
+        <title>Apen MES</title>
+        <link rel="stylesheet" href="{% md5url 'css/base.css' %}"/>
+        <link rel="icon" href="{% md5url 'icon/favicon.ico' %}">
+    </head>
+    <body id="page_base">
+
+        <p id="titel">Apen MES</p>
+
+        <div id='menu-bar'>
+        </div>
+
+        <div class="container">
+            <div class="main-contents">
+                
+                {% block content %}
+                    <!-- ここにメインコンテンツを書く -->
+                {% endblock content %}
+
+            </div>
+        </div>
+
+        <!-- fotter -->
+        <footer id="fotter">
+            <div id="fotter_bar"></div>
+            <p id="credit">
+                © Apen MES Project. 2025
+            </p>
+            <p id="version">
+                ver.0.0.0
+            </p>
+        </footer>
+    </body>
+</html>
+
+<script
+    src="{% md5url 'js/jquery.min.js' %}"
+    crossorigin="anonymous">
+</script>
+
+<script>
+</script>
+
+
+<script
+    src="{% md5url 'js/base.js' %}">
+</script>
+
+{% block js_link %}
+<!-- ここに個別のjsのリンクを書く -->
+{% endblock js_link %}
+
