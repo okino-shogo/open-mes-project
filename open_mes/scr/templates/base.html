@@ -2,47 +2,143 @@
 <!doctype html>
 
 <html lang="jp">
-    <head>
-        <meta charset="utf-8"/>
-        <meta name="keywords" content="open_mes"/>
-        <meta name="description" content="open_mes"/>
-        <title>Apen MES</title>
-        <link rel="stylesheet" href="{% md5url 'css/base.css' %}"/>
-        <link rel="icon" href="{% md5url 'icon/favicon.ico' %}">
-    </head>
-    <body id="page_base">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="keywords" content="open_mes"/>
+    <meta name="description" content="open_mes"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>みんなのMES</title>
+    <link rel="icon" href="{% md5url 'icon/favicon.ico' %}">
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
 
-        <p id="titel">Apen MES</p>
+        /* Header Styles */
+        header {
+            background-color: #007bff; /* Blue */
+            color: #fff;
+            padding: 1rem 0;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
 
-        <div id='menu-bar'>
-        </div>
+        #title {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: bold;
+        }
 
-        <div class="container">
-            <div class="main-contents">
-                
-                {% block content %}
-                    <!-- ここにメインコンテンツを書く -->
-                {% endblock content %}
+        /* Menu Bar Styles */
+        #menu-bar {
+            background-color: #343a40; /* Dark Gray */
+            padding: 0.5rem 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
 
-            </div>
-        </div>
+        #menu-bar a {
+            color: #fff;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
 
-        <!-- fotter -->
-        <footer id="fotter">
-            <div id="fotter_bar"></div>
-            <p id="credit">
-                © Apen MES Project. 2025
-            </p>
-            <p id="version">
-                ver.0.0.0
-            </p>
-        </footer>
-    </body>
+        #menu-bar a:hover {
+            background-color: #555;
+        }
+
+        /* Container Styles */
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        /* Main Content Styles */
+        .main-contents {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Footer Styles */
+        #footer {
+            background-color: #343a40; /* Dark Gray */
+            color: #fff;
+            text-align: center;
+            padding: 1rem 0;
+            position: relative;
+            bottom: 0;
+            width: 100%;
+        }
+
+        #footer_bar {
+            border-top: 1px solid #555;
+            margin-bottom: 0.5rem;
+        }
+
+        #credit, #version {
+            margin: 0.2rem 0;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #menu-bar {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body id="page_base">
+
+<header>
+    <h1 id="title">みんなのMES</h1>
+    <!-- 大メニューの表示 -->
+    <nav id='menu-bar'>
+        <a href="{% url 'inventory_menu' %}">在庫管理</a>
+        <a href="#">品質検査</a>
+        <a href="#">生産管理</a>
+        <a href="#">設備管理</a>
+        <a href="#">ユーザー</a>
+    </nav>
+</header>
+
+<div class="container">
+    <main class="main-contents">
+        {% block content %}
+        <!-- ここにメインコンテンツを書く -->
+        {% endblock content %}
+    </main>
+</div>
+
+<!-- footer -->
+<footer id="footer">
+    <div id="footer_bar"></div>
+    <p id="credit">
+        © Open MES Project. since 2025
+    </p>
+    <p id="version">
+        ver.0.0.0
+    </p>
+</footer>
+</body>
 </html>
 
 <script
-    src="{% md5url 'js/jquery.min.js' %}"
-    crossorigin="anonymous">
+        src="{% md5url 'js/jquery.min.js' %}"
+        crossorigin="anonymous">
 </script>
 
 <script>
@@ -50,10 +146,9 @@
 
 
 <script
-    src="{% md5url 'js/base.js' %}">
+        src="{% md5url 'js/base.js' %}">
 </script>
 
 {% block js_link %}
-<!-- ここに個別のjsのリンクを書く -->
+    <!-- ここに個別のjsのリンクを書く -->
 {% endblock js_link %}
-

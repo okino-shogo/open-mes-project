@@ -1,0 +1,80 @@
+{% extends "inventory/base.html" %}
+{% load md5url %}
+{% block inventory_content %}
+{{ auto_refresh|safe }}
+
+<div id="schedule-container">
+    <h2>入庫予定一覧</h2>
+    <table id="schedule-table">
+        <thead>
+            <tr>
+                <th>発注番号</th>
+                <th>仕入れ先</th>
+                <th>品名</th>
+                <th>発注数量</th>
+                <th>入庫済数量</th>
+                <th>発注日</th>
+                <th>到着予定日</th>
+                <th>倉庫</th>
+                <th>ステータス</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- ここにAJAXで取得したデータが挿入されます -->
+        </tbody>
+    </table>
+</div>
+
+<style>
+    #schedule-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    #schedule-table th, #schedule-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+
+    #schedule-table th {
+        background-color: #f0f0f0;
+    }
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        function loadScheduleData() {
+            $.ajax({
+                url: '/inventory/schedule/data/', // 入庫予定データを取得するURL
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    $('#schedule-table tbody').empty(); // テーブルの既存データをクリア
+                    $.each(data, function(index, item) {
+                        var row = $('<tr>');
+                        row.append($('<td>').text(item.order_number));
+                        row.append($('<td>').text(item.supplier));
+                        row.append($('<td>').text(item.item));
+                        row.append($('<td>').text(item.quantity));
+                        row.append($('<td>').text(item.received_quantity));
+                        row.append($('<td>').text(item.order_date));
+                        row.append($('<td>').text(item.expected_arrival));
+                        row.append($('<td>').text(item.warehouse));
+                        row.append($('<td>').text(item.status));
+                        $('#schedule-table tbody').append(row);
+                    });
+                },
+                error: function(error) {
+                    console.error('Error loading schedule data:', error);
+                }
+            });
+        }
+
+        loadScheduleData(); // ページ読み込み時にデータを取得
+    });
+</script>
+
+{% endblock inventory_content %}

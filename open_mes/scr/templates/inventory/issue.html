@@ -1,0 +1,38 @@
+<!-- templates/inventory/issue.html -->
+{% extends "inventory/base.html" %}
+{% load md5url %}
+{% block inventory_content %}
+{{ auto_refresh|safe }}
+
+<h1>{{ warehouse.warehouse_number }} - 出庫処理</h1>
+
+<form id="form" action="" method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">出庫</button>
+</form>
+
+{% if messages %}
+<ul class="messages">
+    {% for message in messages %}
+    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% endblock inventory_content %}
+
+
+{% block js_link %}
+
+<script
+    src="{% md5url 'js/top.js' %}">
+</script>
+
+<link
+    rel="stylesheet"
+    href="{% md5url 'css/top.css' %}"
+    />
+
+
+{% endblock js_link %}

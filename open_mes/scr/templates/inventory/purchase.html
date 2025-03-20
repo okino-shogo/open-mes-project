@@ -1,0 +1,170 @@
+{% extends "inventory/base.html" %}
+{% load md5url %}
+{% block inventory_content %}
+{{ auto_refresh|safe }}
+
+<div id="purchase-container">
+    <h2>入庫処理一覧</h2>
+    <div id="scan-area">
+        <label for="barcode-input">バーコード/シリアル番号:</label>
+        <input type="text" id="barcode-input" name="barcode-input">
+        <button id="scan-button">スキャン</button>
+    </div>
+    <table id="purchase-table">
+        <thead>
+            <tr>
+                <th>発注番号</th>
+                <th>仕入れ先</th>
+                <th>品名</th>
+                <th>発注数量</th>
+                <th>入庫済数量</th>
+                <th>発注日</th>
+                <th>到着予定日</th>
+                <th>倉庫</th>
+                <th>ステータス</th>
+                <th>バーコード</th>
+                <th>シリアル番号</th>
+                <th>処理</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- ここにAJAXで取得したデータが挿入されます -->
+        </tbody>
+    </table>
+</div>
+
+<style>
+    #purchase-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    #purchase-table th, #purchase-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+
+    #purchase-table th {
+        background-color: #f0f0f0;
+    }
+
+    .receive-button {
+        background-color: #4CAF50; /* Green */
+        border: none;
+        color: white;
+        padding: 5px 10px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 14px;
+        margin: 2px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+    #scan-area {
+        margin-bottom: 20px;
+    }
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        function loadPurchaseData() {
+            $.ajax({
+                url: '/inventory/purchase/data/', // 入庫処理データを取得するURL
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    $('#purchase-table tbody').empty(); // テーブルの既存データをクリア
+                    $.each(data, function(index, item) {
+                        var row = $('<tr>');
+                        row.append($('<td>').text(item.order_number));
+                        row.append($('<td>').text(item.supplier));
+                        row.append($('<td>').text(item.item));
+                        row.append($('<td>').text(item.quantity));
+                        row.append($('<td>').text(item.received_quantity));
+                        row.append($('<td>').text(item.order_date));
+                        row.append($('<td>').text(item.expected_arrival));
+                        row.append($('<td>').text(item.warehouse));
+                        row.append($('<td>').text(item.status));
+                        row.append($('<td>').text(item.barcode));
+                        row.append($('<td>').text(item.serial_number));
+
+                        // 入庫処理ボタンの追加
+                        var receiveButton = $('<button>').addClass('receive-button').text('入庫処理').click(function() {
+                            handleReceive(item.id);
+                        });
+                        var buttonCell = $('<td>').append(receiveButton);
+                        row.append(buttonCell);
+
+                        $('#purchase-table tbody').append(row);
+                    });
+                },
+                error: function(error) {
+                    console.error('Error loading purchase data:', error);
+                }
+            });
+        }
+
+        function handleReceive(orderId) {
+            // 入庫処理を行うAJAX通信
+            $.ajax({
+                url: '/inventory/purchase/receive/', // 入庫処理を行うURL
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    order_id: orderId,
+                    csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+                },
+                success: function(data) {
+                    if (data.success) {
+                        alert('入庫処理が完了しました。');
+                        loadPurchaseData(); // データを再読み込み
+                    } else {
+                        alert('入庫処理に失敗しました。');
+                    }
+                },
+                error: function(error) {
+                    console.error('Error handling receive:', error);
+                    alert('入庫処理に失敗しました。');
+                }
+            });
+        }
+
+        function handleScan() {
+            var barcode = $('#barcode-input').val();
+            if (barcode) {
+                $.ajax({
+                    url: '/inventory/purchase/scan/',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        barcode: barcode,
+                        csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+                    },
+                    success: function(data) {
+                        if (data.success) {
+                            alert('スキャン成功');
+                            loadPurchaseData();
+                        } else {
+                            alert('スキャン失敗');
+                        }
+                    },
+                    error: function(error) {
+                        console.error('Error handling scan:', error);
+                        alert('スキャン失敗');
+                    }
+                });
+            } else {
+                alert('バーコード/シリアル番号を入力してください。');
+            }
+        }
+
+        loadPurchaseData(); // ページ読み込み時にデータを取得
+        $('#scan-button').click(handleScan);
+    });
+</script>
+
+{% endblock inventory_content %}

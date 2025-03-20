@@ -46,6 +46,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'users.apps.UsersConfig',
     'django_static_md5url',
+    'production.apps.ProductionConfig',
+    'inventory.apps.InventoryConfig',
+    'machine.apps.MachineConfig',
+    'quality.apps.QualityConfig',
+    'master.apps.MasterConfig',
 ]
 
 MIDDLEWARE = [

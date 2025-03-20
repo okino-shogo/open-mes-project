@@ -17,8 +17,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from .views import top
+from inventory.views import menu as inventory_menu
+
+app_name = "base"
+
+
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', top.TopView.as_view(), name="main"),
+    path('admin/', admin.site.urls),  # Django管理サイトへのURL
+    path('', top.TopView.as_view(), name="main"),  # メインページへのURL
+    path('inventory/menu/', inventory_menu.InventoryMenuView.as_view(), name="inventory_menu"),  # 在庫管理メニューページへのURL
+    path('inventory/inquiry/', inventory_menu.InquiryView.as_view(), name="inventory_inquiry"),  # 在庫照会ページへのURL (在庫照会)
+    path('inventory/schedule/', inventory_menu.ScheduleView.as_view(), name="inventory_schedule"),  # 入庫予定ページへのURL (入庫予定)
+    path('inventory/shipment/', inventory_menu.ShipmentView.as_view(), name="inventory_shipment"),  # 出庫予定ページへのURL (出庫予定)
+    path('inventory/purchase/', inventory_menu.PurchaseView.as_view(), name="inventory_purchase"),  # 入庫処理ページへのURL (入庫処置)
+    path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)
 ]
