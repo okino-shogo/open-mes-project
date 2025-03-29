@@ -1,4 +1,3 @@
-
 from django.db import models
 from master.models import Item, Supplier, Warehouse
 
@@ -72,3 +71,22 @@ class PurchaseOrder(models.Model):
 
     def __str__(self):
         return f"PO {self.order_number} - {self.item.name} ({self.status})"
+
+# 出庫予定
+class SalesOrder(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    order_number = models.CharField(max_length=20, unique=True)  # 受注番号
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)  # 出庫対象（製品・材料）
+    quantity = models.PositiveIntegerField()  # 出庫予定数量
+    shipped_quantity = models.PositiveIntegerField(default=0) # 実際に出庫した数量を保持
+    order_date = models.DateTimeField(auto_now_add=True)  # 受注日
+    expected_shipment = models.DateTimeField(blank=True, null=True)  # 出庫予定日
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE) # どの倉庫から出庫するかを追加
+    status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),  # 未出庫
+        ('shipped', 'Shipped'),  # 出庫済み
+        ('canceled', 'Canceled')  # キャンセル
+    ], default='pending')
+
+    def __str__(self):
+        return f"SO {self.order_number} - {self.item.name} ({self.status})"

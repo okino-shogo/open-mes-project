@@ -3,13 +3,41 @@
 {% block inventory_content %}
 {{ auto_refresh|safe }}
 
-<form id="form" action="" method="post">
-    {% csrf_token %}
-
-    topだよ
-
-
-</form>
+<div class="container">
+    <h2>出庫予定一覧</h2>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>受注番号</th>
+                <th>製品/材料</th>
+                <th>出庫予定数量</th>
+                <th>実際に出庫した数量</th>
+                <th>受注日</th>
+                <th>出庫予定日</th>
+                <th>倉庫</th>
+                <th>ステータス</th>
+            </tr>
+        </thead>
+        <tbody id="sales-order-list">
+            {% for order in sales_orders %}
+            <tr>
+                <td>{{ order.order_number }}</td>
+                <td>{{ order.item.name }}</td>
+                <td>{{ order.quantity }}</td>
+                <td>{{ order.shipped_quantity }}</td>
+                <td>{{ order.order_date|date:"Y-m-d H:i" }}</td>
+                <td>{{ order.expected_shipment|date:"Y-m-d H:i" }}</td>
+                <td>{{ order.warehouse.warehouse_number }}</td>
+                <td>{{ order.get_status_display }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8">出庫予定はありません。</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 {% endblock inventory_content %}
 
@@ -25,5 +53,23 @@
     href="{% md5url 'css/top.css' %}"
     />
 
+<style>
+    .container {
+        margin-top: 20px;
+    }
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    .table th, .table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .table th {
+        background-color: #f0f0f0;
+    }
+</style>
 
 {% endblock js_link %}
