@@ -1,10 +1,8 @@
 # open-mes-project
 
+## 初回は下記コマンドを実行
 python3 manage.py makemigrations
 python3 manage.py migrate
 
-python manage.py startapp production
-python manage.py startapp inventory
-python manage.py startapp machine
-python manage.py startapp quality
-python manage.py startapp master
+## 管理者を登録
+python manage.py createsuperuser

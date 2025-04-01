@@ -111,7 +111,16 @@
         <a href="#">品質検査</a>
         <a href="#">生産管理</a>
         <a href="#">設備管理</a>
-        <a href="#">ユーザー</a>
+        {% if user.is_authenticated %}
+            <form id="logout-form" action="{% url 'users_logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background: none; border: none; color: #fff; cursor: pointer; padding: 0.5rem 1rem; border-radius: 5px;">
+                    ログアウト
+                </button>
+            </form>
+        {% else %}
+            <a href="{% url 'users_login' %}">ログイン</a>
+        {% endif %}
     </nav>
 </header>
 

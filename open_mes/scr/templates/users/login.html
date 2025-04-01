@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load md5url %}
+{% block content %}
+<div class="container">
+    <h2>{{ page_title }}</h2>
+    {% if form.errors %}
+    <div class="alert alert-danger">
+        <p>ユーザー名またはパスワードが正しくありません。</p>
+    </div>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="id_username">ユーザー名:</label>
+            {{ form.username }}
+        </div>
+        <div class="form-group">
+            <label for="id_password">パスワード:</label>
+            {{ form.password }}
+        </div>
+        <button type="submit" class="btn btn-primary">ログイン</button>
+    </form>
+</div>
+{% endblock content %}

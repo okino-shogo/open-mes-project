@@ -18,6 +18,8 @@ from django.contrib import admin
 from django.urls import path
 from .views import top
 from inventory.views import menu as inventory_menu
+from users.views import login, logout
+from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
 
 app_name = "base"
 
@@ -32,4 +34,6 @@ urlpatterns = [
     path('inventory/shipment/', inventory_menu.ShipmentView.as_view(), name="inventory_shipment"),  # 出庫予定ページへのURL (出庫予定)
     path('inventory/purchase/', inventory_menu.PurchaseView.as_view(), name="inventory_purchase"),  # 入庫処理ページへのURL (入庫処置)
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)
+    path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
+    path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
 ]
