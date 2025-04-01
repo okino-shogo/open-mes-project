@@ -85,13 +85,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             'Unselect this instead of deleting accounts.'
         ),
     )
-    is_planet_culc = models.BooleanField(
-        _('planet_culc'),
-        default=False,
-        help_text=_(
-            'planet culc '
-        ),
-    )
     date_joined = models.DateTimeField(_('date joined'), default=timezone.now)
 
     objects = UserManager()
