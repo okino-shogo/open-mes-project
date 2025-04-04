@@ -34,6 +34,10 @@ DEBUG = env.bool('DEBUG')
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK" : lambda request: True,  # Trueを返すlambda関数を設定
+}
+
 if env.list('CSRF_TRUSTED_ORIGINS') != ['*']:
     CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS')
 
@@ -53,6 +57,7 @@ INSTALLED_APPS = [
     'machine.apps.MachineConfig',
     'quality.apps.QualityConfig',
     'master.apps.MasterConfig',
+    'debug_toolbar',
 ]
 
 MIDDLEWARE = [
@@ -63,6 +68,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'base.urls'

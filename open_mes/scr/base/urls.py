@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from .views import top
 from inventory.views import menu as inventory_menu
 from users.views import login, logout
@@ -36,4 +36,5 @@ urlpatterns = [
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
+    path("__debug__/", include("debug_toolbar.urls")),
 ]
