@@ -35,7 +35,7 @@ DEBUG = env.bool('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
 DEBUG_TOOLBAR_CONFIG = {
-    "SHOW_TOOLBAR_CALLBACK" : lambda request: True,  # Trueを返すlambda関数を設定
+    "SHOW_TOOLBAR_CALLBACK" : lambda request: env.bool('DEBUG'),  # Trueを返すlambda関数を設定
 }
 
 if env.list('CSRF_TRUSTED_ORIGINS') != ['*']:
