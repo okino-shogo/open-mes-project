@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import include, path
 from .views import top
 from inventory.views import menu as inventory_menu
-from users.views import login, logout
+from users.views import login, logout, rest
 from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
 
 app_name = "base"
@@ -36,5 +36,6 @@ urlpatterns = [
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
+    path('users/api-register/', rest.register_user, name='users_api_register'),
     path("__debug__/", include("debug_toolbar.urls")),
 ]

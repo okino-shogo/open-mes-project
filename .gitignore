@@ -5,3 +5,4 @@ __pycache__/
 /postgres/init/
 .env
 migrations/
+/venv/

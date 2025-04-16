@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'quality.apps.QualityConfig',
     'master.apps.MasterConfig',
     'debug_toolbar',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
