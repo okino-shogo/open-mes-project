@@ -68,6 +68,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'users.middleware.PasswordExpirationMiddleware', # パスワード有効期限
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
@@ -164,6 +165,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # カスタムユーザー
 AUTH_USER_MODEL = 'users.CustomUser'
 
-
+LOGIN_URL = 'users_login'  # ログインページのURL
 LOGIN_REDIRECT_URL = 'main'  # ログイン後のリダイレクト先
 LOGOUT_REDIRECT_URL = 'main'  # ログアウト後のリダイレクト先
+
+# settings.py
+# ... other settings
+
+PASSWORD_EXPIRATION_DAYS = 1 # 例: 90日
+
+# 有効期限を無効にする場合は 0 や None を設定
+# PASSWORD_EXPIRATION_DAYS = None

@@ -1,10 +1,13 @@
 import uuid
+from datetime import timedelta # 追加
 from django.db import models
 from django.contrib.auth.models import PermissionsMixin
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.contrib.auth.validators import UnicodeUsernameValidator
+from django.conf import settings # 追加 (有効期限日数をsettings.pyから取得する場合)
+from django.core.mail import send_mail # email_userメソッドで必要
 
 # マネージャー用
 class UserManager(BaseUserManager):
@@ -15,7 +18,9 @@ class UserManager(BaseUserManager):
             raise ValueError('専用IDは必須です。')
         # emailが必須でなくなったので、チェックを削除
         email = self.normalize_email(email) if email else ''
+        # password_last_changed は set_password 内で設定される
         user = self.model(custom_id=custom_id, email=email, **extra_fields)
+        # パスワードを設定（これにより password_last_changed も更新される）
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -34,12 +39,14 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('スーパーユーザーは is_superuser=True である必要があります。')
 
+        # スーパーユーザー作成時も _create_user を経由するので、
+        # password_last_changed は適切に設定される
         return self._create_user(custom_id, email, password, **extra_fields)
 
 # カスタムユーザー
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
+
     # 専用IDフィールド
     custom_id = models.CharField(
         _('custom id'),
@@ -47,7 +54,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         unique=True,
         help_text=_('ログインに使用する専用ID。')
     )
-    
+
     username_validator = UnicodeUsernameValidator()
     username = models.CharField(
         _('username'),
@@ -56,11 +63,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         validators=[username_validator],
         help_text=_('表示用のユーザー名。')
     )
-    
+
     first_name = models.CharField(_('first name'), max_length=150, blank=True)
     last_name = models.CharField(_('last name'), max_length=150, blank=True)
-    email = models.EmailField(_('email address'), unique=True, blank=True)
-    
+    email = models.EmailField(_('email address'), unique=True, blank=True, null=True) # null=True を追加 (空文字ではなくNULLを許容する場合)
+
     is_staff = models.BooleanField(
         _('staff status'),
         default=False,
@@ -71,16 +78,19 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         default=True,
         help_text=_('アクティブなユーザーかどうか。')
     )
-    is_planet_culc = models.BooleanField(
-        _('planet_culc'),
-        default=False,
-        help_text=_('planet culc flag')
-    )
     date_joined = models.DateTimeField(_('date joined'), default=timezone.now)
+
+    # --- パスワード有効期限関連の追加 ---
+    password_last_changed = models.DateTimeField(
+        _('password last changed'),
+        default=timezone.now, # 新規作成時は現在日時
+        help_text=_('パスワードが最後に変更された日時。')
+    )
+    # --- ここまで ---
 
     objects = UserManager()
 
-    # ログインに使用するフィールドを専用IDに変更
+    # ログインに使用するフィールドは専用ID
     USERNAME_FIELD = 'custom_id'
     REQUIRED_FIELDS = []  # emailを必須項目から外す
 
@@ -90,7 +100,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def clean(self):
         super().clean()
-        self.email = self.__class__.objects.normalize_email(self.email)
+        # emailがNoneの場合を考慮
+        self.email = self.__class__.objects.normalize_email(self.email) if self.email else None
 
     def get_full_name(self):
         full_name = '%s %s' % (self.first_name, self.last_name)
@@ -100,5 +111,38 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.first_name
 
     def email_user(self, subject, message, from_email=None, **kwargs):
-        from django.core.mail import send_mail
-        send_mail(subject, message, from_email, [self.email], **kwargs)
+        # emailがNoneでないことを確認
+        if self.email:
+            send_mail(subject, message, from_email, [self.email], **kwargs)
+
+    # --- パスワード有効期限関連のメソッド追加 ---
+    def set_password(self, raw_password):
+        """
+        パスワードを設定し、最終変更日時も更新する。
+        """
+        super().set_password(raw_password)
+        self.password_last_changed = timezone.now()
+        # self.save(update_fields=['password', 'password_last_changed']) # UserManager内でsaveされるのでここでは不要
+
+    @property
+    def is_password_expired(self):
+        """
+        パスワードが有効期限切れかどうかを判定する。
+        settings.PASSWORD_EXPIRATION_DAYS で日数を指定（デフォルト90日）。
+        """
+        # settings.py に PASSWORD_EXPIRATION_DAYS = 90 のように設定
+        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', 90)
+        print('expiration_days', expiration_days)
+        if expiration_days is None or expiration_days <= 0:
+             # 有効期限が無効化されている場合は常に False
+            return False
+        if not self.password_last_changed:
+            # 通常は発生しないはずだが、念のためチェック
+            # password_last_changed がない場合は有効期限切れとみなすか、
+            # ポリシーに応じて False を返すか決定する (ここでは False とする)
+            return False
+
+        expiration_date = self.password_last_changed + timedelta(days=expiration_days)
+        return timezone.now() > expiration_date
+    # --- ここまで ---
+

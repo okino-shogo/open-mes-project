@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, reverse_lazy
 from .views import top
 from inventory.views import menu as inventory_menu
 from users.views import login, logout, rest
@@ -36,6 +36,19 @@ urlpatterns = [
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
+        # --- Django標準のパスワード変更ビューのURLを追加 ---
+    path('users/password_change/',
+         auth_views.PasswordChangeView.as_view(
+             template_name='registration/password_change_form.html', # 使用するテンプレートを指定
+             success_url=reverse_lazy('password_change_done') # 変更成功後のリダイレクト先
+         ),
+         name='password_change'), # ミドルウェアで指定した名前と同じにする
+    path('users/password_change/done/',
+         auth_views.PasswordChangeDoneView.as_view(
+             template_name='registration/password_change_done.html' # 使用するテンプレートを指定
+         ),
+         name='password_change_done'),
+    # --- ここまで ---
     path('users/api-register/', rest.register_user, name='users_api_register'),
     path("__debug__/", include("debug_toolbar.urls")),
 ]
