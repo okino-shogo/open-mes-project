@@ -7,8 +7,8 @@ from uuid6 import uuid7
 # 在庫情報
 class Inventory(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)  # UUIDv7を使用
-    item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True)  # 管理対象の製品/材料
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)  # 倉庫と関連付ける
+    part_number = models.CharField(max_length=255, null=True, blank=True)  # 管理対象の製品/材料の品番 (文字列として保持)
+    warehouse = models.CharField(max_length=255, null=True, blank=True)  # 倉庫 (文字列として保持)
     quantity = models.IntegerField(default=0)  # 在庫
     reserved = models.IntegerField(default=0)  # 引当在庫
     location = models.CharField(max_length=255, blank=True, null=True)  # 倉庫や棚の場所
@@ -26,9 +26,9 @@ class Inventory(models.Model):
     def __str__(self):
         status = "Active" if self.is_active else "Inactive"
         allocatable = "Allocatable" if self.is_allocatable else "Not Allocatable"
-        item_name = self.item.name if self.item else "N/A"
-        warehouse_number = self.warehouse.warehouse_number if self.warehouse else "N/A" # Warehouseは現状null=Falseだが念のため
-        return f"{item_name} - {self.quantity} in {warehouse_number} ({self.location}) [{status}, {allocatable}]"
+        part_number_display = self.part_number if self.part_number else "N/A"
+        warehouse_display = self.warehouse if self.warehouse else "N/A"
+        return f"{part_number_display} - {self.quantity} in {warehouse_display} ({self.location}) [{status}, {allocatable}]"
 
 
 
@@ -41,14 +41,14 @@ class StockMovement(models.Model):
         ('used', 'Used in production'),  # 生産で使用
     ]
 
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)  # 在庫対象の製品/材料
+    part_number = models.CharField(max_length=255, null=True, blank=True)  # 在庫対象の製品/材料の品番 (文字列として保持)
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPE_CHOICES)  # 入庫・出庫・使用
     quantity = models.PositiveIntegerField()  # 数量
     timestamp = models.DateTimeField(auto_now_add=True)  # 変更日時
     description = models.TextField(blank=True, null=True)  # 備考
 
     def __str__(self):
-        return f"{self.item.name} - {self.movement_type} - {self.quantity}"
+        return f"{self.part_number or 'N/A'} - {self.movement_type} - {self.quantity}"
 
 
 # 入庫予定
