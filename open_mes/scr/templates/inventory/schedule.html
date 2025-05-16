@@ -36,18 +36,27 @@
                 dataType: 'json',
                 success: function(data) {
                     $('#schedule-table tbody').empty(); // テーブルの既存データをクリア
-                    $.each(data, function(index, item) {
-                        var row = $('<tr>');
-                        row.append($('<td>').text(item.order_number));
-                        row.append($('<td>').text(item.supplier));
-                        row.append($('<td>').text(item.item));
-                        row.append($('<td>').text(item.quantity));
-                        row.append($('<td>').text(item.received_quantity));
-                        row.append($('<td>').text(item.order_date));
-                        row.append($('<td>').text(item.expected_arrival));
-                        row.append($('<td>').text(item.warehouse));
-                        row.append($('<td>').text(item.status));
-                        $('#schedule-table tbody').append(row);
+                    $.each(data, function(index, item) { // 各データアイテムに対して処理
+                        const newRow = $('<tr></tr>'); // 新しい行要素を作成
+                        // 表示するデータの配列 (表示順)
+                        const cellData = [
+                            item.order_number,
+                            item.supplier,
+                            item.item,
+                            item.quantity,
+                            item.received_quantity,
+                            item.order_date,
+                            item.expected_arrival,
+                            item.warehouse,
+                            item.status
+                        ];
+
+                        cellData.forEach(function(value) {
+                            // null や undefined の場合は空文字を表示
+                            const cellText = (value === null || value === undefined) ? '' : value;
+                            newRow.append($('<td></td>').text(cellText)); // セルを作成して行に追加
+                        });
+                        $('#schedule-table tbody').append(newRow); // 完成した行をテーブル本体に追加
                     });
                 },
                 error: function(xhr, status, error) {
