@@ -4,6 +4,7 @@
 import requests
 import json
 import configparser
+from faker import Faker
 import os
 
 # ————— 設定 —————
@@ -24,33 +25,10 @@ headers = {
     "Authorization": f"Token {API_TOKEN}",
 }
 
-# ————— POST データ —————
-payload = {
-    # 必須フィールド
-    "order_number": "PO-20250516-001",
-    "supplier": "Supplier A",     # Supplier 名
-    "item": "Item X",        # Item 名
-    "warehouse": "Warehouse 1",    # Warehouse 名
-    "quantity": 150,
+# Faker インスタンスの作成
+fake = Faker('ja_JP') # 日本語ロケールを使用
 
-    # 任意フィールド（必要なら追加）
-    "part_number": "PN-AX123",
-    "product_name": "Example Widget",
-    "parent_part_number": "PPN-0005",
-    "instruction_document": "https://example.com/docs/instruction.pdf",
-    "shipment_number": "SHP-7890",
-    "model_type": "Type-X",
-    "is_first_time": True,
-    "color_info": "Red",
-    "delivery_destination": "Tokyo Warehouse",
-    "delivery_source": "Osaka Factory",
-    "remarks1": "Urgent order",
-    "remarks2": "",
-    "remarks3": "",
-    "remarks4": "",
-    "remarks5": "",
-    "expected_arrival": "2025-06-01",
-}
+
 
 def create_purchase_order(data):
     if not API_TOKEN:
@@ -69,4 +47,37 @@ def create_purchase_order(data):
             # print(resp.text)
 
 if __name__ == "__main__":
-    create_purchase_order(payload)
+    num_records = 1000
+    print(f"{num_records}件のテストデータ送信を開始します...")
+
+    for i in range(num_records):
+        # ユニークな発注番号を生成 (例: PO-YYYYMMDD-連番)
+        order_number = f"PO-{fake.date_object().strftime('%Y%m%d')}-{i+1:04d}"
+
+        # テストデータを生成
+        payload = {
+            "order_number": order_number,
+            "supplier": fake.company(),
+            "item": fake.word() + "部品",
+            "warehouse": fake.random_element(elements=('倉庫A', '倉庫B', '倉庫C')),
+            "quantity": fake.random_int(min=1, max=500),
+
+            "part_number": fake.bothify(text='PN-####-??'),
+            "product_name": fake.catch_phrase(),
+            "parent_part_number": fake.bothify(text='PPN-####'),
+            "instruction_document": fake.url(),
+            "shipment_number": fake.bothify(text='SHP-######'),
+            "model_type": fake.random_element(elements=('Type-X', 'Type-Y', 'Type-Z', '汎用')),
+            "is_first_time": fake.boolean(chance_of_getting_true=20), # 20%の確率でTrue
+            "color_info": fake.color_name() if fake.boolean(chance_of_getting_true=50) else None, # 50%の確率で色情報あり
+            "delivery_destination": fake.city() + "倉庫",
+            "delivery_source": fake.city() + "工場",
+            "remarks1": fake.sentence() if fake.boolean(chance_of_getting_true=30) else None,
+            "remarks2": fake.sentence() if fake.boolean(chance_of_getting_true=10) else None,
+            "remarks3": None,
+            "remarks4": None,
+            "remarks5": None,
+            "expected_arrival": fake.date_time_this_year().isoformat(), # ISO 8601形式
+        }
+        create_purchase_order(payload)
+        print(f"送信済み: {i+1}/{num_records}件 (発注番号: {order_number})")
