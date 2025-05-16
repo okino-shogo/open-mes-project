@@ -3,11 +3,20 @@
 
 import requests
 import json
+import configparser
+import os
 
 # ————— 設定 —————
 API_URL = "http://127.0.0.1:8000/api/inventory/"
-# 認証が必要な場合はトークンをセット（例: TokenAuthentication）
-API_TOKEN = "YOUR_API_TOKEN_HERE"
+
+# INIファイルから設定を読み込む
+config = configparser.ConfigParser()
+# スクリプトのディレクトリを取得
+script_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(script_dir, 'config.ini')
+config.read(config_path)
+
+API_TOKEN = config.get('API', 'TOKEN', fallback=None)
 
 headers = {
     "Content-Type": "application/json",
@@ -44,6 +53,9 @@ payload = {
 }
 
 def create_purchase_order(data):
+    if not API_TOKEN:
+        print("エラー: APIトークンがconfig.iniファイルに設定されていません。")
+        return
     resp = requests.post(API_URL, headers=headers, data=json.dumps(data))
     if resp.status_code == 201:
         print("入庫予定(PurchaseOrder) を作成しました。")

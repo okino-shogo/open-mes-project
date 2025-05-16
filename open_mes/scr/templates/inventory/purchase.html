@@ -4,13 +4,14 @@
 {{ auto_refresh|safe }}
 
 <div id="purchase-container">
+    {% csrf_token %} {# Add CSRF token for AJAX POST requests #}
     <h2>入庫処理一覧</h2>
     <div id="scan-area">
         <label for="barcode-input">バーコード/シリアル番号:</label>
         <input type="text" id="barcode-input" name="barcode-input">
         <button id="scan-button">スキャン</button>
     </div>
-    <table id="purchase-table">
+    <table id="purchase-table" class="inventory-table">
         <thead>
             <tr>
                 <th>発注番号</th>
@@ -34,22 +35,10 @@
 </div>
 
 <style>
-    #purchase-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
+    /* Note: Common table styles for .inventory-table are assumed to be moved to a shared CSS file or base.html */
+    #scan-area {
+        margin-bottom: 20px;
     }
-
-    #purchase-table th, #purchase-table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
-    }
-
-    #purchase-table th {
-        background-color: #f0f0f0;
-    }
-
     .receive-button {
         background-color: #4CAF50; /* Green */
         border: none;
@@ -62,9 +51,6 @@
         margin: 2px;
         cursor: pointer;
         border-radius: 5px;
-    }
-    #scan-area {
-        margin-bottom: 20px;
     }
 </style>
 
@@ -102,8 +88,10 @@
                         $('#purchase-table tbody').append(row);
                     });
                 },
-                error: function(error) {
-                    console.error('Error loading purchase data:', error);
+                error: function(xhr, status, error) {
+                    console.error('Error loading purchase data:', error, status);
+                    var errorMsg = $('<tr><td colspan="12" style="text-align:center; color:red;">入庫処理データの読み込みに失敗しました。</td></tr>');
+                    $('#purchase-table tbody').append(errorMsg);
                 }
             });
         }
