@@ -4,10 +4,17 @@
 {% block inventory_content %}
 {{ auto_refresh|safe }}
 
-<h1>{{ warehouse.warehouse_number }} - 出庫処理</h1>
+<h1>出庫処理</h1>
 
 <form id="form" action="" method="post">
     {% csrf_token %}
+    
+    <!-- シリアル/バーコード入力フィールド -->
+    <p>
+        <label for="id_barcode_scanner_input">シリアル/バーコード:</label>
+        <input type="text" name="barcode_scanner_input" id="id_barcode_scanner_input" autofocus placeholder="ここにスキャンしてください">
+    </p>
+    
     {{ form.as_p }}
     <button type="submit">出庫</button>
 </form>

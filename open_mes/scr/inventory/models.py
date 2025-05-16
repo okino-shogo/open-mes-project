@@ -56,13 +56,28 @@ class StockMovement(models.Model):
 class PurchaseOrder(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     order_number = models.CharField(max_length=20, unique=True)  # 発注番号
-    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)  # 仕入れ先
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)  # 発注対象（製品・材料）
+    supplier = models.CharField(max_length=255,  null=True)  # 仕入れ先
+    item = models.CharField(max_length=255,  null=True)  # 発注対象（製品・材料）
     quantity = models.PositiveIntegerField()  # 発注数量
+    part_number = models.CharField(max_length=100, blank=True, null=True, verbose_name="品番")
+    product_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="品名")
+    parent_part_number = models.CharField(max_length=100, blank=True, null=True, verbose_name="親品番")
+    instruction_document = models.CharField(max_length=255, blank=True, null=True, verbose_name="指示書")
+    shipment_number = models.CharField(max_length=100, blank=True, null=True, verbose_name="便番号")
+    model_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="機種")
+    is_first_time = models.BooleanField(default=False, verbose_name="初回")
+    color_info = models.CharField(max_length=100, blank=True, null=True, verbose_name="色情報")
+    delivery_destination = models.CharField(max_length=255, blank=True, null=True, verbose_name="納入先")
+    delivery_source = models.CharField(max_length=255, blank=True, null=True, verbose_name="納入元")
+    remarks1 = models.TextField(blank=True, null=True, verbose_name="備考1")
+    remarks2 = models.TextField(blank=True, null=True, verbose_name="備考2")
+    remarks3 = models.TextField(blank=True, null=True, verbose_name="備考3")
+    remarks4 = models.TextField(blank=True, null=True, verbose_name="備考4")
+    remarks5 = models.TextField(blank=True, null=True, verbose_name="備考5")
     received_quantity = models.PositiveIntegerField(default=0) # 実際に入庫した数量を保持
     order_date = models.DateTimeField(auto_now_add=True)  # 発注日
     expected_arrival = models.DateTimeField(blank=True, null=True)  # 到着予定日
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE) # どの倉庫に入庫するかを追加
+    warehouse = models.CharField(max_length=255,  null=True) # どの倉庫に入庫するかを追加
     status = models.CharField(max_length=20, choices=[
         ('pending', 'Pending'),  # 未入庫
         ('received', 'Received'),  # 入庫済み
