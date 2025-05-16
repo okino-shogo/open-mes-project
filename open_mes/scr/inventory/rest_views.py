@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated # 必要に応じて認証を追加
 from rest_framework.response import Response
-from .serializers import PurchaseOrderSerializer
+from .serializers import PurchaseOrderSerializer, InventorySerializer # InventorySerializer をインポート
 from .models import PurchaseOrder, Inventory, StockMovement # PurchaseOrder, Inventory, StockMovementモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート
@@ -199,3 +199,15 @@ def process_purchase_receipt_api(request):
             {"error": "入庫処理中に内部エラーが発生しました。"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+# @login_required # ログインユーザーのみアクセス可能にする場合 (必要に応じてコメント解除)
+def get_inventory_data(request):
+    """
+    在庫情報を取得し、JSON形式で返却するビュー
+    """
+    if request.method == 'GET':
+        inventories = Inventory.objects.all().order_by('part_number', 'warehouse', 'location')
+        serializer = InventorySerializer(inventories, many=True)
+        return JsonResponse(serializer.data, safe=False)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)

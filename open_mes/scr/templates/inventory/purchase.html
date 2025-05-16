@@ -101,13 +101,11 @@
             var dataUrl = '/inventory/purchase/data/';
             // forceReloadがtrue、またはデータプールが空の場合のみサーバーからデータを取得
             if (forceReload || allPurchaseItems.length === 0) {
-                console.log('Loading data from server URL:', dataUrl);
                 $.ajax({
                     url: dataUrl, // 検索パラメータなしで全件取得
                     type: 'GET',
                     dataType: 'json',
                     success: function(data) {
-                        console.log('Data received from server:', data);
                         allPurchaseItems = data || []; // データプールを更新
                         filterAndRenderData(); // フィルタリングして表示
                     },
@@ -123,7 +121,6 @@
                 });
             } else {
                 // 既にデータがある場合は、現在の検索語でフィルタリングして再描画
-                console.log('Using cached data for rendering.');
                 filterAndRenderData();
             }
         }
@@ -190,7 +187,6 @@
         // 「検索」ボタンがクリックされたときの処理 (クライアントサイドフィルタリング)
         function handleScan() {
             currentSearchTerm = $('#barcode-input').val().trim();
-            console.log('Search term entered:', currentSearchTerm);
             filterAndRenderData(); // プールされたデータからフィルタリングして表示
         }
 

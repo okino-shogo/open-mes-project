@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PurchaseOrder
+from .models import PurchaseOrder, Inventory # Inventoryモデルをインポート
 from master.models import Item, Supplier, Warehouse # masterアプリケーションからモデルをインポート
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
@@ -56,3 +56,26 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'status'                # ステータス (デフォルト'pending'、読み取り専用)
         ]
         read_only_fields = ['id', 'received_quantity', 'order_date', 'status'] # is_first_time はデフォルト値があるので読み取り専用には含めません
+
+class InventorySerializer(serializers.ModelSerializer):
+    """
+    在庫情報モデルのためのシリアライザ。
+    available_quantity プロパティも読み取り専用フィールドとして含みます。
+    """
+    available_quantity = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Inventory
+        fields = [
+            'id',
+            'part_number',
+            'warehouse',
+            'quantity',
+            'reserved',
+            'available_quantity', # 利用可能在庫 (プロパティ)
+            'location',
+            'last_updated',
+            'is_active',
+            'is_allocatable',
+        ]
+        read_only_fields = ['id', 'last_updated', 'available_quantity']

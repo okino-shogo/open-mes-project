@@ -42,6 +42,7 @@ urlpatterns = [
     # 入庫処理ページで使用されるAPIエンドポイントを追加
     path('inventory/purchase/data/', inventory_rest_views.get_schedule_data, name='inventory_purchase_data'), # 入庫処理対象データ取得API (scheduleと同じビューを使用)
     path('inventory/purchase/scan/', inventory_rest_views.process_purchase_receipt_api, name='inventory_purchase_scan'), # 入庫処理実行API (processビューを使用)
+    path('inventory/data/', inventory_rest_views.get_inventory_data, name='get_inventory_data'), # 在庫情報取得API
 
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
