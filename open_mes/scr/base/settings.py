@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'master.apps.MasterConfig',
     'debug_toolbar',
     'rest_framework',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -148,6 +149,13 @@ USE_TZ = True
 
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 STATIC_URL = '/static/'
+
+# Django REST Framework settings
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ]
+}
 
 if DEBUG == True:
     STATICFILES_DIRS = [

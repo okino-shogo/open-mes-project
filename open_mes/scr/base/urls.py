@@ -21,6 +21,8 @@ from inventory.views import menu as inventory_menu
 from inventory import rest_views as inventory_rest_views
 from users.views import login, logout, rest
 from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
+from rest_framework.authtoken import views as authtoken_views # authtoken の views をインポート
+
 
 app_name = "base"
 
@@ -51,6 +53,7 @@ urlpatterns = [
          ),
          name='password_change_done'),
     # --- ここまで ---
-    path('users/api-register/', rest.register_user, name='users_api_register'),
+    path('users/api-register/', rest.register_user, name='users_api_register'), # カンマを追加
+    path('api-token-auth/', authtoken_views.obtain_auth_token), # トークン取得エンドポイント。念のためここにもカンマを追加
     path("__debug__/", include("debug_toolbar.urls")),
 ]

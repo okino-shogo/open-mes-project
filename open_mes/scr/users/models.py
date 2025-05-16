@@ -131,18 +131,22 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         settings.PASSWORD_EXPIRATION_DAYS で日数を指定（デフォルト90日）。
         """
         # settings.py に PASSWORD_EXPIRATION_DAYS = 90 のように設定
-        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', 90)
-        print('expiration_days', expiration_days)
+        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', None) # デフォルトを None に変更
+        # print(f"User {self.custom_id}: Checking password expiration. Expiration days: {expiration_days}, Last changed: {self.password_last_changed}")
+
         if expiration_days is None or expiration_days <= 0:
              # 有効期限が無効化されている場合は常に False
+            # print(f"User {self.custom_id}: Password expiration is disabled or invalid days.")
             return False
+
         if not self.password_last_changed:
-            # 通常は発生しないはずだが、念のためチェック
-            # password_last_changed がない場合は有効期限切れとみなすか、
-            # ポリシーに応じて False を返すか決定する (ここでは False とする)
-            return False
+            # password_last_changed がない場合 (通常は default=timezone.now で設定されるため稀)
+            # 安全のため、またはポリシーに基づき期限切れとみなす
+            # print(f"User {self.custom_id}: password_last_changed is not set. Considering expired as a fallback.")
+            return True
 
         expiration_date = self.password_last_changed + timedelta(days=expiration_days)
-        return timezone.now() > expiration_date
+        expired = timezone.now() > expiration_date
+        # print(f"User {self.custom_id}: Expiration date: {expiration_date}, Now: {timezone.now()}, Expired: {expired}")
+        return expired
     # --- ここまで ---
-

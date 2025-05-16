@@ -15,9 +15,6 @@ class Inventory(models.Model):
     last_updated = models.DateTimeField(auto_now=True)  # 更新日時
     is_active = models.BooleanField(default=True)  # 在庫が有効かどうか
     is_allocatable = models.BooleanField(default=True)  # 引き当て可能かどうか
-
-    def __str__(self):
-        return f"{self.item.name} - {self.quantity} ({self.location})"
     
     @property
     def available_quantity(self):
@@ -29,7 +26,9 @@ class Inventory(models.Model):
     def __str__(self):
         status = "Active" if self.is_active else "Inactive"
         allocatable = "Allocatable" if self.is_allocatable else "Not Allocatable"
-        return f"{self.item.name} - {self.quantity} in {self.warehouse.warehouse_number} ({self.location}) [{status}, {allocatable}]"
+        item_name = self.item.name if self.item else "N/A"
+        warehouse_number = self.warehouse.warehouse_number if self.warehouse else "N/A" # Warehouseは現状null=Falseだが念のため
+        return f"{item_name} - {self.quantity} in {warehouse_number} ({self.location}) [{status}, {allocatable}]"
 
 
 
@@ -85,7 +84,8 @@ class PurchaseOrder(models.Model):
     ], default='pending')
 
     def __str__(self):
-        return f"PO {self.order_number} - {self.item.name} ({self.status})"
+        item_display = self.item if self.item else "N/A"
+        return f"PO {self.order_number} - {item_display} ({self.status})"
 
 # 出庫予定
 class SalesOrder(models.Model):

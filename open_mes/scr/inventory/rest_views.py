@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated # 必要に応じて認�
 from rest_framework.response import Response
 from .serializers import PurchaseOrderSerializer
 
-# @permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
+@permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
 @api_view(['POST'])
 def create_purchase_order_api(request):
     """
