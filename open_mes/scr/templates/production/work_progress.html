@@ -1,0 +1,29 @@
+{% extends "production/base.html" %}
+{% load md5url %}
+{% block production_content %}
+{{ auto_refresh|safe }}
+
+<form id="form" action="" method="post">
+    {% csrf_token %}
+
+    topだよ
+
+
+</form>
+
+{% endblock production_content %}
+
+
+{% block js_link %}
+
+<script
+    src="{% md5url 'js/top.js' %}">
+</script>
+
+<link
+    rel="stylesheet"
+    href="{% md5url 'css/top.css' %}"
+    />
+
+
+{% endblock js_link %}

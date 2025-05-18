@@ -19,6 +19,7 @@ from django.urls import include, path, reverse_lazy
 from .views import top
 from inventory.views import menu as inventory_menu
 from inventory import rest_views as inventory_rest_views
+from production.views import menu as production_menu
 from users.views import login, logout, rest
 from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
 from rest_framework.authtoken import views as authtoken_views # authtoken の views をインポート
@@ -31,6 +32,8 @@ app_name = "base"
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django管理サイトへのURL
     path('', top.TopView.as_view(), name="main"),  # メインページへのURL
+
+    # 在庫関係
     path('inventory/menu/', inventory_menu.InventoryMenuView.as_view(), name="inventory_menu"),  # 在庫管理メニューページへのURL
     path('inventory/inquiry/', inventory_menu.InquiryView.as_view(), name="inventory_inquiry"),  # 在庫照会ページへのURL (在庫照会)
     path('inventory/schedule/', inventory_menu.ScheduleView.as_view(), name="inventory_schedule"),  # 入庫予定ページへのURL (入庫予定)
@@ -43,6 +46,14 @@ urlpatterns = [
     path('inventory/purchase/data/', inventory_rest_views.get_schedule_data, name='inventory_purchase_data'), # 入庫処理対象データ取得API (scheduleと同じビューを使用)
     path('inventory/purchase/scan/', inventory_rest_views.process_purchase_receipt_api, name='inventory_purchase_scan'), # 入庫処理実行API (processビューを使用)
     path('inventory/data/', inventory_rest_views.get_inventory_data, name='get_inventory_data'), # 在庫情報取得API
+
+    # 生産関係
+    path('production/menu/', production_menu.ProductionMenuView.as_view(), name="production_menu"),  # 生産管理メニューページへのURL
+    path('production/plan/', production_menu.ProductionPlanView.as_view(), name="production_plan"),  # 生産計画ページへのURL
+    path('production/parts_used/', production_menu.PartsUsedView.as_view(), name="production_parts_used"),  # 使用部品ページへのURL
+    path('production/material_allocation/', production_menu.MaterialAllocationView.as_view(), name="production_material_allocation"),  # 材料引当ページへのURL
+    path('production/work_progress/', production_menu.WorkProgressView.as_view(), name="production_work_progress"),  # 作業進捗ページへのURL
+
 
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
