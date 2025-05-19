@@ -6,8 +6,11 @@
 <div id="purchase-container">
     {% csrf_token %} {# Add CSRF token for AJAX POST requests #}
     <h2>入庫処理一覧</h2>
+    <div id="info-area" style="margin-bottom: 10px;">
+        <span id="purchase-count-info"></span>
+    </div>
     <div id="scan-area">
-        <label for="barcode-input">バーコード/シリアル番号:</label>
+        <label for="barcode-input">バーコード/シリアル番号/発注番号:</label>
         <input type="text" id="barcode-input" name="barcode-input">
         <button id="scan-button">検索</button>
     </div>
@@ -32,6 +35,9 @@
             <!-- ここにAJAXで取得したデータが挿入されます -->
         </tbody>
     </table>
+    <div id="pagination-controls" class="pagination">
+        <!-- ここにページネーションボタンが挿入されます -->
+    </div>
 </div>
 
 <style>
@@ -52,14 +58,20 @@
         cursor: pointer;
         border-radius: 5px;
     }
+    .pagination { margin-top: 20px; text-align: center; }
+    .page-btn { margin: 0 5px; padding: 5px 10px; border: 1px solid #ddd; background-color: #f8f8f8; cursor: pointer; }
+    .page-btn.active { background-color: #007bff; color: white; border-color: #007bff; }
+    .page-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+    .page-ellipsis { margin: 0 5px; }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function() {
-        let allPurchaseItems = []; // 全ての入庫データを保持する配列
+        let currentPage = 1;
+        const pageSize = 100; // 1ページあたりの表示件数
         let currentSearchTerm = ''; // 現在の検索語を保持
-
+        
         // テーブルを描画する関数
         function renderTable(itemsToDisplay) {
             $('#purchase-table tbody').empty(); // テーブルの既存データをクリア
@@ -75,11 +87,11 @@
                     row.append($('<td>').text(item.expected_arrival));
                     row.append($('<td>').text(item.warehouse));
                     row.append($('<td>').text(item.status));
-                    row.append($('<td>').text(item.barcode));
-                    row.append($('<td>').text(item.serial_number));
+                    row.append($('<td>').text(item.barcode || '')); // nullの場合空文字
+                    row.append($('<td>').text(item.serial_number || '')); // nullの場合空文字
 
                     var receiveButton = $('<button>').addClass('receive-button').text('入庫処理').click(function() {
-                        handleReceive(item.order_number);
+                        handleReceive(item.order_number); // item.id から item.order_number に変更 (元々order_numberだったようです)
                     });
                     var buttonCell = $('<td>').append(receiveButton);
                     row.append(buttonCell);
@@ -96,51 +108,124 @@
             }
         }
 
-        // サーバーからデータをロードするか、プールされたデータでフィルタリングして表示する関数
-        function loadPurchaseData(forceReload = false) {
-            var dataUrl = '/inventory/purchase/data/';
-            // forceReloadがtrue、またはデータプールが空の場合のみサーバーからデータを取得
-            if (forceReload || allPurchaseItems.length === 0) {
-                $.ajax({
-                    url: dataUrl, // 検索パラメータなしで全件取得
-                    type: 'GET',
-                    dataType: 'json',
-                    success: function(data) {
-                        allPurchaseItems = data || []; // データプールを更新
-                        filterAndRenderData(); // フィルタリングして表示
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Error loading purchase data. URL:', dataUrl, 'Status:', status, 'Error:', error, 'Response:', xhr.responseText);
-                        var errorDetail = xhr.responseText || 'サーバーからの応答がありません。ネットワーク接続を確認してください。';
-                        var userErrorMsg = '入庫処理データの読み込みに失敗しました。';
-                        var errorRow = $('<tr id="load-error-row"><td colspan="12" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + errorDetail + '</small></td></tr>');
-                        $('#purchase-table tbody').empty().append(errorRow);
-                        allPurchaseItems = []; // エラー時はプールを空にする
-                        renderTable([]); // 空のテーブルを表示
+        // サーバーからデータをロードして表示する関数
+        function loadPurchaseData(page, searchTerm = '') {
+            currentPage = page;
+            currentSearchTerm = searchTerm; // 検索語を更新
+
+            let dataUrl = `/inventory/purchase/data/?page=${page}&page_size=${pageSize}`;
+            if (searchTerm) {
+                dataUrl += `&search=${encodeURIComponent(searchTerm)}`;
+            }
+
+            $.ajax({
+                url: dataUrl,
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    const actualData = data.results || [];
+                    const totalCount = data.count || 0;
+                    // APIがnum_pagesを提供しない場合に備えてフォールバック計算を追加
+                    // ただし、API側でnum_pagesを提供することが推奨されます
+                    const totalPages = data.num_pages || (totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0);
+                    const startItem = totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+                    const endItem = totalCount > 0 ? Math.min(startItem + pageSize - 1, totalCount) : 0;
+
+                    if (totalCount > 0) {
+                        $('#purchase-count-info').text(`全 ${totalCount} 件中 ${startItem} - ${endItem} 件を表示 (ページ ${currentPage} / ${totalPages || 1})`);
+                    } else {
+                         $('#purchase-count-info').text(searchTerm ? `「${searchTerm}」に一致するデータはありません。` : '該当するデータはありません。');
                     }
-                });
-            } else {
-                // 既にデータがある場合は、現在の検索語でフィルタリングして再描画
-                filterAndRenderData();
-            }
+
+                    renderTable(actualData);
+                    renderPaginationControls(totalPages, currentPage, data.previous, data.next);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading purchase data. URL:', dataUrl, 'Status:', status, 'Error:', error, 'Response:', xhr.responseText);
+                    $('#purchase-count-info').text('データの読み込みに失敗しました。');
+                    var errorDetail = xhr.responseText || 'サーバーからの応答がありません。ネットワーク接続を確認してください。';
+                    var userErrorMsg = '入庫処理データの読み込みに失敗しました。';
+                    // XSS対策として、エラー詳細をテキストとして挿入
+                    var errorRow = $('<tr id="load-error-row"><td colspan="12" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + $('<div>').text(errorDetail).html() + '</small></td></tr>');
+                    $('#purchase-table tbody').empty().append(errorRow);
+                    renderPaginationControls(0, 1, null, null); // エラー時はページネーションをクリア
+                }
+            });
         }
 
-        // プールされたデータをフィルタリングして描画する関数
-        function filterAndRenderData() {
-            let itemsToDisplay = allPurchaseItems;
-            if (currentSearchTerm) {
-                const searchTermLower = currentSearchTerm.toLowerCase();
-                itemsToDisplay = allPurchaseItems.filter(function(item) {
-                    const orderNumber = item.order_number ? item.order_number.toLowerCase() : '';
-                    const barcode = item.barcode ? item.barcode.toLowerCase() : '';
-                    const serialNumber = item.serial_number ? item.serial_number.toLowerCase() : '';
-                    return orderNumber.includes(searchTermLower) || barcode.includes(searchTermLower) || serialNumber.includes(searchTermLower);
-                });
+        function renderPaginationControls(totalPages, currentPageNum, prevUrl, nextUrl) {
+            const paginationContainer = $('#pagination-controls');
+            paginationContainer.empty();
+
+            if (!totalPages || totalPages <= 1) {
+                return;
             }
-            renderTable(itemsToDisplay);
+
+            let prevPageNum = null;
+            if (prevUrl) {
+                try {
+                    // Ensure prevUrl is a full URL if it's relative, or handle appropriately
+                    // For simplicity, assuming prevUrl from DRF is a full URL.
+                    const url = new URL(prevUrl);
+                    prevPageNum = url.searchParams.get('page');
+                } catch (e) {
+                    console.warn('Could not parse previous page URL:', prevUrl, e);
+                    // prevPageNum remains null, button will be disabled
+                }
+            }
+
+            let nextPageNum = null;
+            if (nextUrl) {
+                try {
+                    const url = new URL(nextUrl);
+                    nextPageNum = url.searchParams.get('page');
+                } catch (e) {
+                    console.warn('Could not parse next page URL:', nextUrl, e);
+                    // nextPageNum remains null, button will be disabled
+                }
+            }
+
+            const prevButton = $(`<button class="page-btn prev-btn" ${!prevPageNum ? 'disabled' : ''}>&laquo; 前へ</button>`);
+            if (prevPageNum) {
+                prevButton.on('click', function() { loadPurchaseData(parseInt(prevPageNum), currentSearchTerm); });
+            }
+            paginationContainer.append(prevButton);
+            let startPage = Math.max(1, currentPageNum - 2);
+            let endPage = Math.min(totalPages, currentPageNum + 2);
+
+            if (currentPageNum <= 3) { endPage = Math.min(totalPages, 5); }
+            if (currentPageNum > totalPages - 3) { startPage = Math.max(1, totalPages - 4); }
+
+            if (startPage > 1) {
+                const firstButton = $(`<button class="page-btn">1</button>`);
+                firstButton.on('click', function() { loadPurchaseData(1, currentSearchTerm); });
+                paginationContainer.append(firstButton);
+                if (startPage > 2) { paginationContainer.append($('<span class="page-ellipsis">...</span>')); }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const pageButton = $(`<button class="page-btn ${i === currentPageNum ? 'active' : ''}">${i}</button>`);
+                pageButton.on('click', (function(pageNumber) {
+                    return function() { loadPurchaseData(pageNumber, currentSearchTerm); };
+                })(i));
+                paginationContainer.append(pageButton);
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) { paginationContainer.append($('<span class="page-ellipsis">...</span>')); }
+                const lastButton = $(`<button class="page-btn">${totalPages}</button>`);
+                lastButton.on('click', function() { loadPurchaseData(totalPages, currentSearchTerm); });
+                paginationContainer.append(lastButton);
+            }
+
+            const nextButton = $(`<button class="page-btn next-btn" ${!nextPageNum ? 'disabled' : ''}>次へ &raquo;</button>`);
+            if (nextPageNum) {
+                nextButton.on('click', function() { loadPurchaseData(parseInt(nextPageNum), currentSearchTerm); });
+            }
+            paginationContainer.append(nextButton);
         }
 
-        function handleReceive(orderNumber) { // 引数名を orderId から orderNumber に変更
+        function handleReceive(orderNumber) {
             // orderNumber が null, undefined, または空文字列でないことを確認
             if (!orderNumber) { // orderNumber が falsy (空文字列, null, undefinedなど) の場合
                 alert('処理対象の発注番号が不明なため、入庫処理を実行できません。'); // メッセージを「発注番号」に修正
@@ -171,27 +256,40 @@
                 success: function(data) {
                     // HTTP 200 OK は成功とみなす
                     alert('入庫処理が完了しました。発注番号: ' + data.order_number + ', 新しい入庫済数量: ' + data.received_quantity);
-                    loadPurchaseData(true); // サーバーからデータを強制的に再読み込みしてプールを更新
+                    loadPurchaseData(currentPage, currentSearchTerm); // 現在のページと検索条件で再読み込み
                 },
                 error: function(xhr, status, error) {
                     console.error('Error handling receive:', status, error, xhr.responseText);
                     var errorMsg = '入庫処理に失敗しました。';
                     if (xhr.responseJSON && xhr.responseJSON.error) {
                         errorMsg += '\n理由: ' + xhr.responseJSON.error;
+                    } else if (xhr.responseJSON && xhr.responseJSON.detail) { // DRFのデフォルトエラーの場合
+                        errorMsg += '\n理由: ' + xhr.responseJSON.detail;
+                    } else if (xhr.responseText) { // その他のテキストエラー
+                        try { // JSON形式のエラーメッセージを試みる
+                            const errData = JSON.parse(xhr.responseText);
+                            if (errData && errData.error) {
+                                errorMsg += '\n理由: ' + errData.error;
+                            } else if (errData && errData.detail) {
+                                errorMsg += '\n理由: ' + errData.detail;
+                            }
+                        } catch (e) {
+                            // JSONパース失敗時はプレーンテキストとして一部表示 (長すぎる場合は省略)
+                            // errorMsg += '\n詳細: ' + xhr.responseText.substring(0, 100);
+                        }
                     }
                     alert(errorMsg);
                 }
             });
         }
 
-        // 「検索」ボタンがクリックされたときの処理 (クライアントサイドフィルタリング)
+        // 「検索」ボタンがクリックされたときの処理
         function handleScan() {
-            currentSearchTerm = $('#barcode-input').val().trim();
-            filterAndRenderData(); // プールされたデータからフィルタリングして表示
+            const searchTerm = $('#barcode-input').val().trim();
+            loadPurchaseData(1, searchTerm); // 検索時は1ページ目から
         }
 
-        // ページ読み込み時に初期データを取得（検索語なしで全件取得）
-        loadPurchaseData(); 
+        loadPurchaseData(currentPage, currentSearchTerm); // 初期ロード
 
         // スキャンボタンのクリックイベントハンドラを設定
         $('#scan-button').click(handleScan);

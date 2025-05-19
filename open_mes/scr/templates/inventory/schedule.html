@@ -5,6 +5,7 @@
 
 <div id="schedule-container">
     <h2>入庫予定一覧</h2>
+    <p id="schedule-count-info"></p> <!-- 取得件数を表示するための要素を追加 -->
     <table id="schedule-table" class="inventory-table">
         <thead>
             <tr>
@@ -23,21 +24,44 @@
             <!-- ここにAJAXで取得したデータが挿入されます -->
         </tbody>
     </table>
+    <div id="pagination-controls" class="pagination">
+        <!-- ここにページネーションボタンが挿入されます -->
+    </div>
 </div>
 
 <!-- Note: The common table styles are assumed to be moved to a shared CSS file or base.html using the .inventory-table class -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function() {
-        function loadScheduleData() {
+        let currentPage = 1;
+        const pageSize = 100; // 1ページあたりの表示件数
+
+        function loadScheduleData(page) {
+            currentPage = page;
             $.ajax({
-                url: '/inventory/schedule/data/', // 入庫予定データを取得するURL
+                url: `/inventory/schedule/data/?page=${page}&page_size=${pageSize}`, // ページとページサイズを指定
                 type: 'GET',
                 dataType: 'json',
                 success: function(data) {
                     $('#schedule-table tbody').empty(); // テーブルの既存データをクリア
-                    $.each(data, function(index, item) { // 各データアイテムに対して処理
+                    $('#schedule-count-info').empty(); // 件数表示エリアをクリア
+
+                    const actualData = data.results || []; // APIからのデータは data.results に格納される
+                    const totalCount = data.count || 0;
+                    const displayCount = actualData.length;
+                    const startItem = totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+                    const endItem = totalCount > 0 ? Math.min(startItem + pageSize - 1, totalCount) : 0;
+
+                    // 取得件数を表示
+                    if (totalCount > 0) {
+                        $('#schedule-count-info').text(`全 ${totalCount} 件中 ${startItem} - ${endItem} 件を表示 (ページ ${currentPage} / ${data.num_pages || 1})`);
+                    } else {
+                        $('#schedule-count-info').text('該当するデータはありません。');
+                    }
+
+                    $.each(actualData, function(index, item) { // 各データアイテムに対して処理
                         const newRow = $('<tr></tr>'); // 新しい行要素を作成
+
                         // 表示するデータの配列 (表示順)
                         const cellData = [
                             item.order_number,
@@ -58,17 +82,65 @@
                         });
                         $('#schedule-table tbody').append(newRow); // 完成した行をテーブル本体に追加
                     });
+
+                    renderPaginationControls(data.num_pages, data.current_page, data.previous, data.next);
                 },
                 error: function(xhr, status, error) {
                     console.error('Error loading schedule data:', status, error);
+                    $('#schedule-count-info').empty().text('データの読み込みに失敗しました。'); // エラー時も件数表示エリアを更新
                     var errorMsg = $('<tr><td colspan="9" style="text-align:center; color:red;">入庫予定データの読み込みに失敗しました。</td></tr>');
                     $('#schedule-table tbody').append(errorMsg);
                 }
             });
         }
 
-        loadScheduleData(); // ページ読み込み時にデータを取得
+        function renderPaginationControls(totalPages, currentPage, prevPage, nextPage) {
+            const paginationContainer = $('#pagination-controls');
+            paginationContainer.empty(); // 既存のコントロールをクリア
+
+            if (!totalPages || totalPages <= 1) {
+                return; // 1ページ以下の場合はページネーション不要
+            }
+
+            // 「前へ」ボタン
+            if (prevPage !== null) {
+                const prevButton = $('<button class="page-btn prev-btn">&laquo; 前へ</button>');
+                prevButton.on('click', function() {
+                    loadScheduleData(prevPage);
+                });
+                paginationContainer.append(prevButton);
+            }
+
+            // ページ番号 (簡易版: 現在ページと前後数ページを表示)
+            // TODO: より高度なページネーション表示（例: 1 ... 5 6 7 ... 10）も検討可能
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = $(`<button class="page-btn ${i === currentPage ? 'active' : ''}">${i}</button>`);
+                pageButton.on('click', (function(pageNumber) { // クロージャでページ番号をキャプチャ
+                    return function() {
+                        loadScheduleData(pageNumber);
+                    };
+                })(i));
+                paginationContainer.append(pageButton);
+            }
+
+            // 「次へ」ボタン
+            if (nextPage !== null) {
+                const nextButton = $('<button class="page-btn next-btn">次へ &raquo;</button>');
+                nextButton.on('click', function() {
+                    loadScheduleData(nextPage);
+                });
+                paginationContainer.append(nextButton);
+            }
+        }
+
+        loadScheduleData(currentPage); // ページ読み込み時に最初のページデータを取得
     });
 </script>
+<style>
+.pagination { margin-top: 20px; text-align: center; }
+.page-btn { margin: 0 5px; padding: 5px 10px; border: 1px solid #ddd; background-color: #f8f8f8; cursor: pointer; }
+.page-btn.active { background-color: #007bff; color: white; border-color: #007bff; }
+.page-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+</style>
 
 {% endblock inventory_content %}

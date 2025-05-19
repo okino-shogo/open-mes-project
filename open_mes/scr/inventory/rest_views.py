@@ -2,12 +2,13 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated # 必要に応じて認証を追加
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination # PageNumberPagination をインポート
 from .serializers import PurchaseOrderSerializer, InventorySerializer # InventorySerializer をインポート
 from .models import PurchaseOrder, Inventory, StockMovement # PurchaseOrder, Inventory, StockMovementモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
-from master.models import Item, Warehouse # masterアプリケーションからItem, Warehouseをインポート
+from master.models import Item, Warehouse # masterアプリケーションからItem, Warehouseをインポート (現在は文字列として使用)
 from django.contrib.auth.decorators import login_required # 認証が必要な場合
 
 @permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
@@ -32,11 +33,30 @@ def create_purchase_order_api(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # @login_required # ログインユーザーのみアクセス可能にする場合 (必要に応じてコメント解除)
+# @api_view(['GET']) # JsonResponse を使う場合は不要
 def get_schedule_data(request):
     """
-    入庫予定データを取得し、JSON形式で返却するビュー
+    入庫予定データを取得し、JSON形式で返却するビュー (ページネーション対応)
     """
     if request.method == 'GET':
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
+        # ページネーション設定
+        # クライアントはクエリパラメータ 'page' と 'page_size' で制御できます
+        page = request.GET.get('page', 1)
+        page_size = request.GET.get('page_size', 25) # デフォルト件数
+
+        try:
+            page_size = int(page_size)
+            # ページサイズの最小・最大を制限 (例: 1件以上、1000件以下)
+            if page_size <= 0 or page_size > 1000:
+                page_size = 25 # 無効な場合はデフォルトに戻す
+        except (ValueError, TypeError):
+            page_size = 25 # 無効な場合はデフォルトに戻す
+
+
+
+
         # 未完了の入庫予定を取得 (ステータスが 'pending' のもの)
         # 必要に応じて 'partially_received' など他のステータスも考慮に入れることができます。
         # PurchaseOrder モデルの status choices: ('pending', 'Pending'), ('received', 'Received'), ('canceled', 'Canceled')
@@ -44,8 +64,18 @@ def get_schedule_data(request):
             status='pending'  # 'pending' 状態のものを取得
         ).order_by('expected_arrival', 'order_number')
 
+        # Paginator オブジェクトを作成
+        paginator = Paginator(schedule_items, page_size)
+
+        try:
+            schedule_items_page = paginator.page(page)
+        except PageNotAnInteger:
+            schedule_items_page = paginator.page(1) # ページ番号が整数でない場合は1ページ目
+        except EmptyPage:
+            schedule_items_page = paginator.page(paginator.num_pages) # ページが空の場合は最終ページ
+
         data = []
-        for item in schedule_items:
+        for item in schedule_items_page: # ページングされたオブジェクトをループ
             data.append({
                 'order_number': item.order_number,
                 'supplier': item.supplier,
@@ -58,7 +88,17 @@ def get_schedule_data(request):
                 'warehouse': item.warehouse,
                 'status': item.get_status_display(), # 選択肢の表示名を取得
             })
-        return JsonResponse(data, safe=False)
+
+        # ページネーション情報をレスポンスに含める
+        response_data = {
+            'count': paginator.count, # 総件数
+            'num_pages': paginator.num_pages, # 総ページ数
+            'current_page': schedule_items_page.number, # 現在のページ番号
+            'next': schedule_items_page.next_page_number() if schedule_items_page.has_next() else None, # 次のページ番号 (なければ None)
+            'previous': schedule_items_page.previous_page_number() if schedule_items_page.has_previous() else None, # 前のページ番号 (なければ None)
+            'results': data # ページングされたデータ
+        }
+        return JsonResponse(response_data, safe=False)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
@@ -200,14 +240,34 @@ def process_purchase_receipt_api(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+# DRFのページネーションクラスを定義 (共通で利用可能)
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 100  # 1ページあたりのデフォルト件数
+    page_size_query_param = 'page_size' # クライアントが1ページあたりの件数を指定するためのクエリパラメータ
+    max_page_size = 1000 # クライアントが指定できる1ページあたりの最大件数
+
+
 # @login_required # ログインユーザーのみアクセス可能にする場合 (必要に応じてコメント解除)
+# @permission_classes([IsAuthenticated]) # 必要に応じて認証を追加
+@api_view(['GET']) # DRFの Response を使うため @api_view デコレータを使用
 def get_inventory_data(request):
     """
-    在庫情報を取得し、JSON形式で返却するビュー
+    在庫情報を取得し、JSON形式で返却するビュー (DRFページネーション対応)
     """
     if request.method == 'GET':
+        # DRFページネーションを適用
+        # クライアントはクエリパラメータ 'page' と 'page_size' で制御できます
+        paginator = StandardResultsSetPagination()
+
+        # クエリセットを取得し、ページネーションを適用
         inventories = Inventory.objects.all().order_by('part_number', 'warehouse', 'location')
-        serializer = InventorySerializer(inventories, many=True)
-        return JsonResponse(serializer.data, safe=False)
+        paginated_inventories = paginator.paginate_queryset(inventories, request)
+
+        # ページングされたクエリセットをシリアライズ
+        serializer = InventorySerializer(paginated_inventories, many=True)
+        # DRF標準のページネーション形式でレスポンスを構築して返却
+        return paginator.get_paginated_response(serializer.data)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+        # DRFの Response を使う場合、エラーレスポンスも Response で統一するのが良い
+        return Response({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)

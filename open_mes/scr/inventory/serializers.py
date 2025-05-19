@@ -1,28 +1,29 @@
 from rest_framework import serializers
 from .models import PurchaseOrder, Inventory # Inventoryモデルをインポート
+# master.modelsのインポートは、将来的に関連モデルとして扱うための準備か、
+# あるいはビューなどで型ヒント等に利用されている可能性があります。
+# 現状このシリアライザー内では直接参照されていません。
 from master.models import Item, Supplier, Warehouse # masterアプリケーションからモデルをインポート
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     """
     入庫予定モデルのためのシリアライザ。
-    作成時には、関連モデルのIDを受け付けます。
+    作成時には、仕入先名、品目名/コード、倉庫名を文字列として受け付けます。
     応答時には、読み取り専用フィールドを含む完全なオブジェクトを返します。
     """
+    # モデルのフィールド定義に合わせて CharField としています。
+    # supplier, item, warehouse は現状、masterアプリのモデルとは直接リンクされていません。
     supplier = serializers.CharField(max_length=255, allow_null=True, required=False)
     item = serializers.CharField(max_length=255, allow_null=True, required=False)
     warehouse = serializers.CharField(max_length=255, allow_null=True, required=False)
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # help_text を設定
-        self.fields['supplier'].help_text = "仕入先のID (存在しない場合はnull)"
-        self.fields['item'].help_text = "品目のID (存在しない場合はnull)"
-        self.fields['warehouse'].help_text = "入庫倉庫のID (存在しない場合はnull)"
-        
-        # 関連オブジェクトがなくても作成できるように required=False を設定
-        self.fields['supplier'].required = False
-        self.fields['item'].required = False
-        self.fields['warehouse'].required = False
+        # help_text を現状のデータ型に合わせて修正
+        self.fields['supplier'].help_text = "仕入先名 (文字列、省略可能)"
+        self.fields['item'].help_text = "品目名または品目コード (文字列、省略可能)"
+        self.fields['warehouse'].help_text = "入庫倉庫名 (文字列、省略可能)"
+        # フィールド定義で required=False が指定されているため、ここでの再設定は不要です。
 
 
 
