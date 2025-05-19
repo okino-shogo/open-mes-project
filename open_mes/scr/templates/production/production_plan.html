@@ -1,15 +1,114 @@
 {% extends "production/base.html" %}
 {% load md5url %}
 {% block production_content %}
-{{ auto_refresh|safe }}
+<div class="production-plan-list">
+    <h2>生産計画一覧</h2>
+    <table id="productionPlanTable">
+        <thead>
+            <tr>
+                <th>計画名</th>
+                <th>製品コード</th>
+                <th>計画数量</th>
+                <th>計画開始日時</th>
+                <th>計画終了日時</th>
+                <th>ステータス</th>
+                <th>親計画ID</th>
+                <th>備考</th>
+                <th>作成日時</th>
+                <th>更新日時</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be inserted here by JavaScript -->
+        </tbody>
+    </table>
+</div>
 
-<form id="form" action="" method="post">
-    {% csrf_token %}
+<style>
+    .production-plan-list {
+        width: 100%;
+        margin-top: 20px;
+    }
 
-    topだよ
+    .production-plan-list h2 {
+        text-align: center;
+        margin-bottom: 20px;
+    }
 
+    #productionPlanTable {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+    }
 
-</form>
+    #productionPlanTable th,
+    #productionPlanTable td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    #productionPlanTable th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
+
+    #productionPlanTable tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
+    #productionPlanTable tbody tr:hover {
+        background-color: #f1f1f1;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tbody = document.querySelector('#productionPlanTable tbody');
+    const apiUrl = '/api/production/plans/'; // API endpoint for Production Plans
+
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then(data => {
+            tbody.innerHTML = ''; // Clear existing rows
+
+            if (data && data.length > 0) {
+                data.forEach(plan => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = plan.plan_name || 'N/A';
+                    row.insertCell().textContent = plan.product_code || 'N/A';
+                    row.insertCell().textContent = plan.planned_quantity;
+                    row.insertCell().textContent = plan.planned_start_datetime ? new Date(plan.planned_start_datetime).toLocaleString() : 'N/A';
+                    row.insertCell().textContent = plan.planned_end_datetime ? new Date(plan.planned_end_datetime).toLocaleString() : 'N/A';
+                    row.insertCell().textContent = plan.status || 'N/A';
+                    row.insertCell().textContent = plan.production_plan || 'N/A'; // This is the ID of the parent plan
+                    row.insertCell().textContent = plan.remarks || '';
+                    row.insertCell().textContent = plan.created_at ? new Date(plan.created_at).toLocaleString() : 'N/A';
+                    row.insertCell().textContent = plan.updated_at ? new Date(plan.updated_at).toLocaleString() : 'N/A';
+                });
+            } else {
+                const row = tbody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 10; // Adjusted colspan to match number of columns
+                cell.textContent = '生産計画データがありません。';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching production plan data:', error);
+            tbody.innerHTML = ''; // Clear existing rows on error
+            const row = tbody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 10; // Adjusted colspan
+            cell.textContent = 'データの取得中にエラーが発生しました。';
+        });
+});
+</script>
 
 {% endblock production_content %}
 
