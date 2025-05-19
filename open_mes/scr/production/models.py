@@ -23,6 +23,14 @@ class ProductionPlan(models.Model):
     # TODO: master.Productモデルが定義されたらForeignKeyに変更する
     # product = models.ForeignKey('master.Product', on_delete=models.PROTECT, verbose_name="製品")
     product_code = models.CharField(max_length=100, verbose_name="製品コード (仮)")
+    production_plan = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='referencing_production_plans',
+        verbose_name="参照生産計画"
+    )
     planned_quantity = models.PositiveIntegerField(verbose_name="計画数量")
     planned_start_datetime = models.DateTimeField(verbose_name="計画開始日時")
     planned_end_datetime = models.DateTimeField(verbose_name="計画終了日時")

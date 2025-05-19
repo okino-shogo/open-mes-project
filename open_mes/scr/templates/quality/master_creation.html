@@ -1,17 +1,17 @@
-{% extends "production/base.html" %}
+{% extends "quality/base.html" %}
 {% load md5url %}
-{% block production_content %}
+{% block quality_content %}
 {{ auto_refresh|safe }}
 
 <form id="form" action="" method="post">
     {% csrf_token %}
 
-    生産管理メニュー
+    品質管理メニュー
 
 
 </form>
 
-{% endblock production_content %}
+{% endblock quality_content %}
 
 
 {% block js_link %}

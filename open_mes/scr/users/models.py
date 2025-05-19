@@ -131,7 +131,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         settings.PASSWORD_EXPIRATION_DAYS で日数を指定（デフォルト90日）。
         """
         # settings.py に PASSWORD_EXPIRATION_DAYS = 90 のように設定
-        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', None) # デフォルトを None に変更
+        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', 180) # デフォルトを None に変更
         # print(f"User {self.custom_id}: Checking password expiration. Expiration days: {expiration_days}, Last changed: {self.password_last_changed}")
 
         if expiration_days is None or expiration_days <= 0:

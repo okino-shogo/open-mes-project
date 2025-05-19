@@ -108,9 +108,9 @@
     <!-- 大メニューの表示 -->
     <nav id='menu-bar'>
         <a href="{% url 'inventory_menu' %}">在庫管理</a>
-        <a href="#">品質検査</a>
+        <a href="{% url 'quality_menu' %}">品質検査</a>
         <a href="{% url 'production_menu' %}">生産管理</a>
-        <a href="#">設備管理</a>
+        <a href="{% url 'machine_menu' %}">設備管理</a>
         {% if user.is_authenticated %}
             <form id="logout-form" action="{% url 'users_logout' %}" method="post" style="display: inline;">
                 {% csrf_token %}

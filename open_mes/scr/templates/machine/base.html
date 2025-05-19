@@ -1,35 +1,34 @@
 {% extends "base.html" %}
 {% load md5url %}
 {% block content %}
-<div class="inventory-container">
-    <div class="inventory-header">
-        <div class="inventory-header-text">生産管理</div>
-        <nav class="inventory-nav">
-            <a href="{% url 'production_plan' %}">生産計画</a>
-            <a href="{% url 'production_parts_used' %}">使用部品</a>
-            <a href="{% url 'production_material_allocation' %}">材料引当</a>
-            <a href="{% url 'production_work_progress' %}">作業進捗</a>
+<div class="machine-container">
+    <div class="machine-header">
+        <div class="machine-header-text">設備管理</div>
+        <nav class="machine-nav">
+            <a href="{% url 'machine_start_inspection' %}">始業点検</a>
+            <a href="{% url 'machine_inspection_history' %}">点検履歴</a>
+            <a href="{% url 'machine_master_creation' %}">マスター作成</a>
         </nav>
     </div>
 
-    <div class="inventory-content">
-        {% block production_content %}
+    <div class="machine-content">
+        {% block machine_content %}
         <!-- ここにコンテンツが挿入される -->
-        {% endblock production_content %}
+        {% endblock machine_content %}
     </div>
 </div>
 
 <style>
-    /* Inventory-Specific Styles */
-    .inventory-container {
+    /* Machine-Specific Styles */
+    .machine-container {
         background-color: #e0f2f7; /* Light Blue */
         padding: 0 20px 20px 20px; /* Remove top padding */
         border-radius: 0; /* Remove border radius */
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         margin-top: 0; /* Remove top margin */
     }
-
-    .inventory-header {
+    
+    .machine-header {
         background-color: #007bff; /* Blue */
         color: #fff;
         padding: 10px;
@@ -40,21 +39,21 @@
         flex-direction: column; /* Stack items vertically */
         align-items: center; /* Center items horizontally */
     }
-
-    .inventory-header-text {
+    
+    .machine-header-text {
         margin-bottom: 0; /* Remove margin */
         font-size: 1.5rem;
     }
-
-    .inventory-nav {
+    
+    .machine-nav {
         display: flex;
         justify-content: center;
         gap: 10px;
         margin-top: 0; /* Remove top margin */
         flex-wrap: wrap; /* Allow links to wrap */
     }
-
-    .inventory-nav a {
+    
+    .machine-nav a {
         background-color: #0056b3; /* Darker Blue */
         color: #fff;
         text-decoration: none;
@@ -63,56 +62,56 @@
         transition: background-color 0.3s ease;
         white-space: nowrap; /* Prevent text from wrapping */
     }
-
-    .inventory-nav a:hover {
+    
+    .machine-nav a:hover {
         background-color: #003d82; /* Even Darker Blue */
     }
-
-    .inventory-content {
+    
+    .machine-content {
         background-color: #fff;
         padding: 20px;
         border-radius: 5px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         margin-top: 0; /* Remove top margin */
     }
-
-    /* Common Table Styles for .inventory-table */
-    .inventory-table {
+    
+    /* Common Table Styles for .machine-table */
+    .machine-table {
         width: 100%; /* テーブルの幅をコンテナに合わせる */
         border-collapse: collapse; /* セルの境界線を重ねて表示し、スッキリさせる */
         margin-top: 20px; /* テーブルの上に余白を追加 */
         font-size: 0.9em; /* フォントサイズを少し調整 (任意) */
         background-color: #fff; /* テーブルの背景色を白に */
     }
-
-    .inventory-table th,
-    .inventory-table td {
+    
+    .machine-table th,
+    .machine-table td {
         border: 1px solid #ddd; /* セルに境界線を追加して区切りを明確に */
         padding: 10px;          /* セル内の余白を増やして見やすく */
         text-align: left;      /* テキストを左揃えに */
         vertical-align: top;   /* 内容が多い場合に備えて上揃えに */
     }
-
-    .inventory-table th {
+    
+    .machine-table th {
         background-color: #f2f2f2; /* ヘッダー行の背景色を薄いグレーに */
         color: #333;               /* ヘッダーの文字色を濃いグレーに */
         font-weight: bold;         /* ヘッダーの文字を太字に */
         padding-top: 12px;         /* ヘッダーの上下余白を調整 */
         padding-bottom: 12px;
     }
-
-    .inventory-table tbody tr:nth-child(even) {
+    
+    .machine-table tbody tr:nth-child(even) {
         background-color: #f9f9f9; /* 偶数行の背景色 (ゼブラストライピング) */
     }
-
-    .inventory-table tbody tr:hover {
+    
+    .machine-table tbody tr:hover {
         background-color: #f1f1f1; /* マウスホバーで行をハイライト表示 */
     }
 </style>
 {% endblock content %}
 
 {% block js_link %}
-{% block inventory_js_link %}
+{% block machine_js_link %}
 <!-- JSのリンクがが挿入される -->
-{% endblock inventory_js_link %}
+{% endblock machine_js_link %}
 {% endblock js_link %}
