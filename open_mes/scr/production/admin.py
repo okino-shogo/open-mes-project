@@ -14,8 +14,8 @@ class ProductionPlanAdmin(admin.ModelAdmin):
 class PartsUsedAdmin(admin.ModelAdmin):
     list_display = ('production_plan', 'part_code', 'quantity_used', 'used_datetime')
     list_filter = ('used_datetime',)
-    search_fields = ('production_plan__plan_name', 'part_code')
-    autocomplete_fields = ['production_plan']
+    search_fields = ('production_plan', 'part_code') # production_plan は CharField になったため直接検索
+    # autocomplete_fields は ForeignKey または ManyToManyField で使用されるため削除
 
 @admin.register(MaterialAllocation)
 class MaterialAllocationAdmin(admin.ModelAdmin):

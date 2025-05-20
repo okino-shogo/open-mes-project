@@ -24,6 +24,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from faker import Faker
 import random
+import string  # for production_plan code generation
 
 # --- Configuration ---
 API_BASE_URL = "http://127.0.0.1:8000/api" # Adjust if your API base URL is different
@@ -83,42 +84,45 @@ def _make_api_request(method, url, data=None, params=None):
 def create_production_plan_api():
     """API経由で新しい生産計画を作成します。"""
     global fake
+    # 英数字10桁のproduction_planコードを生成
+    production_plan_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     
     start_date = datetime.now(timezone.utc) + timedelta(days=fake.random_int(min=1, max=30))
     end_date = start_date + timedelta(days=fake.random_int(min=30, max=90)) # Ensure end_date is after start_date
 
     payload = {
-        'plan_name': f'生産計画 {fake.company_suffix()} {fake.random_int(min=100, max=999)} ({fake.word()})',
-        'product_code': f'製品-{fake.bothify(text="???-####").upper()}',
-        'production_plan': None,  # トップレベル計画
-        'planned_quantity': fake.random_int(min=50, max=2000),
+        'production_plan':        production_plan_code,
+        'plan_name':            f'生産計画 {fake.company_suffix()} {fake.random_int(min=100, max=999)} ({fake.word()})',
+        'product_code':         f'製品-{fake.bothify(text="???-####").upper()}',
+        'planned_quantity':     fake.random_int(min=50, max=2000),
         'planned_start_datetime': start_date.isoformat(),
-        'planned_end_datetime': end_date.isoformat(),
-        'remarks': fake.sentence(nb_words=10)
+        'planned_end_datetime':   end_date.isoformat(),
+        'remarks':              fake.sentence(nb_words=10)
     }
-    print(f"  生産計画を作成試行: {payload['plan_name']}")
+    print(f"  生産計画を作成試行: {production_plan_code} - {payload['plan_name']}")
     response_data = _make_api_request("POST", PRODUCTION_PLANS_ENDPOINT, data=payload)
     if response_data and response_data.get('id'):
-        print(f"  生産計画の作成成功 ID: {response_data['id']}")
-        return response_data['id']
+        plan_id = response_data['id']
+        print(f"  生産計画の作成成功 ID: {plan_id}, コード: {production_plan_code}")
+        return production_plan_code
     else:
         print(f"  生産計画の作成失敗。")
         return None
 
-def create_parts_used_api(production_plan_id):
-    """指定された生産計画IDに対して使用部品エントリを作成します。"""
+def create_parts_used_api(production_plan_code):
+    """指定された生産計画コードに対して使用部品エントリを作成します。"""
     global fake
     # 部品は最近使用されたと仮定
     used_datetime_obj = fake.date_time_between(start_date="-30d", end_date="now", tzinfo=timezone.utc)
     
     payload = {
-        "production_plan": production_plan_id,
+        "production_plan": production_plan_code,
         "part_code": f"部品-{fake.bothify(text='??##-###?').upper()}",
         "quantity_used": fake.random_int(min=1, max=50),
         "used_datetime": used_datetime_obj.isoformat(),
         "remarks": fake.sentence(nb_words=7) if fake.boolean(chance_of_getting_true=50) else None,
     }
-    print(f"    計画ID {production_plan_id} の使用部品を作成試行: 部品 {payload['part_code']}")
+    print(f"    計画コード {production_plan_code} の使用部品を作成試行: 部品 {payload['part_code']}")
     response_data = _make_api_request("POST", PARTS_USED_ENDPOINT, data=payload)
     if response_data and response_data.get('id'):
         print(f"    使用部品の作成成功 ID: {response_data['id']} (部品: {response_data.get('part_code')}, 数量: {response_data.get('quantity_used')})")
@@ -129,7 +133,7 @@ def create_parts_used_api(production_plan_id):
             # "used_datetime": used_datetime_obj # PO作成時に使用日の情報が必要な場合
         }
     else:
-        print(f"    計画ID {production_plan_id} の使用部品エントリ作成失敗。")
+        print(f"    計画コード {production_plan_code} の使用部品エントリ作成失敗。")
         return None
 
 def create_purchase_order_api(part_code, quantity):
@@ -177,7 +181,7 @@ if __name__ == '__main__':
     if not API_TOKEN:
         print("重要: API_TOKENが設定されていません。認証付きリクエストを送信できないため、スクリプトを終了します。")
     else:
-        num_production_plans_to_create = 1000 # リクエストされた件数
+        num_production_plans_to_create = 100 # リクエストされた件数
         # num_production_plans_to_create = 2 # テスト用に少なく設定する場合
 
         successful_plans = 0
@@ -186,16 +190,16 @@ if __name__ == '__main__':
 
         for i in range(num_production_plans_to_create):
             print(f"\n--- 生産計画 {i+1}/{num_production_plans_to_create} を処理中 ---")
-            plan_id = create_production_plan_api()
+            plan_code = create_production_plan_api()
 
-            if plan_id:
+            if plan_code:
                 successful_plans += 1
                 num_parts_to_create_for_plan = random.randint(5, 30) # 計画ごとに5～30個の部品
-                print(f"  計画ID {plan_id}: {num_parts_to_create_for_plan} 件の使用部品エントリを作成します。")
+                print(f"  計画コード {plan_code}: {num_parts_to_create_for_plan} 件の使用部品エントリを作成します。")
 
                 for j in range(num_parts_to_create_for_plan):
-                    print(f"    - 計画ID {plan_id} の使用部品エントリ {j+1}/{num_parts_to_create_for_plan}")
-                    parts_used_info = create_parts_used_api(plan_id)
+                    print(f"    - 計画コード {plan_code} の使用部品エントリ {j+1}/{num_parts_to_create_for_plan}")
+                    parts_used_info = create_parts_used_api(plan_code)
 
                     if parts_used_info and parts_used_info.get("part_code") and parts_used_info.get("quantity_used") is not None:
                         total_parts_used_created += 1
@@ -207,7 +211,7 @@ if __name__ == '__main__':
                         if po_id:
                             total_purchase_orders_created +=1
                     else:
-                        print(f"    計画ID {plan_id} の使用部品作成失敗またはデータ不足のため、発注作成をスキップ。")
+                        print(f"    計画コード {plan_code} の使用部品作成失敗またはデータ不足のため、発注作成をスキップ。")
             else:
                 print(f"  計画 {i+1} の作成失敗のため、使用部品と発注の作成をスキップ。")
         

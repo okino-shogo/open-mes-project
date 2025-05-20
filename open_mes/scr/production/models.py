@@ -23,13 +23,12 @@ class ProductionPlan(models.Model):
     # TODO: master.Productモデルが定義されたらForeignKeyに変更する
     # product = models.ForeignKey('master.Product', on_delete=models.PROTECT, verbose_name="製品")
     product_code = models.CharField(max_length=100, verbose_name="製品コード (仮)")
-    production_plan = models.ForeignKey(
-        'self',
-        on_delete=models.SET_NULL,
+    production_plan = models.CharField(
+        max_length=255, # 参照する計画名などを想定
         null=True,
         blank=True,
-        related_name='referencing_production_plans',
-        verbose_name="参照生産計画"
+        verbose_name="参照生産計画",
+        help_text="参照する生産計画の名前や識別子を文字列で記録します。"
     )
     planned_quantity = models.PositiveIntegerField(verbose_name="計画数量")
     planned_start_datetime = models.DateTimeField(verbose_name="計画開始日時")
@@ -59,9 +58,14 @@ class PartsUsed(models.Model):
     使用部品モデル
     """
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False) # UUIDv7を使用
-    production_plan = models.ForeignKey(ProductionPlan, on_delete=models.CASCADE, related_name='parts_used', verbose_name="生産計画")
+    # production_plan = models.ForeignKey(ProductionPlan, on_delete=models.CASCADE, related_name='parts_used', verbose_name="生産計画")
     # TODO: master.Partモデルが定義されたらForeignKeyに変更する
     # part = models.ForeignKey('master.Part', on_delete=models.PROTECT, verbose_name="部品")
+    production_plan = models.CharField(
+        max_length=255, # 生産計画の名前やIDを文字列として保存
+        verbose_name="生産計画識別子",
+        help_text="関連する生産計画の名前やIDなどの識別子を文字列で記録します。"
+    )
     part_code = models.CharField(max_length=100, verbose_name="部品コード (仮)")
     quantity_used = models.PositiveIntegerField(verbose_name="使用数量")
     used_datetime = models.DateTimeField(default=timezone.now, verbose_name="使用日時")
@@ -70,7 +74,10 @@ class PartsUsed(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
 
     def __str__(self):
-        return f"{self.part_code} - {self.quantity_used} units for {self.production_plan.plan_name}"
+        # production_plan は文字列フィールドになったため、直接参照します。
+        # 以前のように .plan_name でアクセスすることはできません。
+        # 表示する文字列が生産計画のIDや名前を直接含むことを想定しています。
+        return f"{self.part_code} - {self.quantity_used} units for Production Plan: {self.production_plan}"
 
     class Meta:
         verbose_name = "使用部品"

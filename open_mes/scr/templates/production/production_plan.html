@@ -83,6 +83,47 @@
         cursor: not-allowed;
         opacity: 0.5;
     }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6); /* Slightly darker overlay */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000; /* Ensure modal is on top */
+    }
+
+    .modal-content {
+        background-color: white;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 500px;
+        text-align: left;
+    }
+
+    .modal-content h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: #333;
+    }
+
+    .modal-actions {
+        margin-top: 25px;
+        text-align: right;
+    }
+
+    .modal-actions button {
+        margin-left: 10px;
+        padding: 8px 16px;
+        cursor: pointer;
+    }
 </style>
 
 <script>
@@ -92,6 +133,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const prevPageButton = document.getElementById('prevPage');
     const nextPageButton = document.getElementById('nextPage');
     const pageInfoSpan = document.getElementById('pageInfo');
+
+    // Store the current page's plans for easy access by the popup
+    let currentPagePlans = [];
 
     const initialUrl = `${baseApiUrl}?page_size=100`; // Start with page_size=100
     const pageSize = 100;
@@ -105,11 +149,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            const productionPlans = data.results;
+            currentPagePlans = data.results; // Store the fetched plans
             tbody.innerHTML = ''; // Clear existing rows
 
-            if (productionPlans && productionPlans.length > 0) {
-                productionPlans.forEach(plan => {
+            if (currentPagePlans && currentPagePlans.length > 0) {
+                currentPagePlans.forEach((plan, index) => {
                     const row = tbody.insertRow();
                     row.insertCell().textContent = plan.plan_name || 'N/A';
                     row.insertCell().textContent = plan.product_code || 'N/A';
@@ -127,12 +171,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const allocateButton = document.createElement('button');
                     allocateButton.textContent = '材料引き当て';
                     allocateButton.classList.add('allocate-button'); // Add a class for potential styling
+                    allocateButton.dataset.planIndex = index; // Store index relative to currentPagePlans
                     actionCell.appendChild(allocateButton);
                 });
             } else {
                 const row = tbody.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 10; // Adjusted colspan to match number of columns
+                cell.colSpan = 11; // Adjusted colspan to match number of columns
                 cell.textContent = '生産計画データがありません。';
             }
 
@@ -185,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
             tbody.innerHTML = ''; // Clear existing rows on error
             const row = tbody.insertRow();
             const cell = row.insertCell(); // Adjusted colspan
-            cell.colSpan = 10; // Adjusted colspan
+            cell.colSpan = 11; // Adjusted colspan
             cell.textContent = 'データの取得中にエラーが発生しました。';
             prevPageButton.disabled = true;
             nextPageButton.disabled = true;
@@ -205,15 +250,110 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    function showAllocatePopup(plan) {
+        // Remove existing popup if any to prevent duplicates
+        const existingPopup = document.getElementById('allocateModal');
+        if (existingPopup) {
+            existingPopup.remove();
+        }
+
+        const modalOverlay = document.createElement('div');
+        modalOverlay.id = 'allocateModal';
+        modalOverlay.classList.add('modal-overlay');
+
+        const modalContent = document.createElement('div');
+        modalContent.classList.add('modal-content');
+
+        modalContent.innerHTML = `
+            <h3>材料引き当て確認</h3>
+            <p><strong>計画名:</strong> ${plan.plan_name || 'N/A'}</p>
+            <p><strong>製品コード:</strong> ${plan.product_code || 'N/A'}</p>
+            <p><strong>計画数量:</strong> ${plan.planned_quantity}</p>
+            <h4>必要部品一覧</h4>
+            <div id="requiredPartsContainer" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-top:10px;">
+                <p>部品情報を読み込み中...</p>
+            </div>
+            <hr>
+            <div class="modal-actions">
+                <button id="confirmAllocationButton" class="button-primary">引き当て実行</button>
+                <button id="cancelAllocationButton">キャンセル</button>
+            </div>
+        `;
+
+        modalOverlay.appendChild(modalContent);
+        document.body.appendChild(modalOverlay);
+
+        // Fetch and display required parts
+        const requiredPartsContainer = document.getElementById('requiredPartsContainer');
+        // APIエンドポイントをバックエンドのviews.pyで定義したURLに合わせる
+        fetch(`/api/production/plans/${plan.id}/required_parts/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok for required parts');
+                }
+                return response.json();
+            })
+            .then(partsData => {
+                if (partsData && partsData.length > 0) {
+                    let partsHtml = `
+                        <table style="width:100%; font-size:0.9em;">
+                            <thead>
+                                <tr>
+                                    <th>部品コード</th>
+                                    <th>部品名</th>
+                                    <th>必要数量</th>
+                                    <th>単位</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    partsData.forEach(part => {
+                        partsHtml += `
+                            <tr>
+                                <td>${part.part_code || 'N/A'}</td>
+                                <td>${part.part_name || 'N/A'}</td>
+                                <td>${part.required_quantity}</td>
+                                <td>${part.unit || 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+                    partsHtml += '</tbody></table>';
+                    requiredPartsContainer.innerHTML = partsHtml;
+                } else {
+                    requiredPartsContainer.innerHTML = '<p>この計画に必要な部品情報はありません。</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching required parts:', error);
+                requiredPartsContainer.innerHTML = '<p style="color:red;">部品情報の取得に失敗しました。</p>';
+            });
+
+        document.getElementById('cancelAllocationButton').addEventListener('click', () => {
+            modalOverlay.remove();
+        });
+
+        document.getElementById('confirmAllocationButton').addEventListener('click', () => {
+            console.log('引き当て実行がクリックされました。計画ID:', plan.id, '計画詳細:', plan);
+            // ここで実際の材料引き当てAPI呼び出しや処理を実装します。
+            alert(`計画ID: ${plan.id} (${plan.plan_name}) の材料引き当てを実行します。（仮実装）`);
+            modalOverlay.remove(); // Close modal after action
+        });
+
+        // Optional: Close modal if overlay (outside content) is clicked
+        modalOverlay.addEventListener('click', function(event) {
+            if (event.target === modalOverlay) {
+                modalOverlay.remove();
+            }
+        });
+    }
+
     // Add event listener for the buttons using event delegation
     tbody.addEventListener('click', function(event) {
         if (event.target.classList.contains('allocate-button')) {
-            const row = event.target.closest('tr');
-            const rowIndex = row.rowIndex - 1; // Adjust for the header row
-            const plan = productionPlans[rowIndex]; // Assuming productionPlans array is still in scope and matches the current page
+            const planIndex = parseInt(event.target.dataset.planIndex, 10);
+            const plan = currentPagePlans[planIndex];
             if (plan) {
-                console.log('材料引き当てボタンがクリックされました。計画ID:', plan.id); // Log the plan ID (replace with actual action)
-                // ここに材料引き当て処理（例: 別ページへの遷移、モーダル表示、API呼び出しなど）を記述
+                showAllocatePopup(plan);
             }
         }
     });
