@@ -21,18 +21,18 @@
             </tr>
         </thead>
         <tbody>
-            <!-- ここにAJAXで取得したデータが挿入されます -->
+            <!-- AJAX 取得データ -->
         </tbody>
     </table>
     <div id="pagination-controls" class="pagination">
-        <!-- ここにページネーションボタンが挿入されます -->
+        
     </div>
 </div>
 
 <!-- Note: The common table styles are assumed to be moved to a shared CSS file or base.html using the .inventory-table class -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    $(document).ready(function() {
+    $(function() {
         let currentPage = 1;
         const pageSize = 100; // 1ページあたりの表示件数
 
@@ -40,11 +40,10 @@
             currentPage = page;
             $.ajax({
                 url: `/inventory/schedule/data/?page=${page}&page_size=${pageSize}`, // ページとページサイズを指定
-                type: 'GET',
-                dataType: 'json',
-                success: function(data) {
+            }).done(function(data) {
                     $('#schedule-table tbody').empty(); // テーブルの既存データをクリア
                     $('#schedule-count-info').empty(); // 件数表示エリアをクリア
+
 
                     const actualData = data.results || []; // APIからのデータは data.results に格納される
                     const totalCount = data.count || 0;
@@ -59,78 +58,83 @@
                         $('#schedule-count-info').text('該当するデータはありません。');
                     }
 
-                    $.each(actualData, function(index, item) { // 各データアイテムに対して処理
-                        const newRow = $('<tr></tr>'); // 新しい行要素を作成
+                    if (actualData && actualData.length > 0) {
+                        $.each(actualData, function(index, item) { // 各データアイテムに対して処理
+                            const newRow = $('<tr></tr>'); // 新しい行要素を作成
 
-                        // 表示するデータの配列 (表示順)
-                        const cellData = [
-                            item.order_number,
-                            item.supplier,
-                            item.item,
-                            item.quantity,
-                            item.received_quantity,
-                            item.order_date,
-                            item.expected_arrival,
-                            item.warehouse,
-                            item.status
-                        ];
+                            // 表示するデータの配列 (表示順)
+                            const cellData = [
+                                item.order_number,
+                                item.supplier,
+                                item.item,
+                                item.quantity,
+                                item.received_quantity,
+                                item.order_date,
+                                item.expected_arrival,
+                                item.warehouse,
+                                item.status
+                            ];
 
-                        cellData.forEach(function(value) {
-                            // null や undefined の場合は空文字を表示
-                            const cellText = (value === null || value === undefined) ? '' : value;
-                            newRow.append($('<td></td>').text(cellText)); // セルを作成して行に追加
+                            cellData.forEach(function(value) {
+                                // null や undefined の場合は空文字を表示
+                                const cellText = (value === null || value === undefined) ? '' : value;
+                                newRow.append($('<td></td>').text(cellText)); // セルを作成して行に追加
+                            });
+                            $('#schedule-table tbody').append(newRow); // 完成した行をテーブル本体に追加
                         });
-                        $('#schedule-table tbody').append(newRow); // 完成した行をテーブル本体に追加
-                    });
+                    }
 
                     renderPaginationControls(data.num_pages, data.current_page, data.previous, data.next);
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error loading schedule data:', status, error);
+            }).fail(function() {
                     $('#schedule-count-info').empty().text('データの読み込みに失敗しました。'); // エラー時も件数表示エリアを更新
-                    var errorMsg = $('<tr><td colspan="9" style="text-align:center; color:red;">入庫予定データの読み込みに失敗しました。</td></tr>');
-                    $('#schedule-table tbody').append(errorMsg);
-                }
             });
         }
 
         function renderPaginationControls(totalPages, currentPage, prevPage, nextPage) {
-            const paginationContainer = $('#pagination-controls');
-            paginationContainer.empty(); // 既存のコントロールをクリア
-
-            if (!totalPages || totalPages <= 1) {
-                return; // 1ページ以下の場合はページネーション不要
-            }
+            const $p = $('#pagination-controls').empty();
+            if (totalPages <= 1) return;
 
             // 「前へ」ボタン
-            if (prevPage !== null) {
-                const prevButton = $('<button class="page-btn prev-btn">&laquo; 前へ</button>');
-                prevButton.on('click', function() {
-                    loadScheduleData(prevPage);
-                });
-                paginationContainer.append(prevButton);
+            if (prevPage) {
+                $('<button class="page-btn prev-btn">&laquo; 前へ</button>')
+                    .on('click', () => loadScheduleData(prevPage))
+                    .appendTo($p);
             }
 
-            // ページ番号 (簡易版: 現在ページと前後数ページを表示)
-            // TODO: より高度なページネーション表示（例: 1 ... 5 6 7 ... 10）も検討可能
-            for (let i = 1; i <= totalPages; i++) {
-                const pageButton = $(`<button class="page-btn ${i === currentPage ? 'active' : ''}">${i}</button>`);
-                pageButton.on('click', (function(pageNumber) { // クロージャでページ番号をキャプチャ
-                    return function() {
-                        loadScheduleData(pageNumber);
-                    };
-                })(i));
-                paginationContainer.append(pageButton);
+            // 現在ページの前後 ±3 を表示
+            const start = Math.max(1, currentPage - 3);
+            const end   = Math.min(totalPages, currentPage + 3);
+            for (let i = start; i <= end; i++) {
+                $('<button class="page-btn">')
+                    .text(i)
+                    .toggleClass('active', i === currentPage)
+                    .prop('disabled', i === currentPage)
+                    .on('click', () => loadScheduleData(i))
+                    .appendTo($p);
             }
 
             // 「次へ」ボタン
-            if (nextPage !== null) {
-                const nextButton = $('<button class="page-btn next-btn">次へ &raquo;</button>');
-                nextButton.on('click', function() {
-                    loadScheduleData(nextPage);
-                });
-                paginationContainer.append(nextButton);
+            if (nextPage) {
+                $('<button class="page-btn next-btn">次へ &raquo;</button>')
+                    .on('click', () => loadScheduleData(nextPage))
+                    .appendTo($p);
             }
+
+            // ダイレクトジャンプ用入力＆ボタン
+            const $input = $(`<input type="number" min="1" max="${totalPages}" value="${currentPage}" class="page-input">`);
+            const $go    = $('<button class="page-go-btn">移動</button>');
+            $go.on('click', () => {
+                const page = parseInt($input.val(), 10);
+                if (page >= 1 && page <= totalPages && page !== currentPage) {
+                    loadScheduleData(page);
+                }
+            });
+            // Enterキーでも移動
+            $input.on('keypress', e => {
+                if (e.which === 13) $go.click();
+            });
+
+            $p.append($('<span class="jump-label">ページ: </span>'), $input, $go);
         }
 
         loadScheduleData(currentPage); // ページ読み込み時に最初のページデータを取得
@@ -138,9 +142,34 @@
 </script>
 <style>
 .pagination { margin-top: 20px; text-align: center; }
-.page-btn { margin: 0 5px; padding: 5px 10px; border: 1px solid #ddd; background-color: #f8f8f8; cursor: pointer; }
-.page-btn.active { background-color: #007bff; color: white; border-color: #007bff; }
-.page-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.page-btn {
+  margin: 0 5px;
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  background: #f8f8f8;
+  cursor: pointer;
+}
+.page-btn.active,
+.page-btn:disabled {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+  cursor: default;
+}
+.page-input {
+  width: 50px;
+  text-align: center;
+  margin: 0 5px;
+}
+.page-go-btn {
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  background: #e0e0e0;
+  cursor: pointer;
+}
+.jump-label {
+  margin-left: 15px;
+}
 </style>
 
 {% endblock inventory_content %}

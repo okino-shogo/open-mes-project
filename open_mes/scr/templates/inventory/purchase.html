@@ -58,11 +58,36 @@
         cursor: pointer;
         border-radius: 5px;
     }
+    /* Pagination styles updated based on schedule.html */
     .pagination { margin-top: 20px; text-align: center; }
-    .page-btn { margin: 0 5px; padding: 5px 10px; border: 1px solid #ddd; background-color: #f8f8f8; cursor: pointer; }
-    .page-btn.active { background-color: #007bff; color: white; border-color: #007bff; }
-    .page-btn:disabled { cursor: not-allowed; opacity: 0.5; }
-    .page-ellipsis { margin: 0 5px; }
+    .page-btn {
+      margin: 0 5px;
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      background: #f8f8f8;
+      cursor: pointer;
+    }
+    .page-btn.active,
+    .page-btn:disabled {
+      background: #007bff;
+      color: #fff;
+      border-color: #007bff;
+      cursor: default;
+    }
+    .page-input {
+      width: 50px;
+      text-align: center;
+      margin: 0 5px;
+    }
+    .page-go-btn {
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      background: #e0e0e0;
+      cursor: pointer;
+    }
+    .jump-label {
+      margin-left: 15px;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -131,14 +156,18 @@
                     const startItem = totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0;
                     const endItem = totalCount > 0 ? Math.min(startItem + pageSize - 1, totalCount) : 0;
 
+                    // Calculate prevPage and nextPage numbers for the new pagination controls
+                    const prevPageNum = currentPage > 1 ? currentPage - 1 : null;
+                    const nextPageNum = currentPage < totalPages ? currentPage + 1 : null;
+
                     if (totalCount > 0) {
                         $('#purchase-count-info').text(`全 ${totalCount} 件中 ${startItem} - ${endItem} 件を表示 (ページ ${currentPage} / ${totalPages || 1})`);
                     } else {
                          $('#purchase-count-info').text(searchTerm ? `「${searchTerm}」に一致するデータはありません。` : '該当するデータはありません。');
                     }
-
                     renderTable(actualData);
-                    renderPaginationControls(totalPages, currentPage, data.previous, data.next);
+                    // Pass totalPages, currentPage, and calculated prev/next page numbers
+                    renderPaginationControls(totalPages, currentPage, prevPageNum, nextPageNum);
                 },
                 error: function(xhr, status, error) {
                     console.error('Error loading purchase data. URL:', dataUrl, 'Status:', status, 'Error:', error, 'Response:', xhr.responseText);
@@ -148,81 +177,58 @@
                     // XSS対策として、エラー詳細をテキストとして挿入
                     var errorRow = $('<tr id="load-error-row"><td colspan="12" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + $('<div>').text(errorDetail).html() + '</small></td></tr>');
                     $('#purchase-table tbody').empty().append(errorRow);
-                    renderPaginationControls(0, 1, null, null); // エラー時はページネーションをクリア
+                    // Call with 0 total pages, current page, and null for prev/next
+                    renderPaginationControls(0, currentPage, null, null);
                 }
             });
         }
 
-        function renderPaginationControls(totalPages, currentPageNum, prevUrl, nextUrl) {
-            const paginationContainer = $('#pagination-controls');
-            paginationContainer.empty();
+        // Updated renderPaginationControls based on schedule.html
+        function renderPaginationControls(totalPages, currentPage, prevPage, nextPage) {
+            const $p = $('#pagination-controls').empty();
+            if (totalPages <= 1) return;
 
-            if (!totalPages || totalPages <= 1) {
-                return;
+            // 「前へ」ボタン
+            if (prevPage) {
+                $('<button class="page-btn prev-btn">&laquo; 前へ</button>')
+                    .on('click', () => loadPurchaseData(prevPage, currentSearchTerm))
+                    .appendTo($p);
             }
 
-            let prevPageNum = null;
-            if (prevUrl) {
-                try {
-                    // Ensure prevUrl is a full URL if it's relative, or handle appropriately
-                    // For simplicity, assuming prevUrl from DRF is a full URL.
-                    const url = new URL(prevUrl);
-                    prevPageNum = url.searchParams.get('page');
-                } catch (e) {
-                    console.warn('Could not parse previous page URL:', prevUrl, e);
-                    // prevPageNum remains null, button will be disabled
+            // 現在ページの前後 ±3 を表示
+            const start = Math.max(1, currentPage - 3);
+            const end   = Math.min(totalPages, currentPage + 3);
+            for (let i = start; i <= end; i++) {
+                $('<button class="page-btn">')
+                    .text(i)
+                    .toggleClass('active', i === currentPage)
+                    .prop('disabled', i === currentPage)
+                    .on('click', () => loadPurchaseData(i, currentSearchTerm))
+                    .appendTo($p);
+            }
+
+            // 「次へ」ボタン
+            if (nextPage) {
+                $('<button class="page-btn next-btn">次へ &raquo;</button>')
+                    .on('click', () => loadPurchaseData(nextPage, currentSearchTerm))
+                    .appendTo($p);
+            }
+
+            // ダイレクトジャンプ用入力＆ボタン
+            const $input = $(`<input type="number" min="1" max="${totalPages}" value="${currentPage}" class="page-input">`);
+            const $go    = $('<button class="page-go-btn">移動</button>');
+            $go.on('click', () => {
+                const page = parseInt($input.val(), 10);
+                if (page >= 1 && page <= totalPages && page !== currentPage) {
+                    loadPurchaseData(page, currentSearchTerm);
                 }
-            }
+            });
+            // Enterキーでも移動
+            $input.on('keypress', e => {
+                if (e.which === 13) $go.click();
+            });
 
-            let nextPageNum = null;
-            if (nextUrl) {
-                try {
-                    const url = new URL(nextUrl);
-                    nextPageNum = url.searchParams.get('page');
-                } catch (e) {
-                    console.warn('Could not parse next page URL:', nextUrl, e);
-                    // nextPageNum remains null, button will be disabled
-                }
-            }
-
-            const prevButton = $(`<button class="page-btn prev-btn" ${!prevPageNum ? 'disabled' : ''}>&laquo; 前へ</button>`);
-            if (prevPageNum) {
-                prevButton.on('click', function() { loadPurchaseData(parseInt(prevPageNum), currentSearchTerm); });
-            }
-            paginationContainer.append(prevButton);
-            let startPage = Math.max(1, currentPageNum - 2);
-            let endPage = Math.min(totalPages, currentPageNum + 2);
-
-            if (currentPageNum <= 3) { endPage = Math.min(totalPages, 5); }
-            if (currentPageNum > totalPages - 3) { startPage = Math.max(1, totalPages - 4); }
-
-            if (startPage > 1) {
-                const firstButton = $(`<button class="page-btn">1</button>`);
-                firstButton.on('click', function() { loadPurchaseData(1, currentSearchTerm); });
-                paginationContainer.append(firstButton);
-                if (startPage > 2) { paginationContainer.append($('<span class="page-ellipsis">...</span>')); }
-            }
-
-            for (let i = startPage; i <= endPage; i++) {
-                const pageButton = $(`<button class="page-btn ${i === currentPageNum ? 'active' : ''}">${i}</button>`);
-                pageButton.on('click', (function(pageNumber) {
-                    return function() { loadPurchaseData(pageNumber, currentSearchTerm); };
-                })(i));
-                paginationContainer.append(pageButton);
-            }
-
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) { paginationContainer.append($('<span class="page-ellipsis">...</span>')); }
-                const lastButton = $(`<button class="page-btn">${totalPages}</button>`);
-                lastButton.on('click', function() { loadPurchaseData(totalPages, currentSearchTerm); });
-                paginationContainer.append(lastButton);
-            }
-
-            const nextButton = $(`<button class="page-btn next-btn" ${!nextPageNum ? 'disabled' : ''}>次へ &raquo;</button>`);
-            if (nextPageNum) {
-                nextButton.on('click', function() { loadPurchaseData(parseInt(nextPageNum), currentSearchTerm); });
-            }
-            paginationContainer.append(nextButton);
+            $p.append($('<span class="jump-label">ページ: </span>'), $input, $go);
         }
 
         function handleReceive(orderNumber) {
