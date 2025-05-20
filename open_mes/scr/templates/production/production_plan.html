@@ -16,12 +16,18 @@
                 <th>備考</th>
                 <th>作成日時</th>
                 <th>更新日時</th>
+                <th>操作</th> {# Add header for the button column #}
             </tr>
         </thead>
         <tbody>
             <!-- Data will be inserted here by JavaScript -->
         </tbody>
     </table>
+    <div class="pagination-controls">
+        <button id="prevPage" disabled>前へ</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage" disabled>次へ</button>
+    </div>
 </div>
 
 <style>
@@ -61,14 +67,37 @@
     #productionPlanTable tbody tr:hover {
         background-color: #f1f1f1;
     }
+
+    .pagination-controls {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    .pagination-controls button {
+        padding: 8px 16px;
+        margin: 0 5px;
+        cursor: pointer;
+    }
+
+    .pagination-controls button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.querySelector('#productionPlanTable tbody');
-    const apiUrl = '/api/production/plans/'; // API endpoint for Production Plans
+    const baseApiUrl = '/api/production/plans/'; // Base API endpoint
+    const prevPageButton = document.getElementById('prevPage');
+    const nextPageButton = document.getElementById('nextPage');
+    const pageInfoSpan = document.getElementById('pageInfo');
 
-    fetch(apiUrl)
+    const initialUrl = `${baseApiUrl}?page_size=100`; // Start with page_size=100
+    const pageSize = 100;
+
+    function fetchProductionPlans(url) {
+        fetch(url)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok: ' + response.statusText);
@@ -76,10 +105,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
+            const productionPlans = data.results;
             tbody.innerHTML = ''; // Clear existing rows
 
-            if (data && data.length > 0) {
-                data.forEach(plan => {
+            if (productionPlans && productionPlans.length > 0) {
+                productionPlans.forEach(plan => {
                     const row = tbody.insertRow();
                     row.insertCell().textContent = plan.plan_name || 'N/A';
                     row.insertCell().textContent = plan.product_code || 'N/A';
@@ -91,6 +121,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     row.insertCell().textContent = plan.remarks || '';
                     row.insertCell().textContent = plan.created_at ? new Date(plan.created_at).toLocaleString() : 'N/A';
                     row.insertCell().textContent = plan.updated_at ? new Date(plan.updated_at).toLocaleString() : 'N/A';
+
+                    // Add the button cell
+                    const actionCell = row.insertCell();
+                    const allocateButton = document.createElement('button');
+                    allocateButton.textContent = '材料引き当て';
+                    allocateButton.classList.add('allocate-button'); // Add a class for potential styling
+                    actionCell.appendChild(allocateButton);
                 });
             } else {
                 const row = tbody.insertRow();
@@ -98,21 +135,94 @@ document.addEventListener('DOMContentLoaded', function() {
                 cell.colSpan = 10; // Adjusted colspan to match number of columns
                 cell.textContent = '生産計画データがありません。';
             }
+
+            // Update pagination controls
+            prevPageButton.disabled = !data.previous;
+            if (data.previous) {
+                prevPageButton.dataset.url = data.previous;
+            } else {
+                prevPageButton.removeAttribute('data-url');
+            }
+
+            nextPageButton.disabled = !data.next;
+            if (data.next) {
+                nextPageButton.dataset.url = data.next;
+            } else {
+                nextPageButton.removeAttribute('data-url');
+            }
+
+            // Update page info
+            const totalItems = data.count;
+            const totalPages = Math.ceil(totalItems / pageSize);
+            let currentFetchedPage = 1;
+
+            try {
+                const queryString = url.split('?')[1];
+                if (queryString) {
+                    const params = new URLSearchParams(queryString);
+                    if (params.has('page')) {
+                        currentFetchedPage = parseInt(params.get('page'), 10);
+                    }
+                }
+            } catch (e) {
+                console.warn("Could not parse current page from URL:", url, e);
+                // Fallback if URL parsing fails (e.g. unexpected format)
+                if (!data.previous) {
+                    currentFetchedPage = 1;
+                } else if (!data.next) {
+                    currentFetchedPage = totalPages;
+                }
+            }
+
+            if (totalItems > 0) {
+                pageInfoSpan.textContent = `ページ ${currentFetchedPage} / ${totalPages} (全 ${totalItems} 件)`;
+            } else {
+                pageInfoSpan.textContent = 'データがありません';
+            }
         })
         .catch(error => {
             console.error('Error fetching production plan data:', error);
             tbody.innerHTML = ''; // Clear existing rows on error
             const row = tbody.insertRow();
-            const cell = row.insertCell();
+            const cell = row.insertCell(); // Adjusted colspan
             cell.colSpan = 10; // Adjusted colspan
             cell.textContent = 'データの取得中にエラーが発生しました。';
+            prevPageButton.disabled = true;
+            nextPageButton.disabled = true;
+            pageInfoSpan.textContent = 'エラー';
         });
+    }
+
+    prevPageButton.addEventListener('click', () => {
+        if (prevPageButton.dataset.url) {
+            fetchProductionPlans(prevPageButton.dataset.url);
+        }
+    });
+
+    nextPageButton.addEventListener('click', () => {
+        if (nextPageButton.dataset.url) {
+            fetchProductionPlans(nextPageButton.dataset.url);
+        }
+    });
+
+    // Add event listener for the buttons using event delegation
+    tbody.addEventListener('click', function(event) {
+        if (event.target.classList.contains('allocate-button')) {
+            const row = event.target.closest('tr');
+            const rowIndex = row.rowIndex - 1; // Adjust for the header row
+            const plan = productionPlans[rowIndex]; // Assuming productionPlans array is still in scope and matches the current page
+            if (plan) {
+                console.log('材料引き当てボタンがクリックされました。計画ID:', plan.id); // Log the plan ID (replace with actual action)
+                // ここに材料引き当て処理（例: 別ページへの遷移、モーダル表示、API呼び出しなど）を記述
+            }
+        }
+    });
+    // Initial fetch
+    fetchProductionPlans(initialUrl);
 });
 </script>
 
 {% endblock production_content %}
-
-
 {% block js_link %}
 
 <script
