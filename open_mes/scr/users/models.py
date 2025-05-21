@@ -122,7 +122,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         """
         super().set_password(raw_password)
         self.password_last_changed = timezone.now()
-        # self.save(update_fields=['password', 'password_last_changed']) # UserManager内でsaveされるのでここでは不要
+        self.save(update_fields=['password', 'password_last_changed'])
 
     @property
     def is_password_expired(self):
