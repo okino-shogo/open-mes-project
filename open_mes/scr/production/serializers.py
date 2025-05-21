@@ -77,10 +77,12 @@ class RequiredPartSerializer(serializers.Serializer):
     特定のモデルに直接紐づかないため、serializers.Serializerを継承します。
     """
     part_code = serializers.CharField(max_length=100)
-    part_name = serializers.CharField(max_length=255)
-    # required_quantity は DecimalField や FloatField も検討可能です。
-    # モデルの quantity_per_product や planned_quantity の型に合わせてください。
-    required_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
-    unit = serializers.CharField(max_length=50)
+    part_name = serializers.CharField(max_length=255, help_text="部品名")
+    # required_quantity の型 (DecimalField, IntegerField など) は、
+    # PartsUsed モデルの quantity_used フィールドの型や実際のデータに合わせて調整してください。
+    required_quantity = serializers.DecimalField(max_digits=12, decimal_places=3, help_text="必要数量")
+    unit = serializers.CharField(max_length=50, help_text="単位")
+    inventory_quantity = serializers.IntegerField(help_text="現在の在庫数量")
 
     # このシリアライザは読み取り専用のデータを想定しています。
+    # ビュー側で `data_for_serializer` を構築する際に、これらのフィールドに合致するデータを提供します。

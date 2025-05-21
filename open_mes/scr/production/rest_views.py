@@ -5,6 +5,7 @@ from rest_framework.response import Response # Responseをインポート
 from .models import ProductionPlan, PartsUsed
 from .serializers import ProductionPlanSerializer, PartsUsedSerializer, RequiredPartSerializer
 from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート
+from inventory.models import Inventory # Inventoryモデルをインポート
 # from .models import Product, BillOfMaterialItem # BOMに関連するモデル (仮のインポート、実際には適切なモデルを定義・インポートしてください)
 # from .serializers import RequiredPartSerializer # BOM部品用のシリアライザ (仮のインポート)
 
@@ -44,13 +45,34 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
         # Prepare data for the RequiredPartSerializer
         data_for_serializer = []
         for part_used_item in parts_used_queryset:
+            part_code = part_used_item.part_code
+            current_inventory_quantity = 0
+
+            # 生産計画に紐づく倉庫情報を取得試行 (ProductionPlanモデルに 'warehouse' フィールドがある場合)
+            plan_warehouse = getattr(production_plan_instance, 'warehouse', None)
+
+            # 在庫クエリの準備
+            inventory_items_query = Inventory.objects.filter(
+                part_number=part_code,
+                is_active=True,
+                is_allocatable=True
+            )
+
+            if plan_warehouse:
+                inventory_items_query = inventory_items_query.filter(warehouse=plan_warehouse)
+
+            # 利用可能在庫数を集計
+            for inv_item in inventory_items_query:
+                current_inventory_quantity += inv_item.available_quantity
+
             data_for_serializer.append({
-                "part_code": part_used_item.part_code,
-                "part_name": f"{part_used_item.part_code} (名称は別途マスタ参照)", # Placeholder for part_name
+                "part_code": part_code,
+                "part_name": f"{part_code} (名称は別途マスタ参照)", # Placeholder for part_name
                 "required_quantity": part_used_item.quantity_used, # Using quantity_used from PartsUsed
-                "unit": "個"  # Placeholder for unit, e.g., '個' (pieces)
+                "unit": "個",  # Placeholder for unit, e.g., '個' (pieces)
+                "inventory_quantity": current_inventory_quantity # 追加: 現在の在庫数量
             })
-        
+
         serializer = RequiredPartSerializer(data=data_for_serializer, many=True)
         serializer.is_valid(raise_exception=True) # Ensure data conforms to serializer structure
         return Response(serializer.data)

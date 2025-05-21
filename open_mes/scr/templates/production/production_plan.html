@@ -338,6 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <th>部品コード</th>
                                     <th>部品名</th>
                                     <th>必要数量</th>
+                                    <th>在庫数量</th> {# Added Inventory Quantity Header #}
                                     <th>単位</th>
                                 </tr>
                             </thead>
@@ -349,6 +350,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <td>${part.part_code || 'N/A'}</td>
                                 <td>${part.part_name || 'N/A'}</td>
                                 <td>${part.required_quantity}</td>
+                                <td>${part.inventory_quantity !== undefined ? part.inventory_quantity : 'N/A'}</td> {# Added Inventory Quantity Data #}
                                 <td>${part.unit || 'N/A'}</td>
                             </tr>
                         `;
