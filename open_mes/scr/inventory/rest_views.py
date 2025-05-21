@@ -7,6 +7,7 @@ from .serializers import PurchaseOrderSerializer, InventorySerializer # Inventor
 from .models import PurchaseOrder, Inventory, StockMovement # PurchaseOrder, Inventory, StockMovementモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート
+from django.db.models import Q # Qオブジェクトをインポートして複雑なクエリを構築
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 from master.models import Item, Warehouse # masterアプリケーションからItem, Warehouseをインポート (現在は文字列として使用)
 from django.contrib.auth.decorators import login_required # 認証が必要な場合
@@ -60,9 +61,24 @@ def get_schedule_data(request):
         # 未完了の入庫予定を取得 (ステータスが 'pending' のもの)
         # 必要に応じて 'partially_received' など他のステータスも考慮に入れることができます。
         # PurchaseOrder モデルの status choices: ('pending', 'Pending'), ('received', 'Received'), ('canceled', 'Canceled')
-        schedule_items = PurchaseOrder.objects.filter(
+        schedule_items_query = PurchaseOrder.objects.filter(
             status='pending'  # 'pending' 状態のものを取得
-        ).order_by('expected_arrival', 'order_number')
+        )
+
+        # 検索パラメータを取得してフィルタリング
+        search_term = request.GET.get('search', None)
+        if search_term:
+            query_filter = (
+                Q(order_number__icontains=search_term) |
+                Q(supplier__icontains=search_term) |
+                Q(item__icontains=search_term) |  # 品目コード/旧名称など
+                Q(product_name__icontains=search_term) | # 品名
+                Q(part_number__icontains=search_term) | # 品番 (追加)
+                Q(shipment_number__icontains=search_term) # 便番号も検索対象に含める例
+            )
+            schedule_items_query = schedule_items_query.filter(query_filter)
+
+        schedule_items = schedule_items_query.order_by('expected_arrival', 'order_number')
 
         # Paginator オブジェクトを作成
         paginator = Paginator(schedule_items, page_size)
@@ -87,6 +103,12 @@ def get_schedule_data(request):
                 'expected_arrival': item.expected_arrival.strftime('%Y-%m-%d %H:%M:%S') if item.expected_arrival else '', # 日時まで表示
                 'warehouse': item.warehouse,
                 'status': item.get_status_display(), # 選択肢の表示名を取得
+                'part_number': item.part_number if item.part_number else '',
+                'shipment_number': item.shipment_number if item.shipment_number else '',
+                # The 'barcode' and 'serial_number' fields are handled in JS if item.barcode/item.serial_number exist.
+                # They are not standard fields on the PurchaseOrder model itself.
+                # If they need to be populated from the backend, ensure they are added to the PurchaseOrder model
+                # or derived from related models and included here.
             })
 
         # ページネーション情報をレスポンスに含める

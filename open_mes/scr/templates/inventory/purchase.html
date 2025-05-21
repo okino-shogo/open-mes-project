@@ -18,8 +18,10 @@
         <thead>
             <tr>
                 <th>発注番号</th>
+                <th>便番号</th>
                 <th>仕入れ先</th>
                 <th>品名</th>
+                <th>品番</th>
                 <th>発注数量</th>
                 <th>入庫済数量</th>
                 <th>発注日</th>
@@ -104,8 +106,10 @@
                 $.each(itemsToDisplay, function(index, item) {
                     var row = $('<tr>');
                     row.append($('<td>').text(item.order_number));
+                    row.append($('<td>').text(item.shipment_number || ''));
                     row.append($('<td>').text(item.supplier));
-                    row.append($('<td>').text(item.item));
+                    row.append($('<td>').text(item.item)); // This is product_name or item.item from API
+                    row.append($('<td>').text(item.part_number || ''));
                     row.append($('<td>').text(item.quantity));
                     row.append($('<td>').text(item.received_quantity));
                     row.append($('<td>').text(item.order_date));
@@ -128,7 +132,7 @@
                 if (currentSearchTerm) {
                     message = '「' + currentSearchTerm + '」に一致するデータは見つかりませんでした。';
                 }
-                var noDataMsg = $('<tr><td colspan="12" style="text-align:center;">' + message + '</td></tr>');
+                var noDataMsg = $('<tr><td colspan="14" style="text-align:center;">' + message + '</td></tr>');
                 $('#purchase-table tbody').append(noDataMsg);
             }
         }
@@ -174,8 +178,7 @@
                     $('#purchase-count-info').text('データの読み込みに失敗しました。');
                     var errorDetail = xhr.responseText || 'サーバーからの応答がありません。ネットワーク接続を確認してください。';
                     var userErrorMsg = '入庫処理データの読み込みに失敗しました。';
-                    // XSS対策として、エラー詳細をテキストとして挿入
-                    var errorRow = $('<tr id="load-error-row"><td colspan="12" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + $('<div>').text(errorDetail).html() + '</small></td></tr>');
+                    var errorRow = $('<tr id="load-error-row"><td colspan="14" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + $('<div>').text(errorDetail).html() + '</small></td></tr>');
                     $('#purchase-table tbody').empty().append(errorRow);
                     // Call with 0 total pages, current page, and null for prev/next
                     renderPaginationControls(0, currentPage, null, null);

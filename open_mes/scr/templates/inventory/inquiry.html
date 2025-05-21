@@ -63,24 +63,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return response.json();
         })
-        .then(data => {
+        .then(apiResponse => {
             tbody.innerHTML = ''; // 既存の行をクリア
 
-            if (data && data.length > 0) {
-                data.forEach(inventory => {
+            // APIがページネーションされたレスポンスを返すため、実際のデータは 'results' プロパティにあります。
+            const inventoryData = apiResponse.results;
+
+            if (inventoryData && inventoryData.length > 0) {
+                inventoryData.forEach(inventory => {
                     const row = tbody.insertRow();
-                    // APIレスポンスの構造に合わせて、以下のプロパティ名を調整してください。
-                    // 例: inventory.item.name -> inventory.item_name など
-                    row.insertCell().textContent = inventory.item_name || (inventory.item ? inventory.item.name : 'N/A');
-                    row.insertCell().textContent = inventory.warehouse_number || (inventory.warehouse ? inventory.warehouse.warehouse_number : 'N/A');
+                    row.insertCell().textContent = inventory.part_number || 'N/A'; // 'part_number' を使用
+                    row.insertCell().textContent = inventory.warehouse || 'N/A';   // 'warehouse' を使用
                     row.insertCell().textContent = inventory.quantity;
                     row.insertCell().textContent = inventory.reserved;
                     row.insertCell().textContent = inventory.available_quantity;
                     row.insertCell().textContent = inventory.location;
-                    // 日付フォーマット: APIから返される日付文字列の形式によって調整が必要な場合があります。
-                    // toLocaleString() はブラウザのロケールに依存します。
-                    // 必要であれば、より厳密な日付フォーマットライブラリ（例: date-fns, moment.js）の利用や、
-                    // カスタムフォーマット関数を検討してください。
                     row.insertCell().textContent = inventory.last_updated ? new Date(inventory.last_updated).toLocaleString() : 'N/A';
                 });
             } else {
