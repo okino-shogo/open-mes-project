@@ -285,16 +285,52 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Fetch and display required parts
         const requiredPartsContainer = document.getElementById('requiredPartsContainer');
+
+        // Check if plan.production_plan (parent plan ID) is valid before making the fetch call.
+        // The request is to use plan.production_plan for fetching parts.
+        // If a plan is a top-level plan, plan.production_plan might be null.
+        if (!plan || typeof plan.production_plan === 'undefined' || plan.production_plan === null) {
+            console.error('Error: plan.production_plan (parent plan ID) is missing or invalid. Cannot fetch required parts using parent plan ID.', plan);
+            requiredPartsContainer.innerHTML = '<p style="color:red;">親計画IDが指定されていないか無効なため、部品情報を取得できません。</p>';
+            // Optionally disable the confirm button
+            const confirmButton = document.getElementById('confirmAllocationButton');
+            if (confirmButton) confirmButton.disabled = true;
+            return; // Stop further execution if parent plan ID is invalid
+        }
+
         // APIエンドポイントをバックエンドのviews.pyで定義したURLに合わせる
-        fetch(`/api/production/plans/${plan.id}/required_parts/`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok for required parts');
+        // Fetching parts based on the parent plan ID (plan.production_plan) as per request
+        fetch(`/api/production/plans/${plan.production_plan}/required-parts/`)
+            .then(async response => {
+                if (response.ok) {
+                    // For successful responses, we expect JSON.
+                    // If it's not JSON, it's an issue with the API's contract.
+                    try {
+                        const data = await response.json();
+                        return { ok: true, data };
+                    } catch (e) {
+                        // Failed to parse JSON from a 200 OK response
+                        console.error("Failed to parse JSON from successful response:", e);
+                        throw new Error("サーバーからの正常な応答を解析できませんでした。");
+                    }
+                } else {
+                    // For error responses, try to get a JSON detail message.
+                    // If no JSON body, use status text or a generic message.
+                    let errorData = null;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        // Ignore if error response body is not JSON
+                    }
+                    const errorMessage = errorData?.detail || response.statusText || `サーバーエラー (${response.status})`;
+                    const error = new Error(errorMessage);
+                    error.status = response.status;
+                    error.data = errorData;
+                    throw error;
                 }
-                return response.json();
             })
-            .then(partsData => {
-                if (partsData && partsData.length > 0) {
+            .then(({ data }) => { // Only called if ok: true and JSON parsed successfully
+                if (data && Array.isArray(data) && data.length > 0) {
                     let partsHtml = `
                         <table style="width:100%; font-size:0.9em;">
                             <thead>
@@ -307,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </thead>
                             <tbody>
                     `;
-                    partsData.forEach(part => {
+                    data.forEach(part => {
                         partsHtml += `
                             <tr>
                                 <td>${part.part_code || 'N/A'}</td>
@@ -318,14 +354,38 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                     });
                     partsHtml += '</tbody></table>';
-                    requiredPartsContainer.innerHTML = partsHtml;
+
+                    let finalHtml = '';
+                    // Check if the displayed data is dummy data (based on view's logic)
+                    const isDummyData = data.some(part => part.part_name && part.part_name.includes("(要BOM実装)"));
+                    if (isDummyData) {
+                        const warningText = '注: 表示されている部品情報は、実際の部品構成が取得できなかった場合の代替情報です。';
+                        finalHtml += `<p style="color:darkorange; font-weight:bold;">${warningText}</p>`;
+                    }
+                    finalHtml += partsHtml;
+                    requiredPartsContainer.innerHTML = finalHtml;
+
                 } else {
-                    requiredPartsContainer.innerHTML = '<p>この計画に必要な部品情報はありません。</p>';
+                    // This else block handles cases where response is OK (200) but `data` is not a non-empty array.
+                    // Based on the current views.py logic for `required_parts`, a 200 OK response
+                    // should always contain a non-empty array (either actual parts or dummy parts).
+                    // Thus, this specific path might be unreachable if the backend strictly adheres to that logic.
+                    // If the API were to change to send 200 OK with an empty list [] for "no parts",
+                    // this would display a "no parts" message. For now, it's kept as defensive coding,
+                    // though an empty table might also be an acceptable outcome if data is truly empty.
+                    requiredPartsContainer.innerHTML = '<p>部品データが予期された形式ではありません、または空です。</p>';
                 }
             })
             .catch(error => {
-                console.error('Error fetching required parts:', error);
-                requiredPartsContainer.innerHTML = '<p style="color:red;">部品情報の取得に失敗しました。</p>';
+                console.error('Error fetching or processing required parts:', error);
+                // error.message should be descriptive from the throw sites.
+                // error.status might be present if it was an HTTP error.
+                let displayMessage = error.message;
+                if (!error.status && !(error instanceof TypeError)) { // TypeError could be network error
+                     // Fallback for unexpected errors not carrying a clean message
+                    displayMessage = '部品情報の取得中に予期せぬエラーが発生しました。';
+                }
+                requiredPartsContainer.innerHTML = `<p style="color:red;">${displayMessage}</p>`;
             });
 
         document.getElementById('cancelAllocationButton').addEventListener('click', () => {

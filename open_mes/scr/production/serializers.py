@@ -70,3 +70,17 @@ class PartsUsedSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+class RequiredPartSerializer(serializers.Serializer):
+    """
+    必要部品情報を表現するためのシリアライザ。
+    特定のモデルに直接紐づかないため、serializers.Serializerを継承します。
+    """
+    part_code = serializers.CharField(max_length=100)
+    part_name = serializers.CharField(max_length=255)
+    # required_quantity は DecimalField や FloatField も検討可能です。
+    # モデルの quantity_per_product や planned_quantity の型に合わせてください。
+    required_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+    unit = serializers.CharField(max_length=50)
+
+    # このシリアライザは読み取り専用のデータを想定しています。
