@@ -286,21 +286,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // Fetch and display required parts
         const requiredPartsContainer = document.getElementById('requiredPartsContainer');
 
-        // Check if plan.production_plan (parent plan ID) is valid before making the fetch call.
-        // The request is to use plan.production_plan for fetching parts.
-        // If a plan is a top-level plan, plan.production_plan might be null.
-        if (!plan || typeof plan.production_plan === 'undefined' || plan.production_plan === null) {
-            console.error('Error: plan.production_plan (parent plan ID) is missing or invalid. Cannot fetch required parts using parent plan ID.', plan);
-            requiredPartsContainer.innerHTML = '<p style="color:red;">親計画IDが指定されていないか無効なため、部品情報を取得できません。</p>';
+        // Check if plan.id (current plan ID) is valid before making the fetch call.
+        // The request is now to use plan.id (current plan's ID) for fetching parts.
+        // plan.id should generally be present for any valid plan object.
+        if (!plan || typeof plan.id === 'undefined' || plan.id === null) {
+            console.error('Error: plan.id (plan ID) is missing or invalid. Cannot fetch required parts.', plan);
+            requiredPartsContainer.innerHTML = '<p style="color:red;">計画IDが指定されていないか無効なため、部品情報を取得できません。</p>';
             // Optionally disable the confirm button
             const confirmButton = document.getElementById('confirmAllocationButton');
             if (confirmButton) confirmButton.disabled = true;
-            return; // Stop further execution if parent plan ID is invalid
+            return; // Stop further execution if plan ID is invalid
         }
 
         // APIエンドポイントをバックエンドのviews.pyで定義したURLに合わせる
-        // Fetching parts based on the parent plan ID (plan.production_plan) as per request
-        fetch(`/api/production/plans/${plan.production_plan}/required-parts/`)
+        // Fetching parts based on the current plan's ID (plan.id)
+        fetch(`/api/production/plans/${plan.id}/required-parts/`)
             .then(async response => {
                 if (response.ok) {
                     // For successful responses, we expect JSON.
