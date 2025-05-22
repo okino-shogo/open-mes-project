@@ -10,56 +10,180 @@
     <title>みんなのMES</title>
     <link rel="icon" href="{% md5url 'icon/favicon.ico' %}">
     <style>
+        /* General Reset and Box Sizing */
+        *, *::before, *::after { box-sizing: border-box; }
         /* General Styles */
         body {
             font-family: 'Arial', sans-serif;
-            margin: 0;
+            margin: 0; /* Reset default margin */
             padding: 0;
             background-color: #f4f4f4;
             color: #333;
             line-height: 1.6;
+            transition: margin-left 0.3s ease-in-out; /* For content shift if menu pushes content */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh; /* Ensure body takes at least full viewport height */
+        }
+
+        body.menu-open-no-scroll {
+            overflow: hidden; /* Prevents scrolling of the body content when menu is open */
         }
 
         /* Header Styles */
         header {
             background-color: #007bff; /* Blue */
             color: #fff;
-            padding: 1rem 0;
+            /* Adjust padding to account for hamburger menu if needed, or use flexbox for alignment */
+            padding: 0.4rem 0; /* Further reduced padding for a slimmer header */
             text-align: center;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative; /* For absolute positioning of hamburger */
+            z-index: 1101; /* Headerをメニューバー(1100)やオーバーレイ(1099)より手前に表示 */
         }
 
         #title {
             margin: 0;
-            font-size: 2rem;
+            font-size: 1.6rem; /* Reduced title font size */
             font-weight: bold;
         }
 
-        /* Menu Bar Styles */
-        #menu-bar {
-            background-color: #343a40; /* Dark Gray */
-            padding: 0.5rem 0;
+        /* Hamburger Menu Icon */
+        #hamburger-menu {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 15px;
             display: flex;
-            justify-content: center;
-            gap: 20px;
+            flex-direction: column;
+            justify-content: space-around;
+            width: 28px; /* Adjusted hamburger width */
+            height: 22px; /* Adjusted hamburger height */
+            cursor: pointer;
+            z-index: 1102; /* Header内で最前面、結果としてメニューバーより手前 */
+        }
+
+        #hamburger-menu span {
+            display: block;
+            width: 100%;
+            height: 2px; /* Adjusted hamburger bar height */
+            background-color: #fff;
+            border-radius: 3px;
+            transition: all 0.3s ease-in-out;
+        }
+
+        #hamburger-menu.open span:nth-child(1) {
+            transform: rotate(45deg) translate(4px, 4px); /* Adjusted transform */
+        }
+        #hamburger-menu.open span:nth-child(2) {
+            opacity: 0;
+        }
+        #hamburger-menu.open span:nth-child(3) {
+            transform: rotate(-45deg) translate(6px, -5px); /* Adjusted transform */
+        }
+
+        /* Slide-out Menu Bar Styles */
+        #menu-bar {
+            position: fixed;
+            top: 40px; /* Adjusted to be below the new slimmer header */
+            left: -240px; /* Initially hidden off-screen, adjusted for new width */
+            width: 210px; /* Further reduced menu width */
+            bottom: 0; /* Fill remaining height from new top position */
+            background-color: #343a40; /* Dark Gray */
+            padding: 20px 15px 20px; /* Adjusted top padding */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 0px; /* Removed gap for the tightest possible menu */
+            z-index: 1100; /* High z-index to be on top */
+            transition: left 0.3s ease-in-out;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+        }
+
+        #menu-bar.open {
+            left: 0; /* Slide in */
         }
 
         #menu-bar a {
             color: #fff;
             text-decoration: none;
-            padding: 0.5rem 1rem;
+            padding: 5px 15px; /* Further reduced top/bottom padding */
             border-radius: 5px;
             transition: background-color 0.3s ease;
+            display: block; /* Make links take full width for easier clicking */
+        }
+
+        #menu-bar form#logout-form {
+            margin: 0;
+            padding: 0;
         }
 
         #menu-bar a:hover {
             background-color: #555;
         }
 
+        .menu-category-title {
+            /* カテゴリヘッダー用のスタイル */
+            color: #cccccc; /* 通常のリンクより少し暗い色にして、非インタラクティブなタイトルであることを示す */
+            padding: 8px 15px;
+            display: block;
+            font-weight: bold;
+            font-size: 1.1em; /* リンクと同じフォントサイズ、または必要に応じて調整 */
+            /* margin-bottom: -5px; */ /* サブアイテムとの間隔を微調整する場合。通常はgapで十分 */
+            /* Add separator line */
+            border-top: 1px solid #495057; /* ダークテーマに適した一般的なボーダー色 */
+            margin-top: 8px; /* 区切り線の上にスペースを設ける */
+        }
+
+        /* 最初のカテゴリタイトルの上ボーダーとマージンを削除 */
+        #menu-bar > .menu-category-title:first-of-type {
+            border-top: none;
+            margin-top: 0;
+        }
+
+        .menu-subcategory-link {
+            /* サブカテゴリリンク用のスタイル */
+            /* #menu-bar a の基本スタイルを継承 */
+            padding-left: 30px !important; /* インデントを確実に適用 */
+            font-size: 0.95em; /* サブアイテムのフォントを少し小さくする */
+            /* color: #e9ecef; */ /* オプション: サブアイテムの色を少し明るくする */
+        }
+
+        .menu-logout-button {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 5px 15px; /* Further reduced top/bottom padding, matches link padding */
+            border-radius: 5px;
+            text-align: left;
+            width: 100%;
+            font-size: inherit;
+            font-family: inherit;
+            display: block; /* Make it block to fill width */
+        }
+
+        /* 認証セクション（ログアウトフォームまたはログインリンク）の区切り線 */
+        #menu-bar > form#logout-form,
+        #menu-bar > a:last-child:not(.menu-subcategory-link) { /* 最後の要素がログインリンク（かつサブカテゴリリンクでない）の場合に適用 */
+            border-top: 1px solid #495057;
+            margin-top: 8px;
+        }
+
+        /* Menu Overlay */
+        #menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1099; /* Below menu, above content */
+        }
         /* Container Styles */
         .container {
             max-width: 1200px;
             margin: 2rem auto;
+            flex-grow: 1; /* Allow container to grow and push footer down */
             padding: 0 1rem;
         }
 
@@ -76,27 +200,37 @@
             background-color: #343a40; /* Dark Gray */
             color: #fff;
             text-align: center;
-            padding: 1rem 0;
-            position: relative;
-            bottom: 0;
+            padding: 0.5rem 0; /* Reduced padding for a slimmer footer */
+            /* position: relative and bottom: 0 removed as flexbox will position the footer */
             width: 100%;
         }
 
-        #footer_bar {
-            border-top: 1px solid #555;
-            margin-bottom: 0.5rem;
+        .footer-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem; /* Space between credit and version */
         }
 
         #credit, #version {
-            margin: 0.2rem 0;
+            margin: 0; /* Removed individual margins, gap handles spacing */
             font-size: 0.9rem;
         }
 
         /* Responsive Design */
         @media (max-width: 768px) {
+            .footer-info {
+                flex-direction: column; /* Stack on small screens if preferred, or keep row */
+                gap: 0.2rem; /* Adjust gap for stacked layout */
+            }
             #menu-bar {
                 flex-direction: column;
-                align-items: center;
+                /* align-items: center; */ /* Already flex-start from base style */
+                width: 180px; /* Further reduced menu width on smaller screens */
+                left: -210px; /* Adjust initial hidden position for new width */
+            }
+            #title {
+                font-size: 1.5rem; /* Smaller title on mobile */
             }
         }
     </style>
@@ -104,25 +238,44 @@
 <body id="page_base">
 
 <header>
+    <div id="hamburger-menu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
     <h1 id="title">みんなのMES</h1>
-    <!-- 大メニューの表示 -->
-    <nav id='menu-bar'>
-        <a href="{% url 'inventory_menu' %}">在庫管理</a>
-        <a href="{% url 'quality_menu' %}">品質検査</a>
-        <a href="{% url 'production_menu' %}">生産管理</a>
-        <a href="{% url 'machine_menu' %}">設備管理</a>
-        {% if user.is_authenticated %}
-            <form id="logout-form" action="{% url 'users_logout' %}" method="post" style="display: inline;">
-                {% csrf_token %}
-                <button type="submit" style="background: none; border: none; color: #fff; cursor: pointer; padding: 0.5rem 1rem; border-radius: 5px;">
-                    ログアウト
-                </button>
-            </form>
-        {% else %}
-            <a href="{% url 'users_login' %}">ログイン</a>
-        {% endif %}
-    </nav>
 </header>
+
+<nav id='menu-bar'>
+    <div class="menu-category-title">在庫管理</div>
+    <a href="{% url 'inventory_inquiry' %}" class="menu-subcategory-link">在庫照会</a>
+    <a href="{% url 'inventory_schedule' %}" class="menu-subcategory-link">入庫予定</a>
+    <a href="{% url 'inventory_shipment' %}" class="menu-subcategory-link">出庫予定</a>
+    <a href="{% url 'inventory_purchase' %}" class="menu-subcategory-link">入庫処置</a>
+    <a href="{% url 'inventory_issue' %}" class="menu-subcategory-link">出庫処理</a>
+    <div class="menu-category-title">生産管理</div>
+    <a href="{% url 'production_plan' %}" class="menu-subcategory-link">生産計画</a>
+    <a href="{% url 'production_parts_used' %}" class="menu-subcategory-link">使用部品</a>
+    <a href="{% url 'production_material_allocation' %}" class="menu-subcategory-link">材料引当</a>
+    <a href="{% url 'production_work_progress' %}" class="menu-subcategory-link">作業進捗</a>
+    <div class="menu-category-title">品質管理</div>
+    <a href="{% url 'quality_process_inspection' %}" class="menu-subcategory-link">工程内検査</a>
+    <a href="{% url 'quality_acceptance_inspection' %}" class="menu-subcategory-link">受入検査</a>
+    <a href="{% url 'quality_master_creation' %}" class="menu-subcategory-link">マスター作成</a>
+    <div class="menu-category-title">設備管理</div>
+    <a href="{% url 'machine_start_inspection' %}" class="menu-subcategory-link">始業点検</a>
+    <a href="{% url 'machine_inspection_history' %}" class="menu-subcategory-link">点検履歴</a>
+    <a href="{% url 'machine_master_creation' %}" class="menu-subcategory-link">マスター作成</a>
+    {% if user.is_authenticated %}
+        <form id="logout-form" action="{% url 'users_logout' %}" method="post">
+            {% csrf_token %}
+            <button type="submit" class="menu-logout-button">ログアウト</button>
+        </form>
+    {% else %}
+        <a href="{% url 'users_login' %}">ログイン</a>
+    {% endif %}
+</nav>
+<div id="menu-overlay"></div>
 
 <div class="container">
     <main class="main-contents">
@@ -134,13 +287,14 @@
 
 <!-- footer -->
 <footer id="footer">
-    <div id="footer_bar"></div>
-    <p id="credit">
-        © Open MES Project. since 2025
-    </p>
-    <p id="version">
-        ver.{{ VERSION }}
-    </p>
+    <div class="footer-info">
+        <p id="credit">
+            © Open MES Project. since 2025
+        </p>
+        <p id="version">
+            ver.{{ VERSION }}
+        </p>
+    </div>
 </footer>
 </body>
 </html>
@@ -151,6 +305,39 @@
 </script>
 
 <script>
+// Hamburger Menu Toggle Logic
+document.addEventListener('DOMContentLoaded', function() {
+    const hamburgerMenu = document.getElementById('hamburger-menu');
+    const menuBar = document.getElementById('menu-bar');
+    const menuOverlay = document.getElementById('menu-overlay');
+    const body = document.body;
+
+    if (hamburgerMenu && menuBar && menuOverlay) {
+        hamburgerMenu.addEventListener('click', function() {
+            this.classList.toggle('open');
+            menuBar.classList.toggle('open');
+            menuOverlay.style.display = menuBar.classList.contains('open') ? 'block' : 'none';
+            body.classList.toggle('menu-open-no-scroll', menuBar.classList.contains('open'));
+        });
+
+        menuOverlay.addEventListener('click', function() {
+            hamburgerMenu.classList.remove('open');
+            menuBar.classList.remove('open');
+            this.style.display = 'none';
+            body.classList.remove('menu-open-no-scroll');
+        });
+
+        // Close menu when a link inside is clicked (optional, as navigation will reload)
+        const menuLinks = menuBar.querySelectorAll('a, .menu-logout-button');
+        menuLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                // Adding a small delay can help if there's any JS action before navigation
+                // but for standard links/form submits, it's often not strictly necessary.
+                // setTimeout(() => { /* close menu logic if needed */ }, 50);
+            });
+        });
+    }
+});
 </script>
 
 
