@@ -46,12 +46,6 @@ urlpatterns = [
     path('inventory/shipment/', inventory_menu.ShipmentView.as_view(), name="inventory_shipment"),  # 出庫予定ページへのURL (出庫予定)
     path('inventory/purchase/', inventory_menu.PurchaseView.as_view(), name="inventory_purchase"),  # 入庫処理ページへのURL (入庫処置)
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)    
-    path('inventory/schedule/data/', inventory_rest_views.get_schedule_data, name='get_schedule_data'), # 入庫予定データ取得API
-    path('api/inventory/', inventory_rest_views.create_purchase_order_api, name='api_create_purchase_order'), 
-    # 入庫処理ページで使用されるAPIエンドポイントを追加
-    path('inventory/purchase/data/', inventory_rest_views.get_schedule_data, name='inventory_purchase_data'), # 入庫処理対象データ取得API (scheduleと同じビューを使用)
-    path('inventory/purchase/scan/', inventory_rest_views.process_purchase_receipt_api, name='inventory_purchase_scan'), # 入庫処理実行API (processビューを使用)
-    path('inventory/data/', inventory_rest_views.get_inventory_data, name='get_inventory_data'), # 在庫情報取得API
 
     # 生産関係
     path('production/menu/', production_menu.ProductionMenuView.as_view(), name="production_menu"),  # 生産管理メニューページへのURL
@@ -93,6 +87,8 @@ urlpatterns = [
     path('users/api-register/', rest.register_user, name='users_api_register'),
     # Production API paths (using the router)
     path('api/production/', include(production_router.urls)),
+    # Inventory API paths
+    path('api/inventory/', include('inventory.urls', namespace='inventory_api')),
 
     path("__debug__/", include("debug_toolbar.urls")),
 ]

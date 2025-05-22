@@ -104,7 +104,7 @@
         border-radius: 8px;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         width: 90%;
-        max-width: 500px;
+        max-width: 900px; /* Further increased max-width for a wider popup */
         text-align: left;
     }
 
@@ -123,6 +123,11 @@
         margin-left: 10px;
         padding: 8px 16px;
         cursor: pointer;
+    }
+
+    /* Style for right-aligning numeric columns in the parts table */
+    .numeric-column {
+        text-align: right;
     }
 </style>
 
@@ -330,6 +335,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(({ data }) => { // Only called if ok: true and JSON parsed successfully
+                // Helper function to format quantities: remove .0 if decimal part is zero
+                function formatDecimalQuantity(value) {
+                    // まず数値に変換してみる
+                    const num = parseFloat(value);
+                    if (!isNaN(num)) {
+                        // 小数部が 0 なら整数で表示
+                        if (num % 1 === 0) {
+                            return num.toFixed(0);
+                        }
+                        // 小数部がある場合は元の小数表現を文字列で返す
+                        return num.toString();
+                    }
+                    // 数値にできなければそのまま返す（null や undefined, 文字列）
+                    return value;
+                }
                 if (data && Array.isArray(data) && data.length > 0) {
                     let partsHtml = `
                         <table style="width:100%; font-size:0.9em;">
@@ -337,8 +357,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <tr>
                                     <th>部品コード</th>
                                     <th>部品名</th>
-                                    <th>必要数量</th>
-                                    <th>在庫数量</th> {# Added Inventory Quantity Header #}
+                                    <th>倉庫</th>
+                                    <th class="numeric-column">必要数量</th>
+                                    <th class="numeric-column">在庫数量</th> {# Added Inventory Quantity Header #}
+                                    <th class="numeric-column">引当数量</th>
                                     <th>単位</th>
                                 </tr>
                             </thead>
@@ -346,11 +368,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     data.forEach(part => {
                         partsHtml += `
-                            <tr>
+                            <tr data-part-code="${part.part_code || 'N/A'}">
                                 <td>${part.part_code || 'N/A'}</td>
                                 <td>${part.part_name || 'N/A'}</td>
-                                <td>${part.required_quantity}</td>
-                                <td>${part.inventory_quantity !== undefined ? part.inventory_quantity : 'N/A'}</td> {# Added Inventory Quantity Data #}
+                                <td>${part.warehouse || 'N/A'}</td>
+                                <td class="numeric-column">${formatDecimalQuantity(part.required_quantity)}</td>
+                                <td class="numeric-column">${part.inventory_quantity !== undefined ? part.inventory_quantity : 'N/A'}</td> {# Swapped: Inventory Quantity Data #}
+                                <td class="numeric-column">
+                                    <input 
+                                        type="number" 
+                                        class="allocation-quantity-input" 
+                                        value="${calculateDefaultAllocation(part.required_quantity, part.inventory_quantity)}"
+                                        min="0"
+                                        style="width: 70px; text-align: right;" /* Added text-align: right */
+                                        data-part-code="${part.part_code || 'N/A'}"
+                                        data-part-warehouse="${part.warehouse || 'N/A'}"
+                                    />
+                                </td>
                                 <td>${part.unit || 'N/A'}</td>
                             </tr>
                         `;
@@ -394,11 +428,103 @@ document.addEventListener('DOMContentLoaded', function() {
             modalOverlay.remove();
         });
 
+        // Helper function to get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
         document.getElementById('confirmAllocationButton').addEventListener('click', () => {
-            console.log('引き当て実行がクリックされました。計画ID:', plan.id, '計画詳細:', plan);
-            // ここで実際の材料引き当てAPI呼び出しや処理を実装します。
-            alert(`計画ID: ${plan.id} (${plan.plan_name}) の材料引き当てを実行します。（仮実装）`);
-            modalOverlay.remove(); // Close modal after action
+            const allocationsData = [];
+            const allocationInputs = document.querySelectorAll('.allocation-quantity-input');
+            let hasMissingWarehouse = false;
+
+            allocationInputs.forEach(input => {
+                const partCode = input.dataset.partCode;
+                const partWarehouse = input.dataset.partWarehouse;
+                const quantity = parseFloat(input.value) || 0;
+
+                if (quantity > 0) { // Only consider items with quantity > 0
+                    if (!partWarehouse || partWarehouse === 'N/A') {
+                        console.warn(`Part ${partCode} has no specified warehouse. It will be skipped for allocation.`);
+                        hasMissingWarehouse = true;
+                        // Do not add to allocationsData if warehouse is missing
+                    } else {
+                        allocationsData.push({
+                            part_number: partCode, // API expects part_number
+                            warehouse: partWarehouse,
+                            quantity_to_reserve: quantity
+                        });
+                    }
+                }
+            });
+
+            if (hasMissingWarehouse) {
+                alert('一部の部品で倉庫が指定されていなかったため、それらの部品は引き当て対象から除外されました。');
+            }
+
+            if (allocationsData.length === 0) {
+                alert('引き当て対象の有効な部品がありません。数量と倉庫を確認してください。');
+                return;
+            }
+
+            const csrftoken = getCookie('csrftoken');
+            const payload = {
+                sales_order_reference: String(plan.id), // Using plan.id as the reference
+                allocations: allocationsData
+            };
+            console.log('引き当て実行ペイロード:', JSON.stringify(payload, null, 2));
+
+            fetch('/api/inventory/allocate-for-sales-order/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    // Try to parse error response for more details
+                    return response.json().then(errData => {
+                        throw { status: response.status, data: errData };
+                    }).catch(() => {
+                        // If error response is not JSON or other parsing error
+                        throw { status: response.status, data: { error: `サーバーエラー (${response.status})`, detail: response.statusText } };
+                    });
+                }
+            })
+            .then(data => {
+                alert('材料の引き当てに成功しました。\n' + (data.message || ''));
+                console.log('Allocation successful:', data);
+                modalOverlay.remove(); // Close modal on success
+                // Optionally, refresh the production plan list or update UI
+                // fetchProductionPlans(initialUrl); // Example: Refresh list
+            })
+            .catch(error => {
+                console.error('Allocation failed:', error);
+                let errorMessage = '材料の引き当てに失敗しました。';
+                if (error.data && error.data.error) {
+                    errorMessage += `\nエラー: ${error.data.error}`;
+                    if (error.data.detail) errorMessage += `\n詳細: ${error.data.detail}`;
+                } else if (error.message) {
+                    errorMessage += `\nメッセージ: ${error.message}`;
+                }
+                alert(errorMessage);
+                // Keep modal open for user to see error or adjust quantities
+            });
         });
 
         // Optional: Close modal if overlay (outside content) is clicked
@@ -407,6 +533,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 modalOverlay.remove();
             }
         });
+    }
+
+    function calculateDefaultAllocation(requiredStr, inventoryStr) {
+        const requiredQty = parseFloat(requiredStr);
+        const inventoryQty = parseInt(inventoryStr, 10); // inventory_quantity is Int
+
+        const validRequired = isNaN(requiredQty) ? 0 : requiredQty;
+        const validInventory = isNaN(inventoryQty) ? 0 : inventoryQty;
+
+        // Return the greater of the two, ensuring it's not negative.
+        // If both are 0 or invalid, it defaults to 0.
+        return Math.max(0, Math.min(validRequired, validInventory));
     }
 
     // Add event listener for the buttons using event delegation

@@ -109,7 +109,7 @@ def create_production_plan_api():
         print(f"  生産計画の作成失敗。")
         return None
 
-def create_parts_used_api(production_plan_code):
+def create_parts_used_api(production_plan_code, warehouse_name):
     """指定された生産計画コードに対して使用部品エントリを作成します。"""
     global fake
     # 部品は最近使用されたと仮定
@@ -120,6 +120,7 @@ def create_parts_used_api(production_plan_code):
         "part_code": f"部品-{fake.bothify(text='??##-###?').upper()}",
         "quantity_used": fake.random_int(min=1, max=50),
         "used_datetime": used_datetime_obj.isoformat(),
+        "warehouse": warehouse_name, # 追加：使用倉庫
         "remarks": fake.sentence(nb_words=7) if fake.boolean(chance_of_getting_true=50) else None,
     }
     print(f"    計画コード {production_plan_code} の使用部品を作成試行: 部品 {payload['part_code']}")
@@ -130,13 +131,14 @@ def create_parts_used_api(production_plan_code):
             "id": response_data.get('id'),
             "part_code": response_data.get("part_code"),
             "quantity_used": response_data.get("quantity_used"),
+            "warehouse": warehouse_name, # 追加：使用された倉庫を返す
             # "used_datetime": used_datetime_obj # PO作成時に使用日の情報が必要な場合
         }
     else:
         print(f"    計画コード {production_plan_code} の使用部品エントリ作成失敗。")
         return None
 
-def create_purchase_order_api(part_code, quantity):
+def create_purchase_order_api(part_code, quantity, warehouse_name):
     """使用された部品に基づいて発注（入庫予定）を作成します。"""
     global fake, purchase_order_number_counter
     
@@ -151,7 +153,7 @@ def create_purchase_order_api(part_code, quantity):
         "order_number": order_number,
         "supplier": fake.company(),
         "item": f"{part_code} ({fake.bs()})", # 品目名（説明的）
-        "warehouse": fake.random_element(elements=('中央倉庫', '部品倉庫A', '組立ライン横')),
+        "warehouse": warehouse_name, # 修正：引数で渡された倉庫を使用
         "quantity": quantity,
         "part_number": part_code, # 品番
         "product_name": f"{part_code} - {fake.word().capitalize()}仕様", # 品名
@@ -161,7 +163,7 @@ def create_purchase_order_api(part_code, quantity):
         "delivery_destination": fake.random_element(elements=(f"{fake.city()}工場", f"{fake.city()}物流センター")),
         # PurchaseOrderモデルの他のオプションフィールドも必要に応じてFakerで生成
     }
-    print(f"      発注を作成試行 {order_number} (部品 {part_code}, 数量 {quantity})")
+    print(f"      発注を作成試行 {order_number} (部品 {part_code}, 数量 {quantity}, 倉庫: {warehouse_name})")
     response_data = _make_api_request("POST", PURCHASE_ORDERS_ENDPOINT, data=payload)
     if response_data and response_data.get('id'):
         print(f"      発注の作成成功 ID: {response_data['id']}")
@@ -195,18 +197,24 @@ if __name__ == '__main__':
             if plan_code:
                 successful_plans += 1
                 num_parts_to_create_for_plan = random.randint(5, 30) # 計画ごとに5～30個の部品
-                print(f"  計画コード {plan_code}: {num_parts_to_create_for_plan} 件の使用部品エントリを作成します。")
+                # この生産計画で使用する倉庫を決定
+                shared_warehouse_for_plan = fake.random_element(elements=('中央倉庫', '部品倉庫A', '組立ライン横', '外部倉庫X', '一時保管エリア'))
+                print(f"  計画コード {plan_code}: {num_parts_to_create_for_plan} 件の使用部品エントリを作成します (共通倉庫: {shared_warehouse_for_plan})。")
 
                 for j in range(num_parts_to_create_for_plan):
                     print(f"    - 計画コード {plan_code} の使用部品エントリ {j+1}/{num_parts_to_create_for_plan}")
-                    parts_used_info = create_parts_used_api(plan_code)
+                    parts_used_info = create_parts_used_api(plan_code, shared_warehouse_for_plan)
 
-                    if parts_used_info and parts_used_info.get("part_code") and parts_used_info.get("quantity_used") is not None:
+                    if (parts_used_info and 
+                        parts_used_info.get("part_code") and 
+                        parts_used_info.get("quantity_used") is not None and
+                        parts_used_info.get("warehouse")): # warehouse情報も確認
                         total_parts_used_created += 1
-                        print(f"      使用部品ID {parts_used_info['id']} に基づいて発注を作成中...")
+                        print(f"      使用部品ID {parts_used_info['id']} (倉庫: {parts_used_info['warehouse']}) に基づいて発注を作成中...")
                         po_id = create_purchase_order_api(
                             part_code=parts_used_info["part_code"],
-                            quantity=parts_used_info["quantity_used"]
+                            quantity=parts_used_info["quantity_used"],
+                            warehouse_name=parts_used_info["warehouse"] # 使用部品で使われた倉庫情報を渡す
                         )
                         if po_id:
                             total_purchase_orders_created +=1

@@ -142,7 +142,7 @@
             currentPage = page;
             currentSearchTerm = searchTerm; // 検索語を更新
 
-            let dataUrl = `/inventory/purchase/data/?page=${page}&page_size=${pageSize}`;
+            let dataUrl = `/api/inventory/schedules/data/?page=${page}&page_size=${pageSize}`;
             if (searchTerm) {
                 dataUrl += `&search=${encodeURIComponent(searchTerm)}`;
             }
@@ -254,7 +254,7 @@
             }
 
             $.ajax({
-                url: '/inventory/purchase/scan/', // 修正: 正しいAPIエンドポイント
+                url: '/api/inventory/purchase-receipts/process/', // 修正: 正しいAPIエンドポイント
                 type: 'POST',
                 dataType: 'json',
                 data: {

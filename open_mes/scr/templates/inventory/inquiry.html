@@ -53,8 +53,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.querySelector('.inventory-inquiry table tbody');
     // rest_views.pyで定義された実際のAPIエンドポイントURLに置き換えてください
     // 例: const apiUrl = '/api/v1/inventory/';
-    // この例では、仮のURL '/api/inventory/' を使用します。
-    const apiUrl = '/inventory/data/'; 
+    // 正しいAPIエンドポイントURLに修正
+    const apiUrl = '/api/inventory/data/'; 
 
     fetch(apiUrl)
         .then(response => {

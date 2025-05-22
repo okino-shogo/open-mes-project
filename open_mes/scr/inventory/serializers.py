@@ -80,3 +80,38 @@ class InventorySerializer(serializers.ModelSerializer):
             'is_allocatable',
         ]
         read_only_fields = ['id', 'last_updated', 'available_quantity']
+
+
+class SalesOrderAllocationItemSerializer(serializers.Serializer):
+    """
+    Serializer for an individual item in a sales order allocation request.
+    """
+    part_number = serializers.CharField(max_length=255, help_text="Part number to allocate.")
+    warehouse = serializers.CharField(max_length=255, help_text="Warehouse to allocate from.")
+    quantity_to_reserve = serializers.IntegerField(min_value=1, help_text="Quantity to reserve.")
+
+    class Meta:
+        pass # No model to link, standard serializer
+
+
+class AllocateInventoryForSalesOrderRequestSerializer(serializers.Serializer):
+    """
+    Serializer for the request to allocate inventory for a sales order.
+    """
+    sales_order_reference = serializers.CharField(
+        max_length=255,
+        required=True,
+        help_text="Reference identifier for the sales order (e.g., order number)."
+    )
+    allocations = SalesOrderAllocationItemSerializer(
+        many=True,
+        required=True,
+        help_text="List of parts and quantities to allocate."
+    )
+
+    def validate_allocations(self, value):
+        if not value:
+            raise serializers.ValidationError("Allocations list cannot be empty.")
+        if len(value) != 1:
+            raise serializers.ValidationError("Allocations list must contain exactly one item for this operation.")
+        return value

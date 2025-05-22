@@ -2,8 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated # 必要に応じて認証を追加
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination # PageNumberPagination をインポート
-from .serializers import PurchaseOrderSerializer, InventorySerializer # InventorySerializer をインポート
+from rest_framework.pagination import PageNumberPagination
+from .serializers import PurchaseOrderSerializer, InventorySerializer, AllocateInventoryForSalesOrderRequestSerializer # SalesOrderSerializer is not directly used here but SalesOrder model is
 from .models import PurchaseOrder, Inventory, StockMovement # PurchaseOrder, Inventory, StockMovementモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート
@@ -220,10 +220,10 @@ def process_purchase_receipt_api(request):
             # 4. 対応する Inventory レコードを検索または新規作成し、数量を更新
             #    Inventory の item と warehouse は PurchaseOrder からの文字列を直接使用
             inventory_item, created = Inventory.objects.get_or_create(
-                part_number=purchase_order.item,    # PurchaseOrder の item 文字列を part_number として使用
+                part_number=purchase_order.part_number, # PurchaseOrder の part_number を使用
                 warehouse=purchase_order.warehouse, # PurchaseOrder の warehouse 文字列
-                defaults={'location': location}     # location は request.data.get('location')
-            )
+                defaults={'quantity': 0, 'location': location} # 新規作成時のデフォルト値を設定 (quantity:0 はモデル定義にもあるが明示)
+            ) # location はリクエストから取得
             inventory_item.quantity += actual_received_quantity
  
             # 既存レコードの場合で、かつリクエストに location が指定されていれば更新
@@ -233,7 +233,7 @@ def process_purchase_receipt_api(request):
 
             # 5. StockMovement レコードを作成 (入庫履歴)
             StockMovement.objects.create(
-                part_number=purchase_order.item, # PurchaseOrder の item 文字列を直接使用
+                part_number=purchase_order.part_number, # PurchaseOrder の part_number を使用
                 movement_type='incoming',
                 quantity=actual_received_quantity,
                 description=f"PO {purchase_order.order_number} による入庫" + (f" (場所: {location})" if location else ""),
@@ -293,3 +293,82 @@ def get_inventory_data(request):
     else:
         # DRFの Response を使う場合、エラーレスポンスも Response で統一するのが良い
         return Response({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['POST'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def allocate_inventory_for_sales_order_api(request):
+    """
+    Allocates inventory for a sales order.
+    This endpoint reserves quantities for specified part numbers in given warehouses.
+    The operation is atomic: all allocations succeed, or none are applied.
+
+    Request Body:
+    {
+      "sales_order_reference": "SO12345",
+      "allocations": [
+        {"part_number": "PN001", "warehouse": "WH-A", "quantity_to_reserve": 10},
+        {"part_number": "PN002", "warehouse": "WH-B", "quantity_to_reserve": 5}
+      ]
+    }
+    """
+    serializer = AllocateInventoryForSalesOrderRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    validated_data = serializer.validated_data
+    sales_order_ref = validated_data['sales_order_reference'] # Renamed for clarity and consistency
+    allocations_data = validated_data['allocations'] # This will be a list of allocation items
+
+    from .models import SalesOrder # Import SalesOrder model
+
+    processed_allocations_summary = []
+
+    try:
+        with transaction.atomic():
+            # Iterate over the list of allocations provided in the request
+            for alloc_item_data in allocations_data:
+                part_number = alloc_item_data['part_number']
+                warehouse = alloc_item_data['warehouse']
+                quantity_to_reserve = alloc_item_data['quantity_to_reserve']
+
+                try:
+                    # Lock the inventory row for the duration of the transaction
+                    inventory_item = Inventory.objects.select_for_update().get(
+                        part_number=part_number,
+                        warehouse=warehouse
+                    )
+                except Inventory.DoesNotExist:
+                    raise ValueError(f"Inventory record not found for part '{part_number}' in warehouse '{warehouse}'.")
+
+                if not inventory_item.is_active or not inventory_item.is_allocatable:
+                    raise ValueError(f"Inventory for part '{part_number}' in warehouse '{warehouse}' is not active or not allocatable.")
+
+                if inventory_item.available_quantity < quantity_to_reserve:
+                    raise ValueError(
+                        f"Insufficient available stock for part '{part_number}' in warehouse '{warehouse}'. "
+                        f"Required: {quantity_to_reserve}, Available: {inventory_item.available_quantity}"
+                    )
+
+                inventory_item.reserved += quantity_to_reserve
+                inventory_item.save()
+
+                processed_allocations_summary.append({
+                    "part_number": part_number,
+                    "warehouse": warehouse,
+                    "reserved_quantity": quantity_to_reserve,
+                    "new_total_reserved": inventory_item.reserved,
+                    "new_available_quantity": inventory_item.available_quantity  # Property will recalculate
+                })
+            
+            return Response({
+                "message": "Inventory allocated successfully.",
+                "sales_order_reference": sales_order_ref,
+                "allocations_summary": processed_allocations_summary
+            }, status=status.HTTP_200_OK)
+
+    except ValueError as e: # Handles custom errors like DoesNotExist, not active/allocatable, insufficient stock
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e: # Catch-all for other unexpected errors
+        # It's good practice to log the exception 'e' here for debugging purposes
+        return Response({"error": "An unexpected error occurred during allocation.", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

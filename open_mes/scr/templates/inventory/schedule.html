@@ -39,7 +39,7 @@
         function loadScheduleData(page) {
             currentPage = page;
             $.ajax({
-                url: `/inventory/schedule/data/?page=${page}&page_size=${pageSize}`, // ページとページサイズを指定
+                url: `/api/inventory/schedules/data/?page=${page}&page_size=${pageSize}`, // ページとページサイズを指定
             }).done(function(data) {
                     $('#schedule-table tbody').empty(); // テーブルの既存データをクリア
                     $('#schedule-count-info').empty(); // 件数表示エリアをクリア

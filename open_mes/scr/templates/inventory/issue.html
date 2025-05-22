@@ -4,21 +4,6 @@
 {% block inventory_content %}
 {{ auto_refresh|safe }}
 
-<h1>出庫処理</h1>
-
-<form id="form" action="" method="post">
-    {% csrf_token %}
-    
-    <!-- シリアル/バーコード入力フィールド -->
-    <p>
-        <label for="id_barcode_scanner_input">シリアル/バーコード:</label>
-        <input type="text" name="barcode_scanner_input" id="id_barcode_scanner_input" autofocus placeholder="ここにスキャンしてください">
-    </p>
-    
-    {{ form.as_p }}
-    <button type="submit">出庫</button>
-</form>
-
 {% if messages %}
 <ul class="messages">
     {% for message in messages %}
@@ -26,6 +11,14 @@
     {% endfor %}
 </ul>
 {% endif %}
+
+<h1>出庫処理</h1>
+
+<form id="issueForm" action="{% url 'inventory_issue' %}" method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">出庫</button>
+</form>
 
 {% endblock inventory_content %}
 

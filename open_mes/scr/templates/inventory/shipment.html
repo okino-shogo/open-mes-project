@@ -21,14 +21,14 @@
         <tbody id="sales-order-list">
             {% for order in sales_orders %}
             <tr>
-                <td>{{ order.order_number }}</td>
-                <td>{{ order.item.name }}</td>
-                <td>{{ order.quantity }}</td>
-                <td>{{ order.shipped_quantity }}</td>
-                <td>{{ order.order_date|date:"Y-m-d H:i" }}</td>
-                <td>{{ order.expected_shipment|date:"Y-m-d H:i" }}</td>
-                <td>{{ order.warehouse.warehouse_number }}</td>
-                <td>{{ order.get_status_display }}</td>
+                <td>{{ order.order_number|default_if_none:"" }}</td>
+                <td>{{ order.item|default_if_none:"" }}</td>
+                <td>{{ order.quantity|default_if_none:"" }}</td>
+                <td>{{ order.shipped_quantity|default_if_none:"" }}</td>
+                <td>{{ order.order_date|date:"Y-m-d H:i"|default_if_none:"" }}</td>
+                <td>{{ order.expected_shipment|date:"Y-m-d H:i"|default_if_none:"" }}</td>
+                <td>{{ order.warehouse|default_if_none:"" }}</td>
+                <td>{{ order.get_status_display|default_if_none:"" }}</td>
             </tr>
             {% empty %}
             <tr>

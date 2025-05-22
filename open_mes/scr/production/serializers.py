@@ -63,6 +63,7 @@ class PartsUsedSerializer(serializers.ModelSerializer):
             'id',
             'production_plan', # 生産計画へのForeignKey
             'part_code',
+            'warehouse', # 追加
             'quantity_used',
             'used_datetime',
             'remarks',
@@ -83,6 +84,7 @@ class RequiredPartSerializer(serializers.Serializer):
     required_quantity = serializers.DecimalField(max_digits=12, decimal_places=3, help_text="必要数量")
     unit = serializers.CharField(max_length=50, help_text="単位")
     inventory_quantity = serializers.IntegerField(help_text="現在の在庫数量")
+    warehouse = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True, help_text="部品が使用される倉庫")
 
     # このシリアライザは読み取り専用のデータを想定しています。
     # ビュー側で `data_for_serializer` を構築する際に、これらのフィールドに合致するデータを提供します。

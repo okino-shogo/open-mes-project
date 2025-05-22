@@ -67,6 +67,12 @@ class PartsUsed(models.Model):
         help_text="関連する生産計画の名前やIDなどの識別子を文字列で記録します。"
     )
     part_code = models.CharField(max_length=100, verbose_name="部品コード (仮)")
+    warehouse = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name="使用倉庫"
+    ) # 部品がどの倉庫から使用されるか
     quantity_used = models.PositiveIntegerField(verbose_name="使用数量")
     used_datetime = models.DateTimeField(default=timezone.now, verbose_name="使用日時")
     remarks = models.TextField(blank=True, null=True, verbose_name="備考")
@@ -77,7 +83,8 @@ class PartsUsed(models.Model):
         # production_plan は文字列フィールドになったため、直接参照します。
         # 以前のように .plan_name でアクセスすることはできません。
         # 表示する文字列が生産計画のIDや名前を直接含むことを想定しています。
-        return f"{self.part_code} - {self.quantity_used} units for Production Plan: {self.production_plan}"
+        warehouse_display = f" from Warehouse: {self.warehouse}" if self.warehouse else ""
+        return f"{self.part_code} - {self.quantity_used} units for P.Plan: {self.production_plan}{warehouse_display}"
 
     class Meta:
         verbose_name = "使用部品"
