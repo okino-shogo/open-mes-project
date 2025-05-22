@@ -80,8 +80,8 @@ class RequiredPartSerializer(serializers.Serializer):
     part_code = serializers.CharField(max_length=100)
     part_name = serializers.CharField(max_length=255, help_text="部品名")
     # required_quantity の型 (DecimalField, IntegerField など) は、
-    # PartsUsed モデルの quantity_used フィールドの型や実際のデータに合わせて調整してください。
-    required_quantity = serializers.DecimalField(max_digits=12, decimal_places=3, help_text="必要数量")
+    # PartsUsed.quantity_used is PositiveIntegerField, MaterialAllocation.allocated_quantity is PositiveIntegerField.
+    required_quantity = serializers.IntegerField(help_text="必要数量")
     unit = serializers.CharField(max_length=50, help_text="単位")
     inventory_quantity = serializers.IntegerField(help_text="現在の在庫数量")
     warehouse = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True, help_text="部品が使用される倉庫")

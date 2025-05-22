@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated # 必要に応じて認証を追加
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
-from .serializers import PurchaseOrderSerializer, InventorySerializer, AllocateInventoryForSalesOrderRequestSerializer # SalesOrderSerializer is not directly used here but SalesOrder model is
+from .serializers import PurchaseOrderSerializer, InventorySerializer, AllocateInventoryForSalesOrderRequestSerializer
 from .models import PurchaseOrder, Inventory, StockMovement # PurchaseOrder, Inventory, StockMovementモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート
@@ -320,7 +320,7 @@ def allocate_inventory_for_sales_order_api(request):
     sales_order_ref = validated_data['sales_order_reference'] # Renamed for clarity and consistency
     allocations_data = validated_data['allocations'] # This will be a list of allocation items
 
-    from .models import SalesOrder # Import SalesOrder model
+    from .models import SalesOrder, Inventory # Import SalesOrder and Inventory models
 
     processed_allocations_summary = []
 
@@ -353,10 +353,42 @@ def allocate_inventory_for_sales_order_api(request):
                 inventory_item.reserved += quantity_to_reserve
                 inventory_item.save()
 
+                # Create SalesOrder if it doesn't exist for this sales_order_ref,
+                # or verify consistency if it does.
+                # The sales_order_ref is assumed to uniquely identify the sales order line.
+                sales_order, so_created = SalesOrder.objects.get_or_create(
+                    order_number=sales_order_ref,
+                    defaults={
+                        'item': part_number,
+                        'quantity': quantity_to_reserve, # SalesOrder.quantity set by the first reservation's amount
+                        'warehouse': warehouse,
+                        'status': 'pending'
+                    }
+                )
+
+                if not so_created:
+                    # SalesOrder already existed. Verify consistency with the current allocation.
+                    mismatch = False
+                    if sales_order.item != part_number:
+                        mismatch = True
+                    # Compare warehouse, handling None carefully
+                    if warehouse is None and sales_order.warehouse is not None:
+                        mismatch = True
+                    elif warehouse is not None and sales_order.warehouse != warehouse:
+                        mismatch = True
+                    
+                    if mismatch:
+                        raise ValueError(
+                            f"Sales Order '{sales_order_ref}' (ID: {sales_order.id}) already exists but with conflicting item/warehouse. "
+                            f"Existing: item='{sales_order.item}', warehouse='{sales_order.warehouse}'. "
+                            f"Current allocation request: item='{part_number}', warehouse='{warehouse}'."
+                        )
+
                 processed_allocations_summary.append({
                     "part_number": part_number,
                     "warehouse": warehouse,
                     "reserved_quantity": quantity_to_reserve,
+                    "sales_order_created": so_created,
                     "new_total_reserved": inventory_item.reserved,
                     "new_available_quantity": inventory_item.available_quantity  # Property will recalculate
                 })
@@ -364,6 +396,7 @@ def allocate_inventory_for_sales_order_api(request):
             return Response({
                 "message": "Inventory allocated successfully.",
                 "sales_order_reference": sales_order_ref,
+                "sales_order_id": sales_order.id, # Include SalesOrder ID in response
                 "allocations_summary": processed_allocations_summary
             }, status=status.HTTP_200_OK)
 

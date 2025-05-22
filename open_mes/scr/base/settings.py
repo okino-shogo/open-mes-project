@@ -180,7 +180,7 @@ LOGOUT_REDIRECT_URL = 'main'  # ログアウト後のリダイレクト先
 # settings.py
 # ... other settings
 
-PASSWORD_EXPIRATION_DAYS = 1 # 例: 90日
+PASSWORD_EXPIRATION_DAYS = 180 # 例: 90日
 
 # 有効期限を無効にする場合は 0 や None を設定
 # PASSWORD_EXPIRATION_DAYS = None

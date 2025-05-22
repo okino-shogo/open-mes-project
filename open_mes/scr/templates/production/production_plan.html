@@ -461,14 +461,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Do not add to allocationsData if warehouse is missing
                     } else {
                         allocationsData.push({
-                            part_number: partCode, // API expects part_number
+                            part_number: partCode,
                             warehouse: partWarehouse,
-                            quantity_to_reserve: quantity
+                            quantity_to_allocate: quantity // Changed key name
                         });
                     }
                 }
             });
-
+            
             if (hasMissingWarehouse) {
                 alert('一部の部品で倉庫が指定されていなかったため、それらの部品は引き当て対象から除外されました。');
             }
@@ -480,12 +480,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const csrftoken = getCookie('csrftoken');
             const payload = {
-                sales_order_reference: String(plan.id), // Using plan.id as the reference
+                // sales_order_reference is no longer needed in the body for the new API
                 allocations: allocationsData
             };
             console.log('引き当て実行ペイロード:', JSON.stringify(payload, null, 2));
 
-            fetch('/api/inventory/allocate-for-sales-order/', {
+            // Updated API endpoint
+            fetch(`/api/production/plans/${plan.id}/allocate-materials/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -507,7 +508,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(data => {
-                alert('材料の引き当てに成功しました。\n' + (data.message || ''));
+                let successMessage = '材料の引き当て処理が完了しました。\n';
+                if (data.message) successMessage += data.message;
+                // You might want to provide more details from data.allocations_summary if needed.
+                alert(successMessage);
                 console.log('Allocation successful:', data);
                 modalOverlay.remove(); // Close modal on success
                 // Optionally, refresh the production plan list or update UI
@@ -517,8 +521,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Allocation failed:', error);
                 let errorMessage = '材料の引き当てに失敗しました。';
                 if (error.data && error.data.error) {
-                    errorMessage += `\nエラー: ${error.data.error}`;
-                    if (error.data.detail) errorMessage += `\n詳細: ${error.data.detail}`;
+                    errorMessage += `\nサーバーエラー: ${error.data.error}`;
+                    if (error.data.details && Array.isArray(error.data.details) && error.data.details.length > 0) {
+                        errorMessage += "\n詳細:\n- " + error.data.details.join("\n- ");
+                    } else if (error.data.detail) {
+                         errorMessage += `\n詳細: ${error.data.detail}`;
+                    }
                 } else if (error.message) {
                     errorMessage += `\nメッセージ: ${error.message}`;
                 }

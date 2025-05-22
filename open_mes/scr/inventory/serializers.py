@@ -99,7 +99,7 @@ class AllocateInventoryForSalesOrderRequestSerializer(serializers.Serializer):
     Serializer for the request to allocate inventory for a sales order.
     """
     sales_order_reference = serializers.CharField(
-        max_length=255,
+        max_length=20, # Align with SalesOrder.order_number max_length
         required=True,
         help_text="Reference identifier for the sales order (e.g., order number)."
     )
@@ -112,6 +112,4 @@ class AllocateInventoryForSalesOrderRequestSerializer(serializers.Serializer):
     def validate_allocations(self, value):
         if not value:
             raise serializers.ValidationError("Allocations list cannot be empty.")
-        if len(value) != 1:
-            raise serializers.ValidationError("Allocations list must contain exactly one item for this operation.")
         return value

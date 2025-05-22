@@ -17,7 +17,6 @@ class UserManager(BaseUserManager):
         if not custom_id:
             raise ValueError('専用IDは必須です。')
         # emailが必須でなくなったので、チェックを削除
-        email = self.normalize_email(email) if email else ''
         # password_last_changed は set_password 内で設定される
         user = self.model(custom_id=custom_id, email=email, **extra_fields)
         # パスワードを設定（これにより password_last_changed も更新される）
@@ -41,7 +40,9 @@ class UserManager(BaseUserManager):
 
         # スーパーユーザー作成時も _create_user を経由するので、
         # password_last_changed は適切に設定される
-        return self._create_user(custom_id, email, password, **extra_fields)
+        # _create_user内でemailの正規化が行われるため、ここでは渡すだけでよい
+        normalized_email = self.normalize_email(email) if email else None
+        return self._create_user(custom_id, normalized_email, password, **extra_fields)
 
 # カスタムユーザー
 class CustomUser(AbstractBaseUser, PermissionsMixin):
@@ -127,26 +128,21 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     @property
     def is_password_expired(self):
         """
-        パスワードが有効期限切れかどうかを判定する。
-        settings.PASSWORD_EXPIRATION_DAYS で日数を指定（デフォルト90日）。
+        パスワードが有効期限切れかどうかを判定します。
+        settings.PASSWORD_EXPIRATION_DAYS で日数を指定します（デフォルト90日）。
         """
-        # settings.py に PASSWORD_EXPIRATION_DAYS = 90 のように設定
-        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', 180) # デフォルトを None に変更
-        # print(f"User {self.custom_id}: Checking password expiration. Expiration days: {expiration_days}, Last changed: {self.password_last_changed}")
+        expiration_days = getattr(settings, 'PASSWORD_EXPIRATION_DAYS', 90) # デフォルトを90日に設定
 
         if expiration_days is None or expiration_days <= 0:
              # 有効期限が無効化されている場合は常に False
-            # print(f"User {self.custom_id}: Password expiration is disabled or invalid days.")
             return False
 
         if not self.password_last_changed:
             # password_last_changed がない場合 (通常は default=timezone.now で設定されるため稀)
             # 安全のため、またはポリシーに基づき期限切れとみなす
-            # print(f"User {self.custom_id}: password_last_changed is not set. Considering expired as a fallback.")
             return True
 
         expiration_date = self.password_last_changed + timedelta(days=expiration_days)
         expired = timezone.now() > expiration_date
-        # print(f"User {self.custom_id}: Expiration date: {expiration_date}, Now: {timezone.now()}, Expired: {expired}")
         return expired
     # --- ここまで ---
