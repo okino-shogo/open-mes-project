@@ -29,7 +29,6 @@ from machine import views as machine_views
 from quality import views as quality_views # quality.viewsをインポート
 
 
-app_name = "base"
 production_router = DefaultRouter()
 production_router.register(r'plans', production_rest_views.ProductionPlanViewSet, basename='production_plan')
 production_router.register(r'parts-used', production_rest_views.PartsUsedViewSet, basename='parts_used') # PartsUsedViewSetを登録

@@ -1,6 +1,6 @@
-{% extends "production/base.html" %}
+{% extends "base.html" %}
 {% load md5url %}
-{% block production_content %}
+{% block content %}
 <div class="production-plan-list">
     <h2>生産計画一覧</h2>
     <table id="productionPlanTable">
@@ -508,14 +508,78 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(data => {
-                let successMessage = '材料の引き当て処理が完了しました。\n';
-                if (data.message) successMessage += data.message;
-                // You might want to provide more details from data.allocations_summary if needed.
-                alert(successMessage);
                 console.log('Allocation successful:', data);
-                modalOverlay.remove(); // Close modal on success
-                // Optionally, refresh the production plan list or update UI
-                // fetchProductionPlans(initialUrl); // Example: Refresh list
+
+                // モーダルの内容を成功メッセージに更新
+                // modalContent は showAllocatePopup 関数のスコープで利用可能です
+                let successHtml = `
+                    <h3>材料引き当て完了</h3>
+                    <p>材表の引き当てが完了しました。</p>
+                `;
+
+                if (data.message) {
+                    // APIからの追加メッセージがあれば表示（改行を<br>に変換）
+                    successHtml += `<p>${String(data.message).replace(/\n/g, '<br>')}</p>`;
+                }
+
+                // 引き当て結果の詳細を表示 (data.allocations_summary が存在する場合)
+                if (data.allocations_summary && Array.isArray(data.allocations_summary) && data.allocations_summary.length > 0) {
+                    successHtml += `
+                        <h4>引き当て結果詳細:</h4>
+                        <div style="max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-bottom:15px; font-size: 0.9em;">
+                            <table style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>部品番号</th>
+                                        <th class="numeric-column">引当数量</th>
+                                        <th>ステータス</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    data.allocations_summary.forEach(item => {
+                        successHtml += `
+                            <tr>
+                                <td>${item.part_number || 'N/A'}</td>
+                                <td class="numeric-column">${item.allocated_quantity !== undefined ? item.allocated_quantity : 'N/A'}</td>
+                                <td>${item.status || 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+                    successHtml += '</tbody></table></div>';
+                }
+
+                successHtml += `
+                    <div class="modal-actions">
+                        <button id="closeAllocationSuccessButton" class="button-primary">閉じる</button>
+                    </div>
+                `;
+                modalContent.innerHTML = successHtml;
+
+                // ---ここから追加: BroadcastChannelを使用して結果を通知 ---
+                try {
+                    const bc = new BroadcastChannel('allocation_results_channel');
+                    const messagePayload = {
+                        type: 'allocationResult',
+                        data: data // APIからのレスポンスデータ全体
+                    };
+                    bc.postMessage(messagePayload);
+                    bc.close(); // 送信後にチャネルを閉じる
+                    console.log('Allocation result broadcasted to other windows.');
+                } catch (e) {
+                    console.error('Error broadcasting allocation result:', e);
+                }
+                // --- ここまで追加 ---
+
+                // 新しく追加された「閉じる」ボタンにイベントリスナーを設定
+                const closeButton = modalContent.querySelector('#closeAllocationSuccessButton');
+                if (closeButton) {
+                    closeButton.addEventListener('click', () => {
+                        modalOverlay.remove();
+                        // 必要であれば、ここで生産計画一覧を再読み込みします
+                        // fetchProductionPlans(initialUrl);
+                    });
+                }
             })
             .catch(error => {
                 console.error('Allocation failed:', error);
@@ -570,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% endblock production_content %}
+{% endblock content %}
 {% block js_link %}
 
 <script
