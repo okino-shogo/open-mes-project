@@ -181,8 +181,8 @@
         }
         /* Container Styles */
         .container {
-            max-width: 1200px;
-            margin: 2rem auto;
+            max-width: 1400px; /* 最大幅を広げました */
+            margin: 1.5rem auto; /* 上下のマージンを減らしました */
             flex-grow: 1; /* Allow container to grow and push footer down */
             padding: 0 1rem;
         }
@@ -233,6 +233,50 @@
                 font-size: 1.5rem; /* Smaller title on mobile */
             }
         }
+
+    /* --- Common Table Styles --- */
+    /* Added for consistency across different tables */
+    .data-table, .inventory-table {
+        width: 100%;
+        border-collapse: collapse; /* Remove space between borders */
+        margin-top: 15px; /* Space above the table */
+        font-size: 0.95em; /* Slightly smaller font for tables */
+        border: 1px solid #bbb; /* Added outer border for the table */
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* Subtle shadow */
+    }
+
+    .data-table th, .data-table td,
+    .inventory-table th, .inventory-table td {
+        border: 1px solid #ddd; /* Light gray border */
+        padding: 10px 8px; /* More padding */
+        text-align: left; /* Default text alignment */
+        vertical-align: top; /* Align content to top */
+    }
+
+    .data-table th, .inventory-table th {
+        background-color: #e9ecef; /* Light gray header background */
+        font-weight: bold;
+        color: #495057; /* Darker text for headers */
+        text-align: center; /* Center header text */
+    }
+
+    /* Alternating row colors */
+    .data-table tbody tr:nth-child(even),
+    .inventory-table tbody tr:nth-child(even) {
+        background-color: #f8f9fa; /* Very light gray for even rows */
+    }
+
+    /* Hover effect */
+    .data-table tbody tr:hover,
+    .inventory-table tbody tr:hover {
+        background-color: #e2e6ea; /* Slightly darker gray on hover */
+    }
+
+    /* Style for numeric columns (can be applied to td or th) */
+    .numeric-column {
+        text-align: right;
+    }
+    /* --- End Common Table Styles --- */
     </style>
 </head>
 <body id="page_base">
@@ -247,6 +291,7 @@
 </header>
 
 <nav id='menu-bar'>
+    <a href="{% url 'main' %}">トップページ</a>
     <div class="menu-category-title">在庫管理</div>
     <a href="{% url 'inventory_inquiry' %}" class="menu-subcategory-link">在庫照会</a>
     <a href="{% url 'inventory_schedule' %}" class="menu-subcategory-link">入庫予定</a>
