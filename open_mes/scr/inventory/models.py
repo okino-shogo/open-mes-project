@@ -106,3 +106,7 @@ class SalesOrder(models.Model):
     def __str__(self):
         item_display = self.item if self.item else "N/A"
         return f"SO {self.order_number} - {item_display} ({self.status})"
+
+    @property
+    def remaining_quantity(self):
+        return self.quantity - self.shipped_quantity

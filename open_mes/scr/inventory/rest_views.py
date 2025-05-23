@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated # 必要に応じて認�
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from .serializers import PurchaseOrderSerializer, InventorySerializer, AllocateInventoryForSalesOrderRequestSerializer
-from .models import PurchaseOrder, Inventory, StockMovement # PurchaseOrder, Inventory, StockMovementモデルをインポート
+from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # SalesOrderモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート
 from django.db.models import Q # Qオブジェクトをインポートして複雑なクエリを構築
@@ -405,3 +405,105 @@ def allocate_inventory_for_sales_order_api(request):
     except Exception as e: # Catch-all for other unexpected errors
         # It's good practice to log the exception 'e' here for debugging purposes
         return Response({"error": "An unexpected error occurred during allocation.", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def process_single_sales_order_issue_api(request):
+    """
+    Processes the issuing of items for a single sales order based on provided quantity.
+
+    Request Body (JSON):
+    {
+      "order_id": "uuid_of_sales_order",
+      "quantity_to_ship": 10
+    }
+    """
+    try:
+        order_id = request.data.get('order_id')
+        quantity_to_ship_str = request.data.get('quantity_to_ship')
+
+        if not order_id or quantity_to_ship_str is None:
+            return JsonResponse({'success': False, 'error': 'order_id と quantity_to_ship は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            quantity_to_ship = int(quantity_to_ship_str)
+            if quantity_to_ship <= 0:
+                return JsonResponse({'success': False, 'error': '出庫数量は0より大きい必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return JsonResponse({'success': False, 'error': '出庫数量は有効な数値である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            sales_order = get_object_or_404(SalesOrder.objects.select_for_update(), id=order_id)
+
+            if sales_order.status == 'shipped':
+                return JsonResponse({'success': False, 'error': f"受注 {sales_order.order_number} は既に出庫済みです。"}, status=status.HTTP_400_BAD_REQUEST)
+            if sales_order.status == 'canceled':
+                return JsonResponse({'success': False, 'error': f"受注 {sales_order.order_number} はキャンセルされています。"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not sales_order.item or not sales_order.warehouse:
+                return JsonResponse({'success': False, 'error': f"受注 {sales_order.order_number} に品目または倉庫が指定されていません。"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if quantity_to_ship > sales_order.remaining_quantity:
+                return JsonResponse({
+                    'success': False,
+                    'error': f"出庫数量 ({quantity_to_ship}) が残数量 ({sales_order.remaining_quantity}) を超えています。"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                inventory_item = Inventory.objects.select_for_update().get(
+                    part_number=sales_order.item,
+                    warehouse=sales_order.warehouse
+                )
+            except Inventory.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': f"在庫記録が見つかりません: 品目 {sales_order.item}、倉庫 {sales_order.warehouse} (受注: {sales_order.order_number})"
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            if not inventory_item.is_active:
+                return JsonResponse({
+                    'success': False,
+                    'error': f"在庫品目 {sales_order.item} (倉庫: {sales_order.warehouse}) は有効ではありません。"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if inventory_item.quantity < quantity_to_ship:
+                return JsonResponse({
+                    'success': False,
+                    'error': f"在庫不足: {sales_order.item} (倉庫: {sales_order.warehouse})。実在庫: {inventory_item.quantity}, 要求: {quantity_to_ship}。"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Optional: Check reserved quantity consistency, though primary check is on available quantity.
+            if inventory_item.reserved < quantity_to_ship:
+                 # This might be a warning or an error depending on business logic.
+                 # For now, we proceed if total quantity is sufficient, and consume reservation.
+                 print(f"Warning for SO {sales_order.order_number}: Reserved quantity ({inventory_item.reserved}) is less than shipping quantity ({quantity_to_ship}). Shipping based on total available stock.")
+
+
+            # Update Inventory
+            inventory_item.quantity -= quantity_to_ship
+            inventory_item.reserved -= min(inventory_item.reserved, quantity_to_ship) # Consume reservation
+            inventory_item.save()
+
+            # Update SalesOrder
+            sales_order.shipped_quantity += quantity_to_ship
+            if sales_order.remaining_quantity <= 0:
+                sales_order.status = 'shipped'
+            sales_order.save()
+
+            # Create StockMovement record
+            StockMovement.objects.create(
+                part_number=sales_order.item,
+                movement_type='outgoing',
+                quantity=quantity_to_ship,
+                description=f"SO {sales_order.order_number} による出庫 (倉庫: {sales_order.warehouse})"
+            )
+
+            return JsonResponse({'success': True, 'message': f"受注 {sales_order.order_number} から {quantity_to_ship} 個の {sales_order.item} を出庫しました。"})
+
+    except SalesOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': f"受注ID {order_id} が見つかりません。"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        # Log the exception e for server-side debugging
+        print(f"Error processing single sales order issue: {e}")
+        return JsonResponse({'success': False, 'error': f"出庫処理中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
