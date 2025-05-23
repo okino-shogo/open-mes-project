@@ -64,6 +64,30 @@
         border: 1px solid #ccc;
         border-radius: 4px;
     }
+    .message-area {
+        margin-top: 15px;
+        padding: 10px;
+    }
+
+    /* Table Styles */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
+    tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
 </style>
 
 <h1>出庫処理</h1>
@@ -141,7 +165,8 @@
                 <input type="number" id="modal_quantity_to_ship" name="quantity_to_ship" min="1" required>
             </div>
 
-            <div id="modal_error_message" style="color: red; margin-bottom: 10px;"></div>
+            <div id="modal_error_message" class="message-area" style="color: red;"></div>
+            <div id="modal_success_message" class="message-area" style="color: green;"></div>
 
             <button type="submit" class="button">確認</button>
             <button type="button" class="button close-modal-button">キャンセル</button>
@@ -155,9 +180,6 @@
 
 {% block js_link %}
 
-<script
-    src="{% static 'js/top.js' %}"> {# Assuming md5url resolves to static, or use {% static %} if md5url is custom #}
-</script>
 
 <link
     rel="stylesheet"
@@ -172,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const issueButtons = document.querySelectorAll('.issue-button');
     const modalForm = document.getElementById('modalIssueForm');
     const modalErrorMessage = document.getElementById('modal_error_message');
+    const modalSuccessMessage = document.getElementById('modal_success_message');
 
     function openModal(orderData) {
         document.getElementById('modal_order_id').value = orderData.orderId;
@@ -186,6 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
         quantityInput.placeholder = `最大 ${orderData.remainingQuantity}`;
         
         modalErrorMessage.textContent = '';
+        modalSuccessMessage.textContent = ''; // Clear previous messages
         modal.style.display = 'block';
     }
 
@@ -217,6 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     modalForm.addEventListener('submit', function (event) {
         event.preventDefault();
+        modalSuccessMessage.textContent = ''; // Clear success message on new submission
         modalErrorMessage.textContent = '';
 
         const orderId = document.getElementById('modal_order_id').value;
@@ -236,10 +261,12 @@ document.addEventListener('DOMContentLoaded', function () {
         })
         .then(response => response.json())
         .then(data => {
+            // Clear messages before displaying new one
+            modalErrorMessage.textContent = '';
+            modalSuccessMessage.textContent = '';
+
             if (data.success) {
-                alert(data.message || '出庫処理が正常に完了しました。');
-                closeModal();
-                window.location.reload(); // Reload to see changes
+                modalSuccessMessage.textContent = data.message || '出庫処理が正常に完了しました。';
             } else {
                 modalErrorMessage.textContent = data.error || 'エラーが発生しました。';
             }
@@ -247,6 +274,14 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(error => {
             console.error('Error:', error);
             modalErrorMessage.textContent = '通信エラーが発生しました。';
+        })
+        .finally(() => {
+            // After showing the message (success or error),
+            // if it was a success, reload the page to update the table.
+            // If it was an error, the modal stays open with the error message.
+            if (modalSuccessMessage.textContent) {
+                 window.location.reload(); // Reload only on success
+            }
         });
     });
 });
