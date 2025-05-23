@@ -6,12 +6,11 @@ from rest_framework.pagination import PageNumberPagination
 from .serializers import PurchaseOrderSerializer, InventorySerializer, AllocateInventoryForSalesOrderRequestSerializer
 from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # SalesOrderモデルをインポート
 from django.http import JsonResponse
-from django.db import transaction # トランザクションのためにインポート
-from django.db.models import Q # Qオブジェクトをインポートして複雑なクエリを構築
+from django.db import transaction # トランザクションのためにインポート # Qオブジェクトをインポートして複雑なクエリを構築
+from django.db.models import Q, F # Fオブジェクトをインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 from master.models import Item, Warehouse # masterアプリケーションからItem, Warehouseをインポート (現在は文字列として使用)
 from django.contrib.auth.decorators import login_required # 認証が必要な場合
-
 @permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
 @api_view(['POST'])
 def create_purchase_order_api(request):
@@ -265,9 +264,20 @@ def process_purchase_receipt_api(request):
 
 # DRFのページネーションクラスを定義 (共通で利用可能)
 class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 100  # 1ページあたりのデフォルト件数
+    page_size = 25  # 1ページあたりのデフォルト件数を25に変更（適宜調整してください）
     page_size_query_param = 'page_size' # クライアントが1ページあたりの件数を指定するためのクエリパラメータ
     max_page_size = 1000 # クライアントが指定できる1ページあたりの最大件数
+
+    def get_paginated_response(self, data):
+        return Response({
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'current_page': self.page.number,
+            'page_size': self.get_page_size(self.request),
+            'results': data
+        })
 
 
 # @login_required # ログインユーザーのみアクセス可能にする場合 (必要に応じてコメント解除)
@@ -279,12 +289,34 @@ def get_inventory_data(request):
     """
     if request.method == 'GET':
         # DRFページネーションを適用
-        # クライアントはクエリパラメータ 'page' と 'page_size' で制御できます
         paginator = StandardResultsSetPagination()
 
-        # クエリセットを取得し、ページネーションを適用
-        inventories = Inventory.objects.all().order_by('part_number', 'warehouse', 'location')
-        paginated_inventories = paginator.paginate_queryset(inventories, request)
+        # フィルタリングのためのクエリパラメータを取得
+        part_number_query = request.query_params.get('part_number_query', None)
+        warehouse_query = request.query_params.get('warehouse_query', None)
+        location_query = request.query_params.get('location_query', None)
+        hide_zero_stock_query = request.query_params.get('hide_zero_stock_query', 'false').lower() == 'true'
+
+        filters = Q()
+        if part_number_query:
+            filters &= Q(part_number__icontains=part_number_query)
+        if warehouse_query:
+            filters &= Q(warehouse__icontains=warehouse_query)
+        if location_query:
+            filters &= Q(location__icontains=location_query)
+
+        inventories_qs = Inventory.objects.filter(filters)
+
+        if hide_zero_stock_query:
+            # 利用可能在庫が0より大きいものをフィルタリング
+            # available_quantity のロジック: is_active=True, is_allocatable=True, quantity > reserved
+            inventories_qs = inventories_qs.filter(
+                is_active=True,
+                is_allocatable=True,
+                quantity__gt=F('reserved')
+            )
+
+        paginated_inventories = paginator.paginate_queryset(inventories_qs.order_by('part_number', 'warehouse', 'location'), request)
 
         # ページングされたクエリセットをシリアライズ
         serializer = InventorySerializer(paginated_inventories, many=True)

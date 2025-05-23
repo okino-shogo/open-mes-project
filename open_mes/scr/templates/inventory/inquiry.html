@@ -3,7 +3,18 @@
 {% block content %}
 <div class="inventory-inquiry">
     <h2>在庫照会</h2>
-    <table>
+
+    <div class="inventory-filters">
+        <input type="text" id="searchPartNumber" placeholder="製品/材料名で検索..." aria-label="製品/材料名で検索">
+        <input type="text" id="searchWarehouse" placeholder="倉庫で検索..." aria-label="倉庫で検索">
+        <input type="text" id="searchLocation" placeholder="場所で検索..." aria-label="場所で検索">
+        <label for="hideZeroStockCheckbox">
+            <input type="checkbox" id="hideZeroStockCheckbox" checked> 在庫有
+        </label>
+        <button id="searchButton" aria-label="在庫を検索">検索</button>
+    </div>
+
+    <table aria-live="polite">
         <thead>
             <tr>
                 <th>製品/材料名</th>
@@ -16,14 +27,27 @@
             </tr>
         </thead>
         <tbody>
-            <!-- 在庫情報はJavaScriptによってここに挿入されます -->
+            <tr>
+                <td colspan="7" id="inventoryMessageCell">検索ボタンを押して在庫を照会してください。</td>
+            </tr>
         </tbody>
     </table>
+    <div class="pagination-controls">
+        <button id="prevPageButton" disabled aria-label="前のページ">前へ</button>
+        <span id="pageInfo" aria-live="polite"></span>
+        <button id="nextPageButton" disabled aria-label="次のページ">次へ</button>
+    </div>
+
 </div>
 
 <style>
     .inventory-inquiry {
         width: 100%;
+    }
+
+    .inventory-inquiry h2 {
+        margin-top: 10px; /* 見出しの上部マージンを調整 */
+        margin-bottom: 15px; /* 見出しとフィルター間のマージンも少し調整 */
     }
 
     .inventory-inquiry table {
@@ -46,55 +70,159 @@
     .inventory-inquiry tbody tr:nth-child(even) {
         background-color: #f9f9f9;
     }
+
+    .inventory-filters {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap; /* Allow filters to wrap on smaller screens */
+    }
+
+    .inventory-filters input[type="text"] {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .inventory-filters label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .inventory-filters button {
+        padding: 8px 15px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .inventory-filters button:hover {
+        background-color: #0056b3;
+    }
+    .pagination-controls {
+        margin-top: 20px;
+        text-align: center;
+    }
+    .pagination-controls button {
+        padding: 8px 12px;
+        margin: 0 5px;
+        cursor: pointer;
+    }
+    .pagination-controls button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.querySelector('.inventory-inquiry table tbody');
-    // rest_views.pyで定義された実際のAPIエンドポイントURLに置き換えてください
-    // 例: const apiUrl = '/api/v1/inventory/';
-    // 正しいAPIエンドポイントURLに修正
-    const apiUrl = '/api/inventory/data/'; 
+    const initialApiUrl = '/api/inventory/data/';
 
-    fetch(apiUrl)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok: ' + response.statusText);
-            }
-            return response.json();
-        })
-        .then(apiResponse => {
-            tbody.innerHTML = ''; // 既存の行をクリア
+    // Filter inputs
+    const searchPartNumberInput = document.getElementById('searchPartNumber');
+    const searchWarehouseInput = document.getElementById('searchWarehouse');
+    const searchLocationInput = document.getElementById('searchLocation');
+    const hideZeroStockCheckbox = document.getElementById('hideZeroStockCheckbox');
+    const searchButton = document.getElementById('searchButton');
 
-            // APIがページネーションされたレスポンスを返すため、実際のデータは 'results' プロパティにあります。
-            const inventoryData = apiResponse.results;
+    // Pagination elements
+    const prevPageButton = document.getElementById('prevPageButton');
+    const nextPageButton = document.getElementById('nextPageButton');
+    const pageInfo = document.getElementById('pageInfo');
+    const inventoryMessageCell = document.getElementById('inventoryMessageCell');
 
-            if (inventoryData && inventoryData.length > 0) {
-                inventoryData.forEach(inventory => {
-                    const row = tbody.insertRow();
-                    row.insertCell().textContent = inventory.part_number || 'N/A'; // 'part_number' を使用
-                    row.insertCell().textContent = inventory.warehouse || 'N/A';   // 'warehouse' を使用
-                    row.insertCell().textContent = inventory.quantity;
-                    row.insertCell().textContent = inventory.reserved;
-                    row.insertCell().textContent = inventory.available_quantity;
-                    row.insertCell().textContent = inventory.location;
-                    row.insertCell().textContent = inventory.last_updated ? new Date(inventory.last_updated).toLocaleString() : 'N/A';
-                });
-            } else {
+    function renderTableAndPagination(apiResponse) {
+        tbody.innerHTML = ''; // Clear existing rows or message
+
+        if (apiResponse && apiResponse.results && apiResponse.results.length > 0) {
+            apiResponse.results.forEach(inventory => {
                 const row = tbody.insertRow();
-                const cell = row.insertCell();
-                cell.colSpan = 7;
-                cell.textContent = '在庫情報がありません。';
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching inventory data:', error);
-            tbody.innerHTML = ''; // エラー時もクリア
+                row.insertCell().textContent = inventory.part_number || 'N/A';
+                row.insertCell().textContent = inventory.warehouse || 'N/A';
+                row.insertCell().textContent = inventory.quantity;
+                row.insertCell().textContent = inventory.reserved;
+                row.insertCell().textContent = inventory.available_quantity;
+                const locationDisplay = (inventory.location || 'N/A') === 'N/A' ? '-' : inventory.location;
+                row.insertCell().textContent = locationDisplay;
+                row.insertCell().textContent = inventory.last_updated ? new Date(inventory.last_updated).toLocaleString() : 'N/A';
+            });
+        } else {
             const row = tbody.insertRow();
             const cell = row.insertCell();
             cell.colSpan = 7;
-            cell.textContent = 'データの取得中にエラーが発生しました。';
-        });
+            cell.textContent = '該当する在庫情報がありません。';
+        }
+
+        // Update pagination controls
+        if (apiResponse) {
+            pageInfo.textContent = `ページ ${apiResponse.current_page} / ${apiResponse.total_pages} (全 ${apiResponse.count} 件)`;
+            prevPageButton.disabled = !apiResponse.previous;
+            prevPageButton.dataset.url = apiResponse.previous || '';
+            nextPageButton.disabled = !apiResponse.next;
+            nextPageButton.dataset.url = apiResponse.next || '';
+        } else {
+            pageInfo.textContent = '';
+            prevPageButton.disabled = true;
+            nextPageButton.disabled = true;
+        }
+    }
+
+    async function performSearch(pageUrl = null) {
+        let apiUrl;
+        if (inventoryMessageCell) inventoryMessageCell.textContent = '検索中...';
+
+        if (pageUrl) {
+            apiUrl = pageUrl;
+        } else {
+            const params = new URLSearchParams();
+            const partNumberFilter = searchPartNumberInput.value;
+            const warehouseFilter = searchWarehouseInput.value;
+            const locationFilter = searchLocationInput.value;
+            const hideZeroStock = hideZeroStockCheckbox.checked;
+
+            if (partNumberFilter) params.append('part_number_query', partNumberFilter);
+            if (warehouseFilter) params.append('warehouse_query', warehouseFilter);
+            if (locationFilter) params.append('location_query', locationFilter);
+            params.append('hide_zero_stock_query', hideZeroStock);
+            // params.append('page_size', 10); // Example: if you want to control page size from client
+
+            apiUrl = `${initialApiUrl}?${params.toString()}`;
+        }
+
+        try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error(`Network response was not ok: ${response.status} ${response.statusText} for URL: ${apiUrl}`);
+            }
+            const apiResponse = await response.json();
+            renderTableAndPagination(apiResponse);
+        } catch (error) {
+            console.error('Error fetching inventory data:', error);
+            tbody.innerHTML = ''; // Clear table on error
+            const row = tbody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 7;
+            cell.textContent = '在庫データの取得中にエラーが発生しました。詳細はコンソールを確認してください。';
+            pageInfo.textContent = '';
+            prevPageButton.disabled = true;
+            nextPageButton.disabled = true;
+        }
+    }
+
+    // Event listeners
+    searchButton.addEventListener('click', () => performSearch());
+    prevPageButton.addEventListener('click', () => {
+        if (prevPageButton.dataset.url) performSearch(prevPageButton.dataset.url);
+    });
+    nextPageButton.addEventListener('click', () => {
+        if (nextPageButton.dataset.url) performSearch(nextPageButton.dataset.url);
+    });
+
+    // Perform an initial search on page load with default (empty) filters
+    performSearch();
 });
 </script>
 
