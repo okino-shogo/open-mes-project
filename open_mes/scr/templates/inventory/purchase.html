@@ -1,6 +1,6 @@
-{% extends "inventory/base.html" %}
+{% extends "base.html" %}
 {% load md5url %}
-{% block inventory_content %}
+{% block content %}
 {{ auto_refresh|safe }}
 
 <div id="purchase-container">
@@ -43,7 +43,6 @@
 </div>
 
 <style>
-    /* Note: Common table styles for .inventory-table are assumed to be moved to a shared CSS file or base.html */
     #scan-area {
         margin-bottom: 20px;
     }
@@ -59,36 +58,6 @@
         margin: 2px;
         cursor: pointer;
         border-radius: 5px;
-    }
-    /* Pagination styles updated based on schedule.html */
-    .pagination { margin-top: 20px; text-align: center; }
-    .page-btn {
-      margin: 0 5px;
-      padding: 5px 10px;
-      border: 1px solid #ddd;
-      background: #f8f8f8;
-      cursor: pointer;
-    }
-    .page-btn.active,
-    .page-btn:disabled {
-      background: #007bff;
-      color: #fff;
-      border-color: #007bff;
-      cursor: default;
-    }
-    .page-input {
-      width: 50px;
-      text-align: center;
-      margin: 0 5px;
-    }
-    .page-go-btn {
-      padding: 5px 10px;
-      border: 1px solid #ddd;
-      background: #e0e0e0;
-      cursor: pointer;
-    }
-    .jump-label {
-      margin-left: 15px;
     }
 </style>
 
@@ -109,8 +78,8 @@
                     row.append($('<td>').text(item.shipment_number || ''));
                     row.append($('<td>').text(item.supplier));
                     row.append($('<td>').text(item.item)); // This is product_name or item.item from API
-                    row.append($('<td>').text(item.part_number || ''));
-                    row.append($('<td>').text(item.quantity));
+                    row.append($('<td>').text(item.part_number || '')); // 品番
+                    row.append($('<td>').addClass('numeric-column').text(item.quantity)); // 発注数量
                     row.append($('<td>').text(item.received_quantity));
                     row.append($('<td>').text(item.order_date));
                     row.append($('<td>').text(item.expected_arrival));
@@ -313,4 +282,27 @@
     });
 </script>
 
-{% endblock inventory_content %}
+<style>
+    /* Pagination styles updated based on schedule.html */
+    /* Moved from local style block to here to keep it separate from base.html table styles */
+    .pagination { margin-top: 20px; text-align: center; }
+    .page-btn {
+      margin: 0 5px;
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      background: #f8f8f8;
+      cursor: pointer;
+    }
+    .page-btn.active,
+    .page-btn:disabled {
+      background: #007bff;
+      color: #fff;
+      border-color: #007bff;
+      cursor: default;
+    }
+    .page-input { width: 50px; text-align: center; margin: 0 5px; }
+    .page-go-btn { padding: 5px 10px; border: 1px solid #ddd; background: #e0e0e0; cursor: pointer; }
+    .jump-label { margin-left: 15px; }
+</style>
+
+{% endblock content %}

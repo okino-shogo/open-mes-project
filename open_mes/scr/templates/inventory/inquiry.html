@@ -1,6 +1,6 @@
-{% extends "inventory/base.html" %}
+{% extends "base.html" %}
 {% load md5url %}
-{% block inventory_content %}
+{% block content %}
 <div class="inventory-inquiry">
     <h2>在庫照会</h2>
     <table>
@@ -98,9 +98,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% endblock inventory_content %}
+{% endblock content %}
 
-{% block inventory_js_link %}
+{% block js_link %}
 <script src="{% md5url 'js/top.js' %}"></script>
 <link rel="stylesheet" href="{% md5url 'css/top.css' %}" />
-{% endblock inventory_js_link %}
+{% endblock js_link %}

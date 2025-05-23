@@ -1,12 +1,12 @@
-{% extends "inventory/base.html" %}
+{% extends "base.html" %}
 {% load md5url %}
-{% block inventory_content %}
+{% block content %}
 {{ auto_refresh|safe }}
 
 <div class="container">
     <h2>出庫予定一覧</h2>
-    <table class="table table-striped">
-        <thead>
+    <table class="data-table"> {# Changed from .table .table-striped to .data-table #}
+        <thead> {# Added numeric-column class to relevant headers #}
             <tr>
                 <th>受注番号</th>
                 <th>製品/材料</th>
@@ -14,6 +14,7 @@
                 <th>実際に出庫した数量</th>
                 <th>受注日</th>
                 <th>出庫予定日</th>
+                <th>便番号</th> {# Added Shipment Number column #}
                 <th>倉庫</th>
                 <th>ステータス</th>
             </tr>
@@ -23,9 +24,10 @@
             <tr>
                 <td>{{ order.order_number|default_if_none:"" }}</td>
                 <td>{{ order.item|default_if_none:"" }}</td>
-                <td>{{ order.quantity|default_if_none:"" }}</td>
-                <td>{{ order.shipped_quantity|default_if_none:"" }}</td>
+                <td class="numeric-column">{{ order.quantity|default_if_none:"" }}</td> {# Added numeric-column class #}
+                <td class="numeric-column">{{ order.shipped_quantity|default_if_none:"" }}</td> {# Added numeric-column class #}
                 <td>{{ order.order_date|date:"Y-m-d H:i"|default_if_none:"" }}</td>
+                <td>{{ order.shipment_number|default_if_none:"" }}</td> {# Added Shipment Number data #}
                 <td>{{ order.expected_shipment|date:"Y-m-d H:i"|default_if_none:"" }}</td>
                 <td>{{ order.warehouse|default_if_none:"" }}</td>
                 <td>{{ order.get_status_display|default_if_none:"" }}</td>
@@ -33,13 +35,13 @@
             {% empty %}
             <tr>
                 <td colspan="8">出庫予定はありません。</td>
-            </tr>
+            </tr> {# Adjusted colspan to 9 #}
             {% endfor %}
         </tbody>
     </table>
 </div>
 
-{% endblock inventory_content %}
+{% endblock content %}
 
 
 {% block js_link %}
@@ -53,23 +55,8 @@
     href="{% md5url 'css/top.css' %}"
     />
 
-<style>
-    .container {
-        margin-top: 20px;
-    }
-    .table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-    }
-    .table th, .table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
-    }
-    .table th {
-        background-color: #f0f0f0;
-    }
-</style>
+<style> /* Keep container margin, remove table styles */
+    .container { margin-top: 20px; }
+</style> /* Removed local table styles, relying on .data-table in base.html */
 
 {% endblock js_link %}

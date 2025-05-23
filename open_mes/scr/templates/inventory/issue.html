@@ -1,7 +1,7 @@
 <!-- templates/inventory/issue.html -->
-{% extends "inventory/base.html" %}
+{% extends "base.html" %}
 {% load md5url %}
-{% block inventory_content %}
+{% block content %}
 {{ auto_refresh|safe }}
 
 {% if messages %}
@@ -20,7 +20,7 @@
     <button type="submit">出庫</button>
 </form>
 
-{% endblock inventory_content %}
+{% endblock content %}
 
 
 {% block js_link %}
