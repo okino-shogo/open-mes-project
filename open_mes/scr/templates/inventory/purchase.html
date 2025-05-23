@@ -59,6 +59,59 @@
         cursor: pointer;
         border-radius: 5px;
     }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1200; /* Ensure modal is on top */
+    }
+
+    .modal-content {
+        background-color: white;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 500px; /* Adjusted max-width */
+        text-align: left;
+    }
+
+    .modal-content h3 {
+        margin-top: 0;
+        margin-bottom: 20px; /* Increased margin */
+        color: #333;
+    }
+    .modal-content p { margin-bottom: 10px; }
+    .modal-content label { display: block; margin-top:15px; margin-bottom:5px; font-weight:bold;}
+    .modal-content input[type="number"] {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .modal-actions {
+        margin-top: 25px;
+        text-align: right;
+    }
+
+    .modal-actions button {
+        margin-left: 10px;
+        padding: 10px 18px; /* Increased padding */
+        cursor: pointer;
+        border-radius: 5px; /* Consistent border-radius */
+        border: 1px solid transparent;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -88,9 +141,9 @@
                     row.append($('<td>').text(item.barcode || '')); // nullの場合空文字
                     row.append($('<td>').text(item.serial_number || '')); // nullの場合空文字
 
-                    var receiveButton = $('<button>').addClass('receive-button').text('入庫処理').click(function() {
-                        handleReceive(item.order_number); // item.id から item.order_number に変更 (元々order_numberだったようです)
-                    });
+                    var receiveButton = $('<button>').addClass('receive-button').text('入庫処理')
+                        .data('item', item) // Store the whole item object
+                        .click(function() { showReceiveModal($(this).data('item')); });
                     var buttonCell = $('<td>').append(receiveButton);
                     row.append(buttonCell);
 
@@ -203,63 +256,167 @@
             $p.append($('<span class="jump-label">ページ: </span>'), $input, $go);
         }
 
-        function handleReceive(orderNumber) {
-            // orderNumber が null, undefined, または空文字列でないことを確認
-            if (!orderNumber) { // orderNumber が falsy (空文字列, null, undefinedなど) の場合
-                alert('処理対象の発注番号が不明なため、入庫処理を実行できません。'); // メッセージを「発注番号」に修正
-                console.error('handleReceive error: orderNumber is missing or invalid. Provided orderNumber:', orderNumber);
+        function showReceiveModal(item) {
+            // Remove existing modal if any
+            $('#receiveModalOverlay').remove();
+
+            if (!item || !item.order_number) {
+                alert('処理対象のデータが不完全なため、モーダルを開けません。');
+                console.error('showReceiveModal error: item or item.order_number is missing.', item);
                 return;
             }
 
-            var receivedQtyStr = prompt("入庫する数量を入力してください:", "");
-            if (receivedQtyStr === null) { // キャンセルされた場合
-                return;
+            // Calculate default quantity for receiving
+            let defaultReceiveQty = parseInt(item.quantity) - parseInt(item.received_quantity);
+            if (isNaN(defaultReceiveQty) || defaultReceiveQty <= 0) {
+                defaultReceiveQty = 1; // Default to 1 if calculation is invalid or non-positive
             }
 
-            var receivedQty = parseInt(receivedQtyStr);
-            if (isNaN(receivedQty) || receivedQty <= 0) {
-                alert("有効な数量を入力してください。");
-                return;
+            const modalHtml = `
+                <div id="receiveModalOverlay" class="modal-overlay">
+                    <div class="modal-content">
+                        <h3 id="modalTitle">入庫処理</h3>
+                        <p><strong>発注番号:</strong> ${item.order_number}</p>
+                        <p><strong>品名:</strong> ${item.item || 'N/A'}</p>
+                        <p><strong>品番:</strong> ${item.part_number || 'N/A'}</p>
+                        <p><strong>発注数量:</strong> ${item.quantity}</p>
+                        <p><strong>現在入庫済数量:</strong> ${item.received_quantity}</p>
+                        <hr>
+                        <div>
+                            <div id="modalDynamicContent">
+                                <label for="modalReceivedQuantity">今回入庫数量:</label>
+                                <input type="number" id="modalReceivedQuantity" min="1" value="${defaultReceiveQty}">
+                            </div>
+                            <div id="modalValidationMessage" style="color:red; margin-top:10px; min-height:1em;"></div>
+                        </div>
+                        <div class="modal-actions">
+                            <button id="modalPrimaryButton" style="background-color: #28a745; color: white;">実行</button>
+                            <button id="modalSecondaryButton" style="background-color: #6c757d; color: white;">キャンセル</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('body').append(modalHtml);
+            $('#receiveModalOverlay').data('defaultReceiveQty', defaultReceiveQty); // Store for reset
+            $('#receiveModalOverlay').data('itemOrderNumber', item.order_number); // Store order number
+
+            function resetToInitialInputState() {
+                const storedDefaultQty = $('#receiveModalOverlay').data('defaultReceiveQty');
+                $('#modalDynamicContent').html(`
+                    <label for="modalReceivedQuantity">今回入庫数量:</label>
+                    <input type="number" id="modalReceivedQuantity" min="1" value="${storedDefaultQty}">
+                `);
+                $('#modalValidationMessage').empty();
+                $('#modalPrimaryButton').text('実行').prop('disabled', false).show();
+                $('#modalSecondaryButton').text('キャンセル').prop('disabled', false).show();
+                $('#modalTitle').text('入庫処理');
             }
 
-            $.ajax({
-                url: '/api/inventory/purchase-receipts/process/', // 修正: 正しいAPIエンドポイント
-                type: 'POST',
-                dataType: 'json',
-                data: {
-                    order_number: orderNumber, // purchase_order_id の代わりに order_number を使用
-                    received_quantity: receivedQty, // 追加: 入庫数量
-                    csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
-                },
-                success: function(data) {
-                    // HTTP 200 OK は成功とみなす
-                    alert('入庫処理が完了しました。発注番号: ' + data.order_number + ', 新しい入庫済数量: ' + data.received_quantity);
-                    loadPurchaseData(currentPage, currentSearchTerm); // 現在のページと検索条件で再読み込み
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error handling receive:', status, error, xhr.responseText);
-                    var errorMsg = '入庫処理に失敗しました。';
-                    if (xhr.responseJSON && xhr.responseJSON.error) {
-                        errorMsg += '\n理由: ' + xhr.responseJSON.error;
-                    } else if (xhr.responseJSON && xhr.responseJSON.detail) { // DRFのデフォルトエラーの場合
-                        errorMsg += '\n理由: ' + xhr.responseJSON.detail;
-                    } else if (xhr.responseText) { // その他のテキストエラー
-                        try { // JSON形式のエラーメッセージを試みる
-                            const errData = JSON.parse(xhr.responseText);
-                            if (errData && errData.error) {
-                                errorMsg += '\n理由: ' + errData.error;
-                            } else if (errData && errData.detail) {
-                                errorMsg += '\n理由: ' + errData.detail;
-                            }
-                        } catch (e) {
-                            // JSONパース失敗時はプレーンテキストとして一部表示 (長すぎる場合は省略)
-                            // errorMsg += '\n詳細: ' + xhr.responseText.substring(0, 100);
-                        }
+            $('#modalPrimaryButton').click(function() {
+                const buttonText = $(this).text();
+                const $modalValidationMsg = $('#modalValidationMessage');
+                $modalValidationMsg.empty(); // Clear previous validation messages
+
+                if (buttonText === '実行') {
+                    var receivedQtyStr = $('#modalReceivedQuantity').val();
+                    var receivedQty = parseInt(receivedQtyStr);
+
+                    if (isNaN(receivedQty) || receivedQty <= 0) {
+                        $modalValidationMsg.text("有効な数量を入力してください。");
+                        return;
                     }
-                    alert(errorMsg);
+                    $('#receiveModalOverlay').data('receivedQty', receivedQty); // Store for confirmation
+
+                    $('#modalDynamicContent').html(`<p>入庫数量: <strong>${receivedQty}</strong> で処理を実行しますか？</p>`);
+                    $('#modalTitle').text('確認');
+                    $(this).text('はい');
+                    $('#modalSecondaryButton').text('いいえ');
+
+                } else if (buttonText === 'はい') {
+                    const confirmedQty = $('#receiveModalOverlay').data('receivedQty');
+                    const orderNumber = $('#receiveModalOverlay').data('itemOrderNumber');
+
+                    $('#modalDynamicContent').html('<p>処理中...</p>');
+                    $('#modalTitle').text('処理中');
+                    $(this).prop('disabled', true);
+                    $('#modalSecondaryButton').prop('disabled', true);
+
+                    $.ajax({
+                        url: '/api/inventory/purchase-receipts/process/',
+                        type: 'POST',
+                        dataType: 'json',
+                        data: {
+                            order_number: orderNumber,
+                            received_quantity: confirmedQty,
+                            csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+                        },
+                        success: function(data) {
+                            $('#modalDynamicContent').html(`<p style="color:green;">入庫処理が完了しました。<br>発注番号: ${data.order_number}<br>新しい入庫済数量: ${data.received_quantity}</p>`);
+                            $('#modalTitle').text('処理完了');
+                            $('#modalPrimaryButton').text('閉じる').prop('disabled', false);
+                            $('#modalSecondaryButton').hide();
+                            loadPurchaseData(currentPage, currentSearchTerm);
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('Error handling receive:', status, error, xhr.responseText);
+                            var errorMsgText = '入庫処理に失敗しました。';
+                            if (xhr.responseJSON) {
+                                if (xhr.responseJSON.error) {
+                                    errorMsgText += '\n理由: ' + xhr.responseJSON.error;
+                                } else if (xhr.responseJSON.detail) {
+                                    errorMsgText += '\n理由: ' + xhr.responseJSON.detail;
+                                } else if (Array.isArray(xhr.responseJSON.received_quantity) && xhr.responseJSON.received_quantity.length > 0){
+                                    errorMsgText += '\n理由: ' + xhr.responseJSON.received_quantity.join(', ');
+                                } else {
+                                    errorMsgText += '\n詳細: ' + JSON.stringify(xhr.responseJSON);
+                                }
+                            } else if (xhr.responseText) {
+                                try {
+                                    const errData = JSON.parse(xhr.responseText);
+                                    if (errData && errData.error) {
+                                        errorMsgText += '\n理由: ' + errData.error;
+                                    } else if (errData && errData.detail) {
+                                        errorMsgText += '\n理由: ' + errData.detail;
+                                    }
+                                } catch (e) { /* ignore parsing error if not JSON */ }
+                            }
+                            $('#modalDynamicContent').html(`<p style="color:red;">${errorMsgText.replace(/\n/g, '<br>')}</p>`);
+                            $('#modalTitle').text('処理失敗');
+                            $('#modalPrimaryButton').text('再試行').prop('disabled', false);
+                            $('#modalSecondaryButton').text('キャンセル').prop('disabled', false).show();
+                        }
+                    });
+
+                } else if (buttonText === '閉じる') {
+                    $('#receiveModalOverlay').remove();
+                } else if (buttonText === '再試行') {
+                    resetToInitialInputState();
+                }
+            });
+
+            $('#modalSecondaryButton').click(function() {
+                const buttonText = $(this).text();
+                if (buttonText === 'キャンセル') {
+                    $('#receiveModalOverlay').remove();
+                } else if (buttonText === 'いいえ') {
+                    resetToInitialInputState();
+                }
+            });
+
+            // Optional: Close modal if overlay (outside content) is clicked,
+            // but only if not in a 'processing' or 'result displayed' state to avoid accidental closure.
+            $('#receiveModalOverlay').click(function(event) {
+                const primaryButtonText = $('#modalPrimaryButton').text();
+                if (event.target === this && (primaryButtonText === '実行' || $('#modalSecondaryButton').text() === 'キャンセル')) {
+                    // Allow closing by overlay click only in initial state or after an error where "Cancel" is an option.
+                    // Or if the secondary button is "いいえ" (meaning primary is "はい" - confirmation stage)
+                    if ($('#modalSecondaryButton').text() === 'いいえ' || $('#modalSecondaryButton').text() === 'キャンセル') {
+                         $(this).remove();
+                    }
                 }
             });
         }
+
 
         // 「検索」ボタンがクリックされたときの処理
         function handleScan() {
