@@ -5,7 +5,7 @@ from rest_framework.decorators import action # actionデコレータをインポ
 from rest_framework.response import Response # Responseをインポート
 from .models import ProductionPlan, PartsUsed, MaterialAllocation # Add MaterialAllocation
 from .serializers import ProductionPlanSerializer, PartsUsedSerializer, RequiredPartSerializer
-from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート # noqa: E501
+from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート # noqa: E501import inspect
 from django.db.models import Q # Qオブジェクトをインポート
 from inventory.models import Inventory, StockMovement, SalesOrder # Add StockMovement and SalesOrder
 from django.utils.dateparse import parse_datetime # 日時文字列のパース用
@@ -87,6 +87,7 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
 
         # Prepare data for the RequiredPartSerializer
         data_for_serializer = []
+        from django.db.models import Sum # Ensure Sum is imported
         for part_used_item in parts_used_queryset:
             part_code = part_used_item.part_code
             part_specific_warehouse = part_used_item.warehouse # Warehouse from PartsUsed
@@ -128,13 +129,21 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                 for inv_item in inventory_items:
                     current_inventory_quantity += inv_item.available_quantity
 
+            # Calculate already allocated quantity for this part for the current production plan
+            already_allocated_for_part = MaterialAllocation.objects.filter(
+                production_plan=production_plan_instance, # The specific plan instance for the popup
+                material_code=part_code
+            ).aggregate(total_allocated=Sum('allocated_quantity'))['total_allocated'] or 0
+
+
             data_for_serializer.append({
                 "part_code": part_code,
                 "part_name": f"{part_code} (名称は別途マスタ参照)", # Placeholder for part_name
                 "required_quantity": part_used_item.quantity_used, # Using quantity_used from PartsUsed
                 "unit": "個",  # Placeholder for unit, e.g., '個' (pieces)
                 "inventory_quantity": current_inventory_quantity,
-                "warehouse": part_specific_warehouse
+                "warehouse": part_specific_warehouse,
+                "already_allocated_quantity": already_allocated_for_part
             })
 
         serializer = RequiredPartSerializer(data=data_for_serializer, many=True)

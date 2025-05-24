@@ -2,6 +2,9 @@ from rest_framework import serializers
 from .models import ProductionPlan, PartsUsed # PartsUsed をインポート
 
 class ProductionPlanSerializer(serializers.ModelSerializer):
+    # status フィールドを日本語表示にするために get_status_display を使用
+    status = serializers.CharField(source='get_status_display', read_only=True)
+
     class Meta:
         model = ProductionPlan
         fields = [
@@ -19,7 +22,7 @@ class ProductionPlanSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'status'] # status has a default
+        read_only_fields = ['id', 'created_at', 'updated_at'] # status は上で read_only=True としたのでここからは削除
 
     def validate(self, data):
         """
@@ -84,6 +87,7 @@ class RequiredPartSerializer(serializers.Serializer):
     required_quantity = serializers.IntegerField(help_text="必要数量")
     unit = serializers.CharField(max_length=50, help_text="単位")
     inventory_quantity = serializers.IntegerField(help_text="現在の在庫数量")
+    already_allocated_quantity = serializers.IntegerField(help_text="既にこの生産計画に引当済の数量", default=0)
     warehouse = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True, help_text="部品が使用される倉庫")
 
     # このシリアライザは読み取り専用のデータを想定しています。

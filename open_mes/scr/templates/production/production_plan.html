@@ -7,19 +7,15 @@
         <form id="searchForm">
             <div class="filter-row">
                 <div class="filter-group">
-                    <label for="searchPlanName">計画名:</label>
-                    <input type="text" id="searchPlanName" name="plan_name">
+                    <input type="text" id="searchPlanName" name="plan_name" placeholder="計画名">
                 </div>
                 <div class="filter-group">
-                    <label for="searchProductCode">製品コード:</label>
-                    <input type="text" id="searchProductCode" name="product_code">
+                    <input type="text" id="searchProductCode" name="product_code" placeholder="製品コード">
                 </div>
-            </div>
-            <div class="filter-row">
                 <div class="filter-group">
-                    <label for="searchStatus">ステータス:</label>
                     <select id="searchStatus" name="status">
-                        <option value="">すべて</option>
+                        <option value="" disabled selected hidden>ステータス</option>
+                        <option value="">すべて</option> {# 実際の「すべて」の選択肢 #}
                         <option value="PENDING">未着手</option>
                         <option value="IN_PROGRESS">進行中</option>
                         <option value="COMPLETED">完了</option>
@@ -28,26 +24,24 @@
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="searchParentPlan">親計画ID:</label>
-                    <input type="text" id="searchParentPlan" name="parent_plan_ref">
+                    <input type="text" id="searchParentPlan" name="parent_plan_ref" placeholder="親計画ID">
                 </div>
             </div>
             <div class="filter-row date-range-group">
-                <label>計画開始日時:</label>
+                <label>計画開始日:</label>
                 <div class="filter-group date-range">
-                    <input type="datetime-local" id="searchPlannedStartFrom" name="planned_start_from" aria-label="計画開始日時 自">
+                    <input type="date" id="searchPlannedStartFrom" name="planned_start_from" aria-label="計画開始日 自">
                     <span>～</span>
-                    <input type="datetime-local" id="searchPlannedStartTo" name="planned_start_to" aria-label="計画開始日時 至">
+                    <input type="date" id="searchPlannedStartTo" name="planned_start_to" aria-label="計画開始日 至">
                 </div>
-            </div>
-            <div class="filter-group-buttons">
-                <button type="submit" id="searchButton" class="button-primary">検索</button>
-                <button type="button" id="clearSearchButton" class="button-danger">クリア</button>
+                <div class="filter-group-buttons">
+                    <button type="submit" id="searchButton" class="button-primary">検索</button>
+                    <button type="button" id="clearSearchButton" class="button-danger">クリア</button>
+                </div>
             </div>
         </form>
     </div>
 
-    <h2>生産計画一覧</h2>
     <table id="productionPlanTable">
         <thead>
             <tr>
@@ -57,11 +51,9 @@
                 <th>計画開始日時</th>
                 <th>計画終了日時</th>
                 <th>ステータス</th>
-                <th>親計画ID</th>
-                <th>備考</th>
-                <th>作成日時</th>
-                <th>更新日時</th>
-                <th>操作</th> {# Add header for the button column #}
+                <th>親計画ID</th> 
+                <th>詳細</th> {# New header for Detail button #}
+                <th>材料引当</th> {# Renamed header for Allocate button #}
             </tr>
         </thead>
         <tbody>
@@ -152,6 +144,13 @@
         max-width: 900px; /* Further increased max-width for a wider popup */
         text-align: left;
     }
+    
+    .modal-content .detail-grid {
+        display: grid;
+        grid-template-columns: auto 1fr; /* Label and value */
+        gap: 8px 15px; /* Row gap and column gap */
+        margin-bottom: 15px;
+    }
 
     .modal-content h3 {
         margin-top: 0;
@@ -202,19 +201,13 @@
     .filter-group {
         display: flex;
         align-items: center;
-        flex: 1; /* Allow groups to grow */
-        min-width: 250px; /* Minimum width before wrapping */
-    }
-
-    .filter-group label {
-        margin-right: 8px;
-        font-weight: bold;
-        min-width: 90px; /* Adjusted min-width */
-        white-space: nowrap;
+        flex: 1 1 200px; /* Allow groups to grow/shrink, with a base width */
+        /* min-width: 200px; */ /* Adjust this if needed, flex-basis is often better */
     }
 
     .filter-group input[type="text"],
-    .filter-group input[type="datetime-local"],
+    .filter-group input[type="date"],      /* datetime-local から date に変更 */
+    .filter-group input[type="datetime-local"], /* 念のため残すが、基本的には type="date" を使用 */
     .filter-group select {
         padding: 8px;
         border: 1px solid #ddd;
@@ -225,12 +218,12 @@
     .date-range-group { display: flex; align-items: center; gap: 5px; margin-bottom: 10px;}
     .date-range-group label { min-width: 90px; font-weight: bold; margin-right: 8px;}
     .date-range { display: flex; align-items: center; flex-grow: 1;}
-    .date-range input[type="datetime-local"] { flex-grow: 1; min-width: 180px;} /* Ensure date inputs have enough space */
+    .date-range input[type="date"], .date-range input[type="datetime-local"] { flex-grow: 1; min-width: 120px;} /* Further adjusted min-width for date inputs */
     .date-range span { margin: 0 5px; }
 
     .filter-group-buttons {
-        margin-top: 15px;
-        text-align: left; /* Align buttons to the left */
+        /* margin-top: 15px; */ /* Removed as it's now part of the date-range-group row */
+        margin-left: 15px; /* Add some space to the left of the button group, separating it from date inputs */
     }
 
     .filter-group-buttons button {
@@ -297,11 +290,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     row.insertCell().textContent = plan.planned_end_datetime ? new Date(plan.planned_end_datetime).toLocaleString() : 'N/A';
                     row.insertCell().textContent = plan.status || 'N/A';
                     row.insertCell().textContent = plan.production_plan || 'N/A'; // This is the ID of the parent plan
-                    row.insertCell().textContent = plan.remarks || '';
-                    row.insertCell().textContent = plan.created_at ? new Date(plan.created_at).toLocaleString() : 'N/A';
-                    row.insertCell().textContent = plan.updated_at ? new Date(plan.updated_at).toLocaleString() : 'N/A';
+                    // Remarks, Created At, Updated At are removed from the main table
 
-                    // Add the button cell
+                    // Add Detail button cell
+                    const detailCell = row.insertCell();
+                    const detailButton = document.createElement('button');
+                    detailButton.textContent = '詳細';
+                    detailButton.classList.add('detail-button'); 
+                    detailButton.dataset.planIndex = index;
+                    detailCell.appendChild(detailButton);
+
+                    // Add Allocate button cell
                     const actionCell = row.insertCell();
                     const allocateButton = document.createElement('button');
                     allocateButton.textContent = '材料引き当て';
@@ -312,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 const row = tbody.insertRow();
                 const cell = row.insertCell();
-                cell.colSpan = 11; // Adjusted colspan to match number of columns
+                cell.colSpan = 9; // Adjusted colspan (7 data cols + 2 action cols)
                 cell.textContent = '生産計画データがありません。';
             }
 
@@ -343,8 +342,8 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error fetching production plan data:', error);
             tbody.innerHTML = ''; // Clear existing rows on error
             const row = tbody.insertRow();
-            const cell = row.insertCell(); // Adjusted colspan
-            cell.colSpan = 11; // Adjusted colspan
+            const cell = row.insertCell();
+            cell.colSpan = 9; // Adjusted colspan
             cell.textContent = 'データの取得中にエラーが発生しました。';
             prevPageButton.disabled = true;
             nextPageButton.disabled = true;
@@ -387,6 +386,61 @@ document.addEventListener('DOMContentLoaded', function() {
     clearSearchButton.addEventListener('click', () => {
         searchForm.reset(); // Resets form fields
         fetchProductionPlans(initialUrl); // Fetch with default (no search)
+    });
+
+    function showDetailPopup(plan) {
+        const existingPopup = document.getElementById('detailModal');
+        if (existingPopup) {
+            existingPopup.remove();
+        }
+
+        const modalOverlay = document.createElement('div');
+        modalOverlay.id = 'detailModal';
+        modalOverlay.classList.add('modal-overlay');
+
+        const modalContent = document.createElement('div');
+        modalContent.classList.add('modal-content');
+
+        // Helper to format date or return 'N/A'
+        const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleString() : 'N/A';
+
+        modalContent.innerHTML = `
+            <h3>生産計画詳細</h3>
+            <div class="detail-grid">
+                <strong>計画名:</strong>        <span>${plan.plan_name || 'N/A'}</span>
+                <strong>製品コード:</strong>    <span>${plan.product_code || 'N/A'}</span>
+                <strong>計画数量:</strong>      <span>${plan.planned_quantity}</span>
+                <strong>計画開始日時:</strong>  <span>${formatDate(plan.planned_start_datetime)}</span>
+                <strong>計画終了日時:</strong>  <span>${formatDate(plan.planned_end_datetime)}</span>
+                <strong>実績開始日時:</strong>  <span>${formatDate(plan.actual_start_datetime)}</span>
+                <strong>実績終了日時:</strong>  <span>${formatDate(plan.actual_end_datetime)}</span>
+                <strong>ステータス:</strong>    <span>${plan.status || 'N/A'}</span>
+                <strong>親計画ID:</strong>    <span>${plan.production_plan || 'N/A'}</span>
+                <strong>備考:</strong>          <span>${plan.remarks || ''}</span>
+                <strong>作成日時:</strong>      <span>${formatDate(plan.created_at)}</span>
+                <strong>更新日時:</strong>      <span>${formatDate(plan.updated_at)}</span>
+            </div>
+            <div class="modal-actions">
+                <button id="closeDetailButton">閉じる</button>
+            </div>
+        `;
+
+        modalOverlay.appendChild(modalContent);
+        document.body.appendChild(modalOverlay);
+
+        document.getElementById('closeDetailButton').addEventListener('click', () => {
+            modalOverlay.remove();
+        });
+
+        // Optional: Close modal if overlay (outside content) is clicked
+        modalOverlay.addEventListener('click', function(event) {
+            if (event.target === modalOverlay) {
+                modalOverlay.remove();
+            }
+        });
+    }
+
+    tbody.addEventListener('click', function(event) {
     });
 
     function showAllocatePopup(plan) {
@@ -492,8 +546,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <th>部品コード</th>
                                     <th>部品名</th>
                                     <th>倉庫</th>
-                                    <th class="numeric-column">必要数量</th>
-                                    <th class="numeric-column">在庫数量</th> {# Added Inventory Quantity Header #}
+                                    <th class="numeric-column">総必要数</th>
+                                    <th class="numeric-column">引当済数量</th> {# New Header #}
+                                    <th class="numeric-column">現在庫数</th>
                                     <th class="numeric-column">引当数量</th>
                                     <th>単位</th>
                                 </tr>
@@ -506,13 +561,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <td>${part.part_code || 'N/A'}</td>
                                 <td>${part.part_name || 'N/A'}</td>
                                 <td>${part.warehouse || 'N/A'}</td>
-                                <td class="numeric-column">${formatDecimalQuantity(part.required_quantity)}</td>
-                                <td class="numeric-column">${part.inventory_quantity !== undefined ? part.inventory_quantity : 'N/A'}</td> {# Swapped: Inventory Quantity Data #}
+                                <td class="numeric-column">${formatDecimalQuantity(part.required_quantity)}</td> {# Total Required #}
+                                <td class="numeric-column">${part.already_allocated_quantity !== undefined ? formatDecimalQuantity(part.already_allocated_quantity) : 'N/A'}</td> {# Already Allocated #}
+                                <td class="numeric-column">${part.inventory_quantity !== undefined ? part.inventory_quantity : 'N/A'}</td> {# Current Inventory #}
                                 <td class="numeric-column">
                                     <input 
                                         type="number" 
                                         class="allocation-quantity-input" 
-                                        value="${calculateDefaultAllocation(part.required_quantity, part.inventory_quantity)}"
+                                        value="${calculateDefaultAllocation(part.required_quantity, part.inventory_quantity, part.already_allocated_quantity)}"
                                         min="0"
                                         style="width: 70px; text-align: right;" /* Added text-align: right */
                                         data-part-code="${part.part_code || 'N/A'}"
@@ -741,25 +797,38 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function calculateDefaultAllocation(requiredStr, inventoryStr) {
+    function calculateDefaultAllocation(requiredStr, inventoryStr, alreadyAllocatedStr) {
         const requiredQty = parseFloat(requiredStr);
         const inventoryQty = parseInt(inventoryStr, 10); // inventory_quantity is Int
+        const alreadyAllocatedQty = parseFloat(alreadyAllocatedStr);
 
-        const validRequired = isNaN(requiredQty) ? 0 : requiredQty;
+        const validRequired = isNaN(requiredQty) ? 0 : requiredQty; // Total required for the plan
         const validInventory = isNaN(inventoryQty) ? 0 : inventoryQty;
+        const validAlreadyAllocated = isNaN(alreadyAllocatedQty) ? 0 : alreadyAllocatedQty;
 
-        // Return the greater of the two, ensuring it's not negative.
-        // If both are 0 or invalid, it defaults to 0.
-        return Math.max(0, Math.min(validRequired, validInventory));
+        // Calculate how much is still needed (total required - already allocated for this plan)
+        const stillNeeded = Math.max(0, validRequired - validAlreadyAllocated);
+
+        // Default allocation is the minimum of what's still needed and what's available in current inventory
+        const defaultToAllocate = Math.min(stillNeeded, validInventory);
+        
+        return Math.max(0, defaultToAllocate); // Ensure the value is not negative
     }
 
     // Add event listener for the buttons using event delegation
     tbody.addEventListener('click', function(event) {
-        if (event.target.classList.contains('allocate-button')) {
+        const target = event.target;
+        if (target.classList.contains('allocate-button')) {
             const planIndex = parseInt(event.target.dataset.planIndex, 10);
             const plan = currentPagePlans[planIndex];
             if (plan) {
                 showAllocatePopup(plan);
+            }
+        } else if (target.classList.contains('detail-button')) {
+            const planIndex = parseInt(event.target.dataset.planIndex, 10);
+            const plan = currentPagePlans[planIndex];
+            if (plan) {
+                showDetailPopup(plan);
             }
         }
     });
