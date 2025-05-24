@@ -78,9 +78,9 @@ class PurchaseOrder(models.Model):
     expected_arrival = models.DateTimeField(blank=True, null=True)  # 到着予定日
     warehouse = models.CharField(max_length=255,  null=True) # どの倉庫に入庫するかを追加
     status = models.CharField(max_length=20, choices=[
-        ('pending', 'Pending'),  # 未入庫
-        ('received', 'Received'),  # 入庫済み
-        ('canceled', 'Canceled')  # キャンセル
+        ('pending', '未入庫'),
+        ('received', '入庫済み'),
+        ('canceled', 'キャンセル')
     ], default='pending')
 
     def __str__(self):

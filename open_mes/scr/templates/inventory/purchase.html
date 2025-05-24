@@ -6,13 +6,65 @@
 <div id="purchase-container">
     {% csrf_token %} {# Add CSRF token for AJAX POST requests #}
     <h2>入庫処理一覧</h2>
-    <div id="info-area" style="margin-bottom: 10px;">
-        <span id="purchase-count-info"></span>
+    <div id="search-criteria-area" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; padding-top: 25px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 10px 15px; align-items: flex-end;">
+            <div>
+                <label for="search-order-number" style="display: block; margin-bottom: 2px;">発注番号:</label>
+                <input type="text" id="search-order-number" name="search_order_number" class="search-input">
+            </div>
+            <div>
+                <label for="search-shipment-number" style="display: block; margin-bottom: 2px;">便番号:</label>
+                <input type="text" id="search-shipment-number" name="search_shipment_number" class="search-input">
+            </div>
+            <div>
+                <label for="search-supplier" style="display: block; margin-bottom: 2px;">仕入れ先:</label>
+                <input type="text" id="search-supplier" name="search_supplier" class="search-input">
+            </div>
+            <div>
+                <label for="search-item-product-name" style="display: block; margin-bottom: 2px;">品名:</label>
+                <input type="text" id="search-item-product-name" name="search_item_product_name" class="search-input" title="品名または旧品目コードで検索">
+            </div>
+            <div>
+                <label for="search-part-number" style="display: block; margin-bottom: 2px;">品番:</label>
+                <input type="text" id="search-part-number" name="search_part_number" class="search-input">
+            </div>
+            <div>
+                <label for="search-warehouse" style="display: block; margin-bottom: 2px;">倉庫:</label>
+                <input type="text" id="search-warehouse" name="search_warehouse" class="search-input">
+            </div>
+            <div>
+                <label for="search-status" style="display: block; margin-bottom: 2px;">ステータス:</label>
+                <select id="search-status" name="search_status" class="search-input">
+                    <option value="">すべて</option>
+                    <option value="pending">未入庫 (Pending)</option>
+                    <option value="received">入庫済み (Received)</option>
+                    <option value="canceled">キャンセル (Canceled)</option>
+                </select>
+            </div>
+            <div>
+                <label for="search-order-date-from" style="display: block; margin-bottom: 2px;">発注日 (From):</label>
+                <input type="date" id="search-order-date-from" name="search_order_date_from" class="search-input">
+            </div>
+            <div>
+                <label for="search-order-date-to" style="display: block; margin-bottom: 2px;">発注日 (To):</label>
+                <input type="date" id="search-order-date-to" name="search_order_date_to" class="search-input">
+            </div>
+            <div>
+                <label for="search-expected-arrival-from" style="display: block; margin-bottom: 2px;">到着予定日 (From):</label>
+                <input type="date" id="search-expected-arrival-from" name="search_expected_arrival_from" class="search-input">
+            </div>
+            <div>
+                <label for="search-expected-arrival-to" style="display: block; margin-bottom: 2px;">到着予定日 (To):</label>
+                <input type="date" id="search-expected-arrival-to" name="search_expected_arrival_to" class="search-input">
+            </div>
+            <div style="display: flex; gap: 10px;"> {# ボタンをグループ化し、フレックスレイアウトの一部とします #}
+                <button id="advanced-search-button" class="search-btn">検索</button>
+                <button id="reset-search-button" type="button" class="search-btn secondary">リセット</button>
+            </div>
+        </div>
     </div>
-    <div id="scan-area">
-        <label for="barcode-input">バーコード/シリアル番号/発注番号:</label>
-        <input type="text" id="barcode-input" name="barcode-input">
-        <button id="scan-button">検索</button>
+    <div id="info-area" style="margin-bottom: 10px; margin-top: -10px;"> {# Adjusted margin-top for spacing #}
+        <span id="purchase-count-info"></span>
     </div>
     <table id="purchase-table" class="inventory-table">
         <thead>
@@ -43,9 +95,18 @@
 </div>
 
 <style>
-    #scan-area {
-        margin-bottom: 20px;
+    .search-input {
+        padding: 6px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
     }
+    .search-btn { padding: 8px 15px; cursor: pointer; border-radius: 4px; border: 1px solid transparent; }
+    .search-btn.secondary { background-color: #6c757d; color: white; }
+    .search-btn.secondary:hover { background-color: #5a6268; }
+    #advanced-search-button { background-color: #007bff; color: white; }
+    #advanced-search-button:hover { background-color: #0056b3; }
+
     .receive-button {
         background-color: #4CAF50; /* Green */
         border: none;
@@ -119,7 +180,7 @@
     $(document).ready(function() {
         let currentPage = 1;
         const pageSize = 100; // 1ページあたりの表示件数
-        let currentSearchTerm = ''; // 現在の検索語を保持
+        let currentSearchParams = {}; // Store current search parameters as an object
         
         // テーブルを描画する関数
         function renderTable(itemsToDisplay) {
@@ -151,22 +212,27 @@
                 });
             } else {
                 var message = '該当するデータが見つかりませんでした。';
-                if (currentSearchTerm) {
-                    message = '「' + currentSearchTerm + '」に一致するデータは見つかりませんでした。';
+                const hasActiveSearch = Object.values(currentSearchParams).some(val => val !== null && val !== '');
+                if (hasActiveSearch) {
+                    message = '指定された検索条件に一致するデータは見つかりませんでした。';
                 }
-                var noDataMsg = $('<tr><td colspan="14" style="text-align:center;">' + message + '</td></tr>');
+                var noDataMsg = $('<tr><td colspan="14" style="text-align:center;">' + message + '</td></tr>'); // colspanは表示列数に合わせる
                 $('#purchase-table tbody').append(noDataMsg);
             }
         }
 
         // サーバーからデータをロードして表示する関数
-        function loadPurchaseData(page, searchTerm = '') {
+        function loadPurchaseData(page, searchParams = {}) {
             currentPage = page;
-            currentSearchTerm = searchTerm; // 検索語を更新
+            currentSearchParams = searchParams; // Update current search params
 
             let dataUrl = `/api/inventory/schedules/data/?page=${page}&page_size=${pageSize}`;
-            if (searchTerm) {
-                dataUrl += `&search=${encodeURIComponent(searchTerm)}`;
+            
+            // Append search parameters to URL
+            for (const key in searchParams) {
+                if (searchParams[key] !== null && searchParams[key] !== '') { // Ensure value is not null or empty
+                    dataUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(searchParams[key])}`;
+                }
             }
 
             $.ajax({
@@ -186,21 +252,26 @@
                     const prevPageNum = currentPage > 1 ? currentPage - 1 : null;
                     const nextPageNum = currentPage < totalPages ? currentPage + 1 : null;
 
+                    const hasActiveSearch = Object.values(currentSearchParams).some(val => val !== null && val !== '');
                     if (totalCount > 0) {
                         $('#purchase-count-info').text(`全 ${totalCount} 件中 ${startItem} - ${endItem} 件を表示 (ページ ${currentPage} / ${totalPages || 1})`);
                     } else {
-                         $('#purchase-count-info').text(searchTerm ? `「${searchTerm}」に一致するデータはありません。` : '該当するデータはありません。');
+                         if (hasActiveSearch) {
+                             $('#purchase-count-info').text('指定された検索条件に一致するデータはありません。');
+                         } else {
+                             $('#purchase-count-info').text('該当するデータはありません。');
+                         }
                     }
                     renderTable(actualData);
                     // Pass totalPages, currentPage, and calculated prev/next page numbers
-                    renderPaginationControls(totalPages, currentPage, prevPageNum, nextPageNum);
+                    renderPaginationControls(totalPages, currentPage, prevPageNum, nextPageNum); // currentSearchParams is global
                 },
                 error: function(xhr, status, error) {
                     console.error('Error loading purchase data. URL:', dataUrl, 'Status:', status, 'Error:', error, 'Response:', xhr.responseText);
                     $('#purchase-count-info').text('データの読み込みに失敗しました。');
                     var errorDetail = xhr.responseText || 'サーバーからの応答がありません。ネットワーク接続を確認してください。';
-                    var userErrorMsg = '入庫処理データの読み込みに失敗しました。';
-                    var errorRow = $('<tr id="load-error-row"><td colspan="14" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + $('<div>').text(errorDetail).html() + '</small></td></tr>');
+                    var userErrorMsg = 'データ一覧の読み込みに失敗しました。';
+                    var errorRow = $('<tr id="load-error-row"><td colspan="14" style="text-align:center; color:red;">' + userErrorMsg + '<br><small>詳細: ' + $('<div>').text(errorDetail).html() + '</small></td></tr>'); // colspanは表示列数に合わせる
                     $('#purchase-table tbody').empty().append(errorRow);
                     // Call with 0 total pages, current page, and null for prev/next
                     renderPaginationControls(0, currentPage, null, null);
@@ -216,7 +287,7 @@
             // 「前へ」ボタン
             if (prevPage) {
                 $('<button class="page-btn prev-btn">&laquo; 前へ</button>')
-                    .on('click', () => loadPurchaseData(prevPage, currentSearchTerm))
+                    .on('click', () => loadPurchaseData(prevPage, currentSearchParams))
                     .appendTo($p);
             }
 
@@ -228,14 +299,14 @@
                     .text(i)
                     .toggleClass('active', i === currentPage)
                     .prop('disabled', i === currentPage)
-                    .on('click', () => loadPurchaseData(i, currentSearchTerm))
+                    .on('click', () => loadPurchaseData(i, currentSearchParams))
                     .appendTo($p);
             }
 
             // 「次へ」ボタン
             if (nextPage) {
                 $('<button class="page-btn next-btn">次へ &raquo;</button>')
-                    .on('click', () => loadPurchaseData(nextPage, currentSearchTerm))
+                    .on('click', () => loadPurchaseData(nextPage, currentSearchParams))
                     .appendTo($p);
             }
 
@@ -245,7 +316,7 @@
             $go.on('click', () => {
                 const page = parseInt($input.val(), 10);
                 if (page >= 1 && page <= totalPages && page !== currentPage) {
-                    loadPurchaseData(page, currentSearchTerm);
+                    loadPurchaseData(page, currentSearchParams);
                 }
             });
             // Enterキーでも移動
@@ -355,7 +426,7 @@
                             $('#modalTitle').text('処理完了');
                             $('#modalPrimaryButton').text('閉じる').prop('disabled', false);
                             $('#modalSecondaryButton').hide();
-                            loadPurchaseData(currentPage, currentSearchTerm);
+                            loadPurchaseData(currentPage, currentSearchParams); // Reload data with current search
                         },
                         error: function(xhr, status, error) {
                             console.error('Error handling receive:', status, error, xhr.responseText);
@@ -417,25 +488,60 @@
             });
         }
 
-
-        // 「検索」ボタンがクリックされたときの処理
-        function handleScan() {
-            const searchTerm = $('#barcode-input').val().trim();
-            loadPurchaseData(1, searchTerm); // 検索時は1ページ目から
+        function collectSearchParams() {
+            const params = {};
+            params['search_order_number'] = $('#search-order-number').val().trim();
+            params['search_shipment_number'] = $('#search-shipment-number').val().trim();
+            params['search_supplier'] = $('#search-supplier').val().trim();
+            params['search_item_product_name'] = $('#search-item-product-name').val().trim();
+            params['search_part_number'] = $('#search-part-number').val().trim();
+            params['search_warehouse'] = $('#search-warehouse').val().trim();
+            params['search_status'] = $('#search-status').val(); // ステータスの値を取得
+            
+            params['search_order_date_from'] = $('#search-order-date-from').val();
+            params['search_order_date_to'] = $('#search-order-date-to').val();
+            params['search_expected_arrival_from'] = $('#search-expected-arrival-from').val();
+            params['search_expected_arrival_to'] = $('#search-expected-arrival-to').val();
+            
+            const activeParams = {};
+            for (const key in params) {
+                if (params[key] !== null && params[key] !== '') {
+                    activeParams[key] = params[key];
+                }
+            }
+            return activeParams;
         }
 
-        loadPurchaseData(currentPage, currentSearchTerm); // 初期ロード
-
-        // スキャンボタンのクリックイベントハンドラを設定
-        $('#scan-button').click(handleScan);
-
-        // バーコード/シリアル番号入力フィールドでEnterキーを押したときにも検索を実行
-        $('#barcode-input').keypress(function(event) {
-            if (event.which == 13) { // 13 is the keycode for Enter
-                event.preventDefault(); // Prevent default form submission
-                handleScan();
-            }
+        $('#advanced-search-button').click(function() {
+            const params = collectSearchParams();
+            loadPurchaseData(1, params);
         });
+
+        $('#reset-search-button').click(function() {
+            $('#search-criteria-area input[type="text"], #search-criteria-area input[type="number"], #search-criteria-area input[type="date"], #search-criteria-area select').val('');
+            currentSearchParams = {};
+            loadPurchaseData(1, {});
+        });
+
+        // Function to format date as YYYY-MM-DD
+        function formatDate(date) {
+            let d = new Date(date),
+                month = '' + (d.getMonth() + 1),
+                day = '' + d.getDate(),
+                year = d.getFullYear();
+
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+
+            return [year, month, day].join('-');
+        }
+
+        // Set default dates for expected arrival
+        const today = new Date();
+        $('#search-expected-arrival-from').val(formatDate(new Date(new Date().setMonth(today.getMonth() - 1))));
+        $('#search-expected-arrival-to').val(formatDate(new Date(new Date().setMonth(today.getMonth() + 1))));
+
+        loadPurchaseData(currentPage, currentSearchParams); // Initial load
     });
 </script>
 

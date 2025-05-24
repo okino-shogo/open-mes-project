@@ -58,28 +58,73 @@ def get_schedule_data(request):
 
 
         # 未完了の入庫予定を取得 (ステータスが 'pending' のもの)
-        # 必要に応じて 'partially_received' など他のステータスも考慮に入れることができます。
-        # PurchaseOrder モデルの status choices: ('pending', 'Pending'), ('received', 'Received'), ('canceled', 'Canceled')
-        schedule_items_query = PurchaseOrder.objects.filter(
-            status='pending'  # 'pending' 状態のものを取得
-        )
+        # schedule_items_query = PurchaseOrder.objects.filter(
+        #     status='pending'  # 'pending' 状態のものを取得 # この初期フィルタを修正
+        # )
+        schedule_items_query = PurchaseOrder.objects.all() # まず全件取得を基本とする
 
-        # 検索パラメータを取得してフィルタリング
-        search_term = request.GET.get('search', None)
-        if search_term:
-            query_filter = (
-                Q(order_number__icontains=search_term) |
-                Q(supplier__icontains=search_term) |
-                Q(item__icontains=search_term) |  # 品目コード/旧名称など
-                Q(product_name__icontains=search_term) | # 品名
-                Q(part_number__icontains=search_term) | # 品番 (追加)
-                Q(shipment_number__icontains=search_term) # 便番号も検索対象に含める例
-            )
-            schedule_items_query = schedule_items_query.filter(query_filter)
+        # 詳細検索フィルタリング
+        filters = Q()
+
+        # ステータス検索
+        search_status_param = request.GET.get('search_status') # 'pending', 'received', 'canceled', '' (すべて), または None
+        if search_status_param is not None: # search_status パラメータが存在する場合
+            if search_status_param: # 'pending', 'received', 'canceled' のいずれか (空文字ではない)
+                filters &= Q(status=search_status_param)
+            # else: search_status_param が空文字 '' の場合はフィルタしない (すべて表示)
+        else: # search_status パラメータが存在しない場合 (例: schedule.html からの呼び出しで検索パラメータなしの場合)
+            filters &= Q(status='pending') # デフォルトで 'pending'
+
+        # テキストベースの検索フィールド (icontains)
+        text_search_params = {
+            'search_order_number': 'order_number__icontains',
+            'search_shipment_number': 'shipment_number__icontains',
+            'search_supplier': 'supplier__icontains',
+            'search_part_number': 'part_number__icontains',
+            'search_warehouse': 'warehouse__icontains',
+        }
+        for param, field_lookup in text_search_params.items():
+            value = request.GET.get(param)
+            if value:
+                filters &= Q(**{field_lookup: value})
+
+        # 品名 (item または product_name で検索)
+        item_product_name_search = request.GET.get('search_item_product_name')
+        if item_product_name_search:
+            filters &= (Q(item__icontains=item_product_name_search) | 
+                        Q(product_name__icontains=item_product_name_search))
+
+        # 数値フィールド (完全一致)
+        numeric_search_params = {
+            'search_quantity': 'quantity',
+            'search_received_quantity': 'received_quantity',
+        }
+        for param, field_name in numeric_search_params.items():
+            value = request.GET.get(param)
+            if value:
+                try:
+                    filters &= Q(**{field_name: int(value)})
+                except ValueError:
+                    pass # 無効な数値の場合は無視
+
+        # 日付フィールド (範囲検索)
+        date_search_params = {
+            'order_date': 'order_date',
+            'expected_arrival': 'expected_arrival',
+        }
+        for base_param, field_prefix in date_search_params.items():
+            date_from = request.GET.get(f'search_{base_param}_from')
+            date_to = request.GET.get(f'search_{base_param}_to')
+            if date_from:
+                filters &= Q(**{f'{field_prefix}__date__gte': date_from})
+            if date_to:
+                filters &= Q(**{f'{field_prefix}__date__lte': date_to})
+
+        if filters: # filtersがQ()のまま（空）でない場合のみ適用
+            schedule_items_query = schedule_items_query.filter(filters)
 
         schedule_items = schedule_items_query.order_by('expected_arrival', 'order_number')
 
-        # Paginator オブジェクトを作成
         paginator = Paginator(schedule_items, page_size)
 
         try:
@@ -91,7 +136,7 @@ def get_schedule_data(request):
 
         data = []
         for item in schedule_items_page: # ページングされたオブジェクトをループ
-            data.append({
+            data.append({ # `item` は PurchaseOrder のインスタンス
                 'order_number': item.order_number,
                 'supplier': item.supplier,
                 # 'item' フィールドには product_name を優先し、なければ item を使用
@@ -104,10 +149,6 @@ def get_schedule_data(request):
                 'status': item.get_status_display(), # 選択肢の表示名を取得
                 'part_number': item.part_number if item.part_number else '',
                 'shipment_number': item.shipment_number if item.shipment_number else '',
-                # The 'barcode' and 'serial_number' fields are handled in JS if item.barcode/item.serial_number exist.
-                # They are not standard fields on the PurchaseOrder model itself.
-                # If they need to be populated from the backend, ensure they are added to the PurchaseOrder model
-                # or derived from related models and included here.
             })
 
         # ページネーション情報をレスポンスに含める
@@ -121,7 +162,7 @@ def get_schedule_data(request):
         }
         return JsonResponse(response_data, safe=False)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+        return JsonResponse({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @api_view(['POST'])
