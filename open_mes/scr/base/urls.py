@@ -18,8 +18,8 @@ from django.contrib import admin
 from django.urls import include, path, reverse_lazy
 from .views import top
 from inventory.views import menu as inventory_menu
-from inventory import rest_views as inventory_rest_views
-from production.views import menu as production_menu
+from inventory import rest_views as inventory_rest_views # noqa: F401
+from production.views import menu as production_menu_views # Renamed to avoid conflict if other menu views exist
 from production import rest_views as production_rest_views # Import production rest_views
 from users.views import login, logout, rest
 from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
@@ -39,7 +39,7 @@ urlpatterns = [
     path('', top.TopView.as_view(), name="main"),  # メインページへのURL
 
     # 在庫関係
-    path('inventory/menu/', inventory_menu.InventoryMenuView.as_view(), name="inventory_menu"),  # 在庫管理メニューページへのURL
+    # path('inventory/menu/', inventory_menu.InventoryMenuView.as_view(), name="inventory_menu"),  # 在庫管理メニューページへのURL (削除)
     path('inventory/inquiry/', inventory_menu.InquiryView.as_view(), name="inventory_inquiry"),  # 在庫照会ページへのURL (在庫照会)
     path('inventory/schedule/', inventory_menu.ScheduleView.as_view(), name="inventory_schedule"),  # 入庫予定ページへのURL (入庫予定)
     path('inventory/shipment/', inventory_menu.ShipmentView.as_view(), name="inventory_shipment"),  # 出庫予定ページへのURL (出庫予定)
@@ -47,11 +47,11 @@ urlpatterns = [
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)    
 
     # 生産関係
-    path('production/menu/', production_menu.ProductionMenuView.as_view(), name="production_menu"),  # 生産管理メニューページへのURL
-    path('production/plan/', production_menu.ProductionPlanView.as_view(), name="production_plan"),  # 生産計画ページへのURL
-    path('production/parts_used/', production_menu.PartsUsedView.as_view(), name="production_parts_used"),  # 使用部品ページへのURL
-    path('production/material_allocation/', production_menu.MaterialAllocationView.as_view(), name="production_material_allocation"),  # 材料引当ページへのURL
-    path('production/work_progress/', production_menu.WorkProgressView.as_view(), name="production_work_progress"),  # 作業進捗ページへのURL
+    # path('production/menu/', production_menu_views.ProductionMenuView.as_view(), name="production_menu"),  # 生産管理メニューページへのURL (削除)
+    path('production/plan/', production_menu_views.ProductionPlanView.as_view(), name="production_plan"),  # 生産計画ページへのURL
+    path('production/parts_used/', production_menu_views.PartsUsedView.as_view(), name="production_parts_used"),  # 使用部品ページへのURL
+    path('production/material_allocation/', production_menu_views.MaterialAllocationView.as_view(), name="production_material_allocation"),  # 材料引当ページへのURL
+    path('production/work_progress/', production_menu_views.WorkProgressView.as_view(), name="production_work_progress"),  # 作業進捗ページへのURL
 
     # 設備関係
     path('machine/menu/', machine_views.MachineMenuView.as_view(), name="machine_menu"),  # メインページへのURL
