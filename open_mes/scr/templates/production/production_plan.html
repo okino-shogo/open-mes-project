@@ -2,6 +2,51 @@
 {% load md5url %}
 {% block content %}
 <div class="production-plan-list">
+    <h2>生産計画検索</h2>
+    <div class="search-filters">
+        <form id="searchForm">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="searchPlanName">計画名:</label>
+                    <input type="text" id="searchPlanName" name="plan_name">
+                </div>
+                <div class="filter-group">
+                    <label for="searchProductCode">製品コード:</label>
+                    <input type="text" id="searchProductCode" name="product_code">
+                </div>
+            </div>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="searchStatus">ステータス:</label>
+                    <select id="searchStatus" name="status">
+                        <option value="">すべて</option>
+                        <option value="PENDING">未着手</option>
+                        <option value="IN_PROGRESS">進行中</option>
+                        <option value="COMPLETED">完了</option>
+                        <option value="ON_HOLD">保留</option>
+                        <option value="CANCELLED">中止</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="searchParentPlan">親計画ID:</label>
+                    <input type="text" id="searchParentPlan" name="parent_plan_ref">
+                </div>
+            </div>
+            <div class="filter-row date-range-group">
+                <label>計画開始日時:</label>
+                <div class="filter-group date-range">
+                    <input type="datetime-local" id="searchPlannedStartFrom" name="planned_start_from" aria-label="計画開始日時 自">
+                    <span>～</span>
+                    <input type="datetime-local" id="searchPlannedStartTo" name="planned_start_to" aria-label="計画開始日時 至">
+                </div>
+            </div>
+            <div class="filter-group-buttons">
+                <button type="submit" id="searchButton" class="button-primary">検索</button>
+                <button type="button" id="clearSearchButton" class="button-danger">クリア</button>
+            </div>
+        </form>
+    </div>
+
     <h2>生産計画一覧</h2>
     <table id="productionPlanTable">
         <thead>
@@ -129,6 +174,79 @@
     .numeric-column {
         text-align: right;
     }
+
+    /* Styles for search filters */
+    .search-filters {
+        margin-bottom: 20px;
+        padding: 15px;
+        border: 1px solid #ccc;
+        border-radius: 8px; /* Slightly more rounded corners */
+        background-color: #f9f9f9;
+    }
+
+    .search-filters h2 { /* Changed from h3 to h2 to match the list title */
+        margin-top: 0;
+        margin-bottom: 15px; /* Increased margin */
+        font-size: 1.2em; /* Slightly larger font for the search title */
+        border-bottom: 1px solid #eee; /* Add a subtle separator */
+        padding-bottom: 10px; /* Space below the separator */
+    }
+
+    .filter-row {
+        display: flex;
+        flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        gap: 15px; /* Space between groups in a row */
+        margin-bottom: 10px;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        flex: 1; /* Allow groups to grow */
+        min-width: 250px; /* Minimum width before wrapping */
+    }
+
+    .filter-group label {
+        margin-right: 8px;
+        font-weight: bold;
+        min-width: 90px; /* Adjusted min-width */
+        white-space: nowrap;
+    }
+
+    .filter-group input[type="text"],
+    .filter-group input[type="datetime-local"],
+    .filter-group select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        flex-grow: 1;
+        box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    }
+    .date-range-group { display: flex; align-items: center; gap: 5px; margin-bottom: 10px;}
+    .date-range-group label { min-width: 90px; font-weight: bold; margin-right: 8px;}
+    .date-range { display: flex; align-items: center; flex-grow: 1;}
+    .date-range input[type="datetime-local"] { flex-grow: 1; min-width: 180px;} /* Ensure date inputs have enough space */
+    .date-range span { margin: 0 5px; }
+
+    .filter-group-buttons {
+        margin-top: 15px;
+        text-align: left; /* Align buttons to the left */
+    }
+
+    .filter-group-buttons button {
+        padding: 10px 20px; /* Larger buttons */
+        margin-right: 10px;
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+
+    .button-primary { background-color: #4CAF50; color: white; }
+    .button-danger { background-color: #f44336; color: white; }
+    .button-primary:hover { background-color: #45a049; }
+    .button-danger:hover { background-color: #e53935; }
+
 </style>
 
 <script>
@@ -142,8 +260,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Store the current page's plans for easy access by the popup
     let currentPagePlans = [];
 
-    const initialUrl = `${baseApiUrl}?page_size=100`; // Start with page_size=100
     const pageSize = 100;
+    const initialUrl = `${baseApiUrl}?page_size=${pageSize}`;
+
+    // Search form elements
+    const searchForm = document.getElementById('searchForm');
+    const searchButton = document.getElementById('searchButton');
+    const clearSearchButton = document.getElementById('clearSearchButton');
+    const searchPlanNameInput = document.getElementById('searchPlanName');
+    const searchProductCodeInput = document.getElementById('searchProductCode');
+    const searchStatusInput = document.getElementById('searchStatus');
+    const searchParentPlanInput = document.getElementById('searchParentPlan');
+    const searchPlannedStartFromInput = document.getElementById('searchPlannedStartFrom');
+    const searchPlannedStartToInput = document.getElementById('searchPlannedStartTo');
+
 
     function fetchProductionPlans(url) {
         fetch(url)
@@ -202,30 +332,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Update page info
-            const totalItems = data.count;
-            const totalPages = Math.ceil(totalItems / pageSize);
-            let currentFetchedPage = 1;
-
-            try {
-                const queryString = url.split('?')[1];
-                if (queryString) {
-                    const params = new URLSearchParams(queryString);
-                    if (params.has('page')) {
-                        currentFetchedPage = parseInt(params.get('page'), 10);
-                    }
-                }
-            } catch (e) {
-                console.warn("Could not parse current page from URL:", url, e);
-                // Fallback if URL parsing fails (e.g. unexpected format)
-                if (!data.previous) {
-                    currentFetchedPage = 1;
-                } else if (!data.next) {
-                    currentFetchedPage = totalPages;
-                }
-            }
-
-            if (totalItems > 0) {
-                pageInfoSpan.textContent = `ページ ${currentFetchedPage} / ${totalPages} (全 ${totalItems} 件)`;
+            if (data.count > 0) {
+                // Use current_page and total_pages from DRF's paginated response
+                pageInfoSpan.textContent = `ページ ${data.current_page} / ${data.total_pages} (全 ${data.count} 件)`;
             } else {
                 pageInfoSpan.textContent = 'データがありません';
             }
@@ -253,6 +362,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (nextPageButton.dataset.url) {
             fetchProductionPlans(nextPageButton.dataset.url);
         }
+    });
+
+    function buildSearchQuery() {
+        const params = new URLSearchParams();
+        params.append('page_size', pageSize.toString());
+
+        if (searchPlanNameInput.value) params.append('plan_name', searchPlanNameInput.value);
+        if (searchProductCodeInput.value) params.append('product_code', searchProductCodeInput.value);
+        if (searchStatusInput.value) params.append('status', searchStatusInput.value);
+        if (searchParentPlanInput.value) params.append('production_plan_ref', searchParentPlanInput.value);
+        if (searchPlannedStartFromInput.value) params.append('planned_start_datetime_after', searchPlannedStartFromInput.value);
+        if (searchPlannedStartToInput.value) params.append('planned_start_datetime_before', searchPlannedStartToInput.value);
+        
+        return params.toString();
+    }
+
+    searchButton.addEventListener('click', (event) => {
+        event.preventDefault(); // Prevent form submission
+        const query = buildSearchQuery();
+        fetchProductionPlans(`${baseApiUrl}?${query}`);
+    });
+
+    clearSearchButton.addEventListener('click', () => {
+        searchForm.reset(); // Resets form fields
+        fetchProductionPlans(initialUrl); // Fetch with default (no search)
     });
 
     function showAllocatePopup(plan) {

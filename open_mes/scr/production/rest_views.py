@@ -8,6 +8,7 @@ from .serializers import ProductionPlanSerializer, PartsUsedSerializer, Required
 from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート # noqa: E501
 from django.db.models import Q # Qオブジェクトをインポート
 from inventory.models import Inventory, StockMovement, SalesOrder # Add StockMovement and SalesOrder
+from django.utils.dateparse import parse_datetime # 日時文字列のパース用
 from django.db import transaction # トランザクションのためにインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 # from .models import Product, BillOfMaterialItem # BOMに関連するモデル (仮のインポート、実際には適切なモデルを定義・インポートしてください)
@@ -17,10 +18,48 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Production Plans to be viewed or created.
     """
-    queryset = ProductionPlan.objects.all().order_by('-planned_start_datetime')
+    # queryset = ProductionPlan.objects.all().order_by('-planned_start_datetime') # Base queryset defined in get_queryset
     serializer_class = ProductionPlanSerializer
     pagination_class = StandardResultsSetPagination # ページネーションクラスを指定
     # permission_classes = [permissions.IsAuthenticated] # Example: Add authentication
+
+    def get_queryset(self):
+        queryset = ProductionPlan.objects.all() # Start with all objects
+
+        # Get query parameters for filtering
+        plan_name = self.request.query_params.get('plan_name')
+        product_code = self.request.query_params.get('product_code')
+        status = self.request.query_params.get('status')
+        production_plan_ref = self.request.query_params.get('production_plan_ref') # For parent plan ID search
+        planned_start_after = self.request.query_params.get('planned_start_datetime_after')
+        planned_start_before = self.request.query_params.get('planned_start_datetime_before')
+
+        filters = Q()
+        if plan_name:
+            filters &= Q(plan_name__icontains=plan_name)
+        if product_code:
+            filters &= Q(product_code__icontains=product_code)
+        if status:
+            filters &= Q(status=status)
+        if production_plan_ref:
+            # 'production_plan' is the CharField in the model storing the reference
+            filters &= Q(production_plan__icontains=production_plan_ref)
+        
+        if planned_start_after:
+            dt_after = parse_datetime(planned_start_after)
+            if dt_after:
+                filters &= Q(planned_start_datetime__gte=dt_after)
+        
+        if planned_start_before:
+            dt_before = parse_datetime(planned_start_before)
+            if dt_before:
+                filters &= Q(planned_start_datetime__lte=dt_before)
+            
+        # Apply filters if any
+        if filters:
+            queryset = queryset.filter(filters)
+            
+        return queryset.order_by('-planned_start_datetime') # Apply default ordering
 
     @action(detail=True, methods=['get'], url_path='required-parts')
     def required_parts(self, request, pk=None):
