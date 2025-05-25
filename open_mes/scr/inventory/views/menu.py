@@ -5,13 +5,6 @@ from django.db import transaction
 from ..forms import IssueForm
 from ..models import SalesOrder, Inventory, StockMovement # Make sure Inventory and StockMovement are imported
 
-# 在庫メニュー
-class InventoryMenuView(generic.TemplateView):
-    template_name = 'inventory/menu.html'
-
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
 # 在庫照会
 class InquiryView(generic.TemplateView):
     template_name = 'inventory/inquiry.html'

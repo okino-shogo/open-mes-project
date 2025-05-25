@@ -26,7 +26,6 @@ from django.contrib.auth import views as auth_views  # 追記：認証ビュー�
 from rest_framework.routers import DefaultRouter # Import DefaultRouter
 from rest_framework.authtoken import views as authtoken_views # authtoken の views をインポート
 from machine import views as machine_views
-from quality import views as quality_views # quality.viewsをインポート
 
 
 production_router = DefaultRouter()
@@ -60,10 +59,7 @@ urlpatterns = [
     path('machine/master_creation/', machine_views.MasterCreationView.as_view(), name="machine_master_creation"),
 
     # 品質関係
-    path('quality/menu/', quality_views.QualityMenuView.as_view(), name="quality_menu"),
-    path('quality/process_inspection/', quality_views.ProcessInspectionView.as_view(), name="quality_process_inspection"),
-    path('quality/acceptance_inspection/', quality_views.AcceptanceInspectionView.as_view(), name="quality_acceptance_inspection"),
-    path('quality/master_creation/', quality_views.MasterCreationView.as_view(), name="quality_master_creation"),
+    path('quality/', include('quality.urls', namespace='quality')),
 
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL

@@ -1,8 +1,5 @@
 from django.views import generic
 
-# 生産メニュー
-class ProductionMenuView(generic.TemplateView):
-    template_name = 'production/menu.html'
     
 # 生産計画
 class ProductionPlanView(generic.TemplateView):
