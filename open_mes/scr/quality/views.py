@@ -4,16 +4,28 @@ from django.http import JsonResponse
 from django.db import transaction # For atomic transactions with formsets
 from django.db.models import ProtectedError
 from django.forms.models import ModelChoiceIteratorValue
-from .models import InspectionItem, MeasurementDetail # MeasurementDetail
-from .forms import InspectionItemForm, MeasurementDetailFormSet # Import MeasurementDetailFormSet
+from .models import InspectionItem, MeasurementDetail, InspectionResult, InspectionResultDetail
+from .forms import (
+    InspectionItemForm, MeasurementDetailFormSet,
+    InspectionResultForm, InspectionResultDetailForm
+)
+from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
+from django.utils import timezone
+import json
 
 class QualityMenuView(View):
     def get(self, request, *args, **kwargs):
         return render(request, 'quality/menu.html')
 
+@method_decorator(login_required, name='dispatch')
 class ProcessInspectionView(View):
+    template_name = 'quality/process_inspection.html'
+
     def get(self, request, *args, **kwargs):
-        return render(request, 'quality/process_inspection.html')
+        inspection_items = InspectionItem.objects.filter(is_active=True).order_by('code')
+        context = {'inspection_items': inspection_items, 'page_title': '工程内検査 登録'}
+        return render(request, self.template_name, context)
 
 class AcceptanceInspectionView(View):
     def get(self, request, *args, **kwargs):
@@ -190,3 +202,114 @@ def inspection_item_delete(request, pk):
                 'message': f'削除中にエラーが発生しました: {str(e)}'
             }, status=400)
     return JsonResponse({'success': False, 'message': '無効なリクエストです。'}, status=405)
+
+@login_required
+def get_inspection_item_form_data(request, item_pk):
+    inspection_item = get_object_or_404(InspectionItem, pk=item_pk)
+    measurement_details = inspection_item.measurement_details.all().order_by('order', 'name')
+
+    item_data = {
+        'id': str(inspection_item.id),
+        'code': inspection_item.code,
+        'name': inspection_item.name,
+        'description': inspection_item.description,
+    }
+
+    measurement_details_data = []
+    for md in measurement_details:
+        measurement_details_data.append({
+            'id': str(md.id),
+            'name': md.name,
+            'measurement_type': md.measurement_type,
+            'specification_nominal': md.specification_nominal,
+            'specification_upper_limit': md.specification_upper_limit,
+            'specification_lower_limit': md.specification_lower_limit,
+            'specification_unit': md.specification_unit,
+            'expected_qualitative_result': md.expected_qualitative_result,
+            'order': md.order,
+        })
+
+    result_form_fields = [
+        {'name': 'part_number', 'label': '品番', 'type': 'text', 'class': 'col-md-6'},
+        {'name': 'lot_number', 'label': 'ロット番号', 'type': 'text', 'class': 'col-md-6'},
+        {'name': 'serial_number', 'label': 'シリアル番号', 'type': 'text', 'class': 'col-md-6'},
+        {'name': 'quantity_inspected', 'label': '検査数量', 'type': 'number', 'class': 'col-md-6'},
+        {'name': 'related_order_type', 'label': '関連オーダータイプ', 'type': 'text', 'class': 'col-md-6'},
+        {'name': 'related_order_number', 'label': '関連オーダー番号', 'type': 'text', 'class': 'col-md-6'},
+        {'name': 'equipment_used', 'label': '使用設備/測定器', 'type': 'text', 'class': 'col-md-12'},
+        {'name': 'judgment', 'label': '総合判定', 'type': 'select', 'choices': InspectionResult.JUDGMENT_CHOICES, 'class': 'col-md-6'},
+        {'name': 'attachment', 'label': '添付ファイル', 'type': 'file', 'class': 'col-md-6'},
+        {'name': 'remarks', 'label': '備考', 'type': 'textarea', 'class': 'col-md-12'},
+    ]
+
+    return JsonResponse({
+        'success': True,
+        'inspection_item': item_data,
+        'measurement_details': measurement_details_data,
+        'result_form_fields': result_form_fields
+    })
+
+@login_required
+@transaction.atomic
+def record_inspection_result_view(request, item_pk):
+    inspection_item = get_object_or_404(InspectionItem, pk=item_pk)
+
+    if request.method == 'POST':
+        result_form_data = request.POST.copy()
+        result_form_data['inspection_item'] = inspection_item.pk
+        result_form = InspectionResultForm(result_form_data, request.FILES)
+
+        try:
+            measurement_details_payload = json.loads(request.POST.get('measurement_details_payload', '[]'))
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'message': '検査詳細の形式が無効です。'}, status=400)
+
+        valid_detail_forms = []
+        all_details_data_valid = True
+        detail_errors = {}
+
+        if result_form.is_valid():
+            inspection_result = result_form.save(commit=False)
+            inspection_result.inspected_by = request.user
+            inspection_result.inspected_at = timezone.now()
+
+            for idx, detail_data in enumerate(measurement_details_payload):
+                md_pk = detail_data.get('measurement_detail_id')
+                if not md_pk:
+                    all_details_data_valid = False; detail_errors[f'detail_{idx}'] = '測定項目IDがありません。'; break
+                
+                try:
+                    measurement_detail_instance = MeasurementDetail.objects.get(pk=md_pk, inspection_item=inspection_item)
+                except MeasurementDetail.DoesNotExist:
+                    all_details_data_valid = False; detail_errors[f'detail_{idx}'] = '無効な測定項目です。'; break
+
+                form_data_for_detail = {'measurement_detail': measurement_detail_instance.pk}
+                if measurement_detail_instance.measurement_type == 'quantitative':
+                    form_data_for_detail['measured_value_numeric'] = detail_data.get('value')
+                else:
+                    form_data_for_detail['result_qualitative'] = detail_data.get('value')
+                
+                detail_form = InspectionResultDetailForm(form_data_for_detail, measurement_detail_instance=measurement_detail_instance)
+                if detail_form.is_valid():
+                    valid_detail_forms.append(detail_form)
+                else:
+                    all_details_data_valid = False
+                    detail_errors[f'detail_{idx}_{measurement_detail_instance.name}'] = detail_form.errors.as_text()
+            
+            if all_details_data_valid:
+                inspection_result.save()
+                for detail_form_instance in valid_detail_forms:
+                    result_detail = detail_form_instance.save(commit=False)
+                    result_detail.inspection_result = inspection_result
+                    result_detail.save()
+                return JsonResponse({'success': True, 'message': '検査結果を登録しました。'})
+            else:
+                errors = {f: e[0] for f, e in result_form.errors.items()}
+                errors.update(detail_errors)
+                return JsonResponse({'success': False, 'message': '入力内容に誤りがあります（詳細）。', 'errors': errors}, status=400)
+        else:
+            errors = {f: e[0] for f, e in result_form.errors.items()}
+            errors.update(detail_errors) # Include any parsing errors for details if they occurred before form validation
+            return JsonResponse({'success': False, 'message': '入力内容に誤りがあります。', 'errors': errors}, status=400)
+
+    return JsonResponse({'success': False, 'message': 'POSTリクエストが必要です。'}, status=405)

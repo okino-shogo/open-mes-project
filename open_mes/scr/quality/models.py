@@ -152,3 +152,31 @@ class InspectionResult(models.Model):
 
     def __str__(self):
         return f"検査結果 {self.id} ({self.inspection_item.name} - {self.get_judgment_display()})"
+
+
+class InspectionResultDetail(models.Model):
+    """
+    検査実績に紐づく個別の測定・判定結果詳細モデル
+    """
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False, verbose_name="ID")
+    inspection_result = models.ForeignKey(
+        InspectionResult,
+        related_name='details',
+        on_delete=models.CASCADE,
+        verbose_name="検査実績"
+    )
+    measurement_detail = models.ForeignKey(
+        MeasurementDetail,
+        on_delete=models.PROTECT, # マスターデータは保護
+        verbose_name="測定・判定詳細"
+    )
+    measured_value_numeric = models.FloatField(null=True, blank=True, verbose_name="測定値（定量）")
+    result_qualitative = models.CharField(max_length=100, blank=True, null=True, verbose_name="結果（定性）")
+
+    class Meta:
+        verbose_name = "検査実績詳細"
+        verbose_name_plural = "検査実績詳細"
+        ordering = ['inspection_result', 'measurement_detail__order']
+
+    def __str__(self):
+        return f"結果: {self.measurement_detail.name} (実績ID: {self.inspection_result.id})"
