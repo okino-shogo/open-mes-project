@@ -19,10 +19,10 @@
             <tr>
                 <th>製品/材料名</th>
                 <th>倉庫</th>
+                <th>場所</th>
                 <th>在庫数</th>
                 <th>引当在庫</th>
                 <th>利用可能数</th>
-                <th>場所</th>
                 <th>最終更新日時</th>
             </tr>
         </thead>
@@ -142,11 +142,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const row = tbody.insertRow();
                 row.insertCell().textContent = inventory.part_number || 'N/A';
                 row.insertCell().textContent = inventory.warehouse || 'N/A';
+                const locationDisplay = (inventory.location || 'N/A') === 'N/A' ? '-' : inventory.location;
+                row.insertCell().textContent = locationDisplay;
                 row.insertCell().textContent = inventory.quantity;
                 row.insertCell().textContent = inventory.reserved;
                 row.insertCell().textContent = inventory.available_quantity;
-                const locationDisplay = (inventory.location || 'N/A') === 'N/A' ? '-' : inventory.location;
-                row.insertCell().textContent = locationDisplay;
                 row.insertCell().textContent = inventory.last_updated ? new Date(inventory.last_updated).toLocaleString() : 'N/A';
             });
         } else {
