@@ -4,8 +4,8 @@
 {{ auto_refresh|safe }}
 
 <div id="schedule-container">
-    <h2>入庫予定一覧</h2>
-    <p id="schedule-count-info"></p> <!-- 取得件数を表示するための要素を追加 -->
+    <h2 class="mb-3">入庫予定一覧</h2>
+    <p id="schedule-count-info" class="text-muted"></p> <!-- 取得件数を表示するための要素を追加 -->
     <table id="schedule-table" class="inventory-table">
         <thead>
             <tr>
@@ -24,7 +24,7 @@
             <!-- AJAX 取得データ -->
         </tbody>
     </table>
-    <div id="pagination-controls" class="pagination">
+    <div id="pagination-controls" class="d-flex justify-content-center mt-3">
         
     </div>
 </div>
@@ -90,50 +90,55 @@
         }
 
         function renderPaginationControls(totalPages, currentPage, prevPage, nextPage) {
-            const $p = $('#pagination-controls').empty();
+            const $p = $('#pagination-controls').empty(); // Clear existing controls
             if (totalPages <= 1) return;
 
-            // 「前へ」ボタン
-            if (prevPage) {
-                $('<button class="page-btn prev-btn">&laquo; 前へ</button>')
-                    .on('click', () => loadScheduleData(prevPage))
-                    .appendTo($p);
-            }
+            // Use Bootstrap's ul.pagination structure
+            const $ul = $('<ul class="pagination mb-0"></ul>').appendTo($p);
 
-            // 現在ページの前後 ±3 を表示
+            // Previous button (Bootstrap style)
+            const $prevLi = $(`<li class="page-item ${prevPage ? '' : 'disabled'}"><a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a></li>`);
+            if (prevPage) {
+                $prevLi.find('.page-link').on('click', (e) => { e.preventDefault(); loadScheduleData(prevPage); });
+            }
+            $ul.append($prevLi);
+
+            // Page numbers
             const start = Math.max(1, currentPage - 3);
             const end   = Math.min(totalPages, currentPage + 3);
             for (let i = start; i <= end; i++) {
-                $('<button class="page-btn">')
-                    .text(i)
-                    .toggleClass('active', i === currentPage)
-                    .prop('disabled', i === currentPage)
-                    .on('click', () => loadScheduleData(i))
-                    .appendTo($p);
-            }
-
-            // 「次へ」ボタン
-            if (nextPage) {
-                $('<button class="page-btn next-btn">次へ &raquo;</button>')
-                    .on('click', () => loadScheduleData(nextPage))
-                    .appendTo($p);
-            }
-
-            // ダイレクトジャンプ用入力＆ボタン
-            const $input = $(`<input type="number" min="1" max="${totalPages}" value="${currentPage}" class="page-input">`);
-            const $go    = $('<button class="page-go-btn">移動</button>');
-            $go.on('click', () => {
-                const page = parseInt($input.val(), 10);
-                if (page >= 1 && page <= totalPages && page !== currentPage) {
-                    loadScheduleData(page);
+                const $li = $(`<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`);
+                if (i !== currentPage) {
+                     $li.find('.page-link').on('click', (e) => { e.preventDefault(); loadScheduleData(i); });
                 }
-            });
-            // Enterキーでも移動
-            $input.on('keypress', e => {
-                if (e.which === 13) $go.click();
-            });
+                $ul.append($li);
+            }
 
-            $p.append($('<span class="jump-label">ページ: </span>'), $input, $go);
+            // Next button (Bootstrap style)
+            const $nextLi = $(`<li class="page-item ${nextPage ? '' : 'disabled'}"><a class="page-link" href="#" aria-label="Next"><span aria-hidden="true">&raquo;</span></a></li>`);
+            if (nextPage) {
+                $nextLi.find('.page-link').on('click', (e) => { e.preventDefault(); loadScheduleData(nextPage); });
+            }
+            $ul.append($nextLi);
+
+            // Optional: Add direct jump controls outside the main pagination ul
+            if (totalPages > 7) { // Only show direct jump for more than a few pages
+                const $jumpDiv = $('<div class="d-flex align-items-center ms-3"></div>').appendTo($p);
+                const $input = $(`<input type="number" min="1" max="${totalPages}" value="${currentPage}" class="form-control form-control-sm me-1" style="width: 60px;">`);
+                const $go    = $('<button class="btn btn-secondary btn-sm">移動</button>');
+                $go.on('click', () => {
+                    const page = parseInt($input.val(), 10);
+                    if (page >= 1 && page <= totalPages && page !== currentPage) {
+                        loadScheduleData(page);
+                    }
+                });
+                // Enterキーでも移動
+                $input.on('keypress', e => {
+                    if (e.which === 13) $go.click();
+                });
+                $jumpDiv.append($('<span class="me-1 text-muted">ページ:</span>'), $input, $go);
+            }
+
         }
 
         loadScheduleData(currentPage); // ページ読み込み時に最初のページデータを取得

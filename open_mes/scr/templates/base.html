@@ -9,6 +9,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>みんなのMES</title>
     <link rel="icon" href="{% md5url 'icon/favicon.ico' %}">
+    {# Bootstrap CSSの読み込み #}
+    <link rel="stylesheet" href="{% md5url 'bootstrap-5.3.0-dist/css/bootstrap.min.css' %}">
     <style>
         /* General Reset and Box Sizing */
         *, *::before, *::after { box-sizing: border-box; }
@@ -340,6 +342,8 @@
             ver.{{ VERSION }}
         </p>
     </div>
+    {# Bootstrap JSの読み込み (通常はbodyの最後) #}
+    <script src="{% md5url 'bootstrap-5.3.0-dist/js/bootstrap.bundle.min.js' %}"></script>
 </footer>
 </body>
 </html>

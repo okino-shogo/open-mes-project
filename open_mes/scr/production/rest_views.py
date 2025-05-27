@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 # from rest_framework import permissions # Uncomment if you want to add permissions
+from rest_framework.pagination import PageNumberPagination # Import PageNumberPagination
 from rest_framework import status # HTTPステータスコードをインポート
 from rest_framework.decorators import action # actionデコレータをインポート
 from rest_framework.response import Response # Responseをインポート
@@ -14,13 +15,19 @@ from django.shortcuts import get_object_or_404 # オブジェクト取得のた�
 # from .models import Product, BillOfMaterialItem # BOMに関連するモデル (仮のインポート、実際には適切なモデルを定義・インポートしてください)
 # from .serializers import RequiredPartSerializer # BOM部品用のシリアライザ (仮のインポート)
 
+# Define a pagination class specifically for Production Plans API
+class ProductionPlanApiPagination(PageNumberPagination):
+    page_size = 100  # Default number of items per page
+    page_size_query_param = 'page_size'  # Allow client to override page_size via query param
+    max_page_size = 200  # Maximum page size allowed
+
 class ProductionPlanViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Production Plans to be viewed or created.
     """
     # queryset = ProductionPlan.objects.all().order_by('-planned_start_datetime') # Base queryset defined in get_queryset
     serializer_class = ProductionPlanSerializer
-    pagination_class = StandardResultsSetPagination # ページネーションクラスを指定
+    pagination_class = ProductionPlanApiPagination # Use the custom pagination class for Production Plans
     # permission_classes = [permissions.IsAuthenticated] # Example: Add authentication
 
     def get_queryset(self):
