@@ -2,8 +2,8 @@ from rest_framework import serializers
 from .models import ProductionPlan, PartsUsed # PartsUsed をインポート
 
 class ProductionPlanSerializer(serializers.ModelSerializer):
-    # status フィールドを日本語表示にするために get_status_display を使用
-    status = serializers.CharField(source='get_status_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True) # 表示名用
+    # status フィールドはモデルの定義に従い、内部キーを返します。
 
     class Meta:
         model = ProductionPlan
@@ -17,12 +17,13 @@ class ProductionPlanSerializer(serializers.ModelSerializer):
             'planned_end_datetime',
             'actual_start_datetime',
             'actual_end_datetime',
-            'status',
+            'status', # ステータスの内部キー (例: 'PENDING', 'IN_PROGRESS')
+            'status_display', # ステータスの表示名 (例: '未着手', '進行中')
             'remarks',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at'] # status は上で read_only=True としたのでここからは削除
+        read_only_fields = ['id', 'created_at', 'updated_at', 'status_display']
 
     def validate(self, data):
         """

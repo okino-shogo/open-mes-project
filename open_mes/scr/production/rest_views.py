@@ -5,11 +5,13 @@ from rest_framework import status # HTTPステータスコードをインポー�
 from rest_framework.decorators import action # actionデコレータをインポート
 from rest_framework.response import Response # Responseをインポート
 from .models import ProductionPlan, PartsUsed, MaterialAllocation # Add MaterialAllocation
+from .models import WorkProgress # Import WorkProgress
 from .serializers import ProductionPlanSerializer, PartsUsedSerializer, RequiredPartSerializer
 from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート # noqa: E501import inspect
 from django.db.models import Q # Qオブジェクトをインポート
 from inventory.models import Inventory, StockMovement, SalesOrder # Add StockMovement and SalesOrder
 from django.utils.dateparse import parse_datetime # 日時文字列のパース用
+from django.utils import timezone # timezoneをインポート
 from django.db import transaction # トランザクションのためにインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 # from .models import Product, BillOfMaterialItem # BOMに関連するモデル (仮のインポート、実際には適切なモデルを定義・インポートしてください)
@@ -36,7 +38,8 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
         # Get query parameters for filtering
         plan_name = self.request.query_params.get('plan_name')
         product_code = self.request.query_params.get('product_code')
-        status = self.request.query_params.get('status')
+        # status = self.request.query_params.get('status') # Keep for single status, or remove if status__in is primary
+        statuses_in_str = self.request.query_params.get('status__in') # New: for multiple statuses
         production_plan_ref = self.request.query_params.get('production_plan_ref') # For parent plan ID search
         planned_start_after = self.request.query_params.get('planned_start_datetime_after')
         planned_start_before = self.request.query_params.get('planned_start_datetime_before')
@@ -46,8 +49,17 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
             filters &= Q(plan_name__icontains=plan_name)
         if product_code:
             filters &= Q(product_code__icontains=product_code)
-        if status:
-            filters &= Q(status=status)
+        
+        # Handle status__in for multiple statuses
+        if statuses_in_str:
+            status_list = [status.strip() for status in statuses_in_str.split(',') if status.strip()]
+            if status_list:
+                filters &= Q(status__in=status_list)
+        # else: # Optional: handle single 'status' param if still needed and status__in is not present
+        #     single_status = self.request.query_params.get('status')
+        #     if single_status:
+        #         filters &= Q(status=single_status)
+
         if production_plan_ref:
             # 'production_plan' is the CharField in the model storing the reference
             filters &= Q(production_plan__icontains=production_plan_ref)
@@ -279,6 +291,125 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e), "details": errors}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": "An unexpected error occurred during material allocation.", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='update-progress')
+    def update_progress(self, request, pk=None):
+        """
+        Updates the progress of a specific production plan.
+        This includes updating the plan's status, actual start/end times,
+        and creating/updating a WorkProgress record.
+        """
+        plan = self.get_object()
+        data = request.data
+
+        new_status = data.get('status')
+        if not new_status:
+            return Response({"error": "New status is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        
+        # Use a consistent process_step for overall plan progress updates
+        PROCESS_STEP_OVERALL = "Overall Plan Progress"
+
+        work_progress, wp_created = WorkProgress.objects.get_or_create(
+            production_plan=plan,
+            process_step=PROCESS_STEP_OVERALL,
+            defaults={
+                'operator': request.user if request.user.is_authenticated else None,
+                'status': 'NOT_STARTED' # Default status if created
+            }
+        )
+
+        old_plan_status = plan.status
+        plan.status = new_status
+
+        # Logic for updating plan and work_progress based on new status
+        if new_status == 'IN_PROGRESS':
+            if old_plan_status == 'PENDING' or old_plan_status == 'ON_HOLD':
+                if not plan.actual_start_datetime:
+                    plan.actual_start_datetime = now
+            
+            work_progress.status = 'IN_PROGRESS'
+            if not work_progress.start_datetime:
+                work_progress.start_datetime = now
+            work_progress.end_datetime = None # Ensure end_datetime is cleared if resuming
+
+        elif new_status == 'COMPLETED':
+            if not plan.actual_start_datetime: # If jumping from PENDING/ON_HOLD to COMPLETED
+                plan.actual_start_datetime = now
+            plan.actual_end_datetime = now
+
+            work_progress.status = 'COMPLETED'
+            if not work_progress.start_datetime: # Should ideally be set if it went through IN_PROGRESS
+                work_progress.start_datetime = now
+            work_progress.end_datetime = now
+            
+            # Validate and set quantities for WorkProgress
+            good_quantity_str = data.get('good_quantity')
+            if good_quantity_str is None:
+                return Response({"error": "good_quantity is required when status is 'COMPLETED'."}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                val = int(good_quantity_str)
+                if val < 0: raise ValueError("must be non-negative.")
+                work_progress.quantity_completed = val
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid value for good_quantity. Must be a non-negative integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+            actual_quantity_str = data.get('actual_quantity')
+            if actual_quantity_str is not None:
+                try:
+                    val = int(actual_quantity_str)
+                    if val < 0: raise ValueError("must be non-negative.")
+                    work_progress.actual_reported_quantity = val
+                except (ValueError, TypeError):
+                    return Response({"error": "Invalid value for actual_quantity. Must be a non-negative integer."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Field is nullable, so if not provided, can be set to None or retain existing if that's desired.
+                # Explicitly setting to None if key is absent and value was not None previously.
+                work_progress.actual_reported_quantity = None
+
+            defective_quantity_str = data.get('defective_quantity')
+            if defective_quantity_str is not None:
+                try:
+                    val = int(defective_quantity_str)
+                    if val < 0: raise ValueError("must be non-negative.")
+                    work_progress.defective_reported_quantity = val
+                except (ValueError, TypeError):
+                    return Response({"error": "Invalid value for defective_quantity. Must be a non-negative integer."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                work_progress.defective_reported_quantity = None
+        elif new_status == 'ON_HOLD':
+            work_progress.status = 'PAUSED'
+            # Optionally, set work_progress.end_datetime = now if you want to mark the exact pause time.
+            # For simplicity, we'll let start_datetime persist and status indicate PAUSED.
+
+        elif new_status == 'CANCELLED':
+            if plan.actual_start_datetime and not plan.actual_end_datetime:
+                plan.actual_end_datetime = now # Mark end time if it was in progress
+            
+            # For WorkProgress, if it was IN_PROGRESS, mark it as PAUSED or set end_datetime
+            if work_progress.status == 'IN_PROGRESS' or work_progress.status == 'NOT_STARTED':
+                work_progress.status = 'PAUSED' # Or another appropriate terminal status
+                if work_progress.start_datetime and not work_progress.end_datetime:
+                    work_progress.end_datetime = now
+        
+        elif new_status == 'PENDING': # e.g. reverting from ON_HOLD
+            work_progress.status = 'NOT_STARTED'
+            # Consider if actual_start/end datetimes on plan should be reset.
+            # For now, we only update status.
+
+        try:
+            with transaction.atomic():
+                plan.save()
+                work_progress.save()
+        except Exception as e:
+            return Response({"error": f"Failed to save progress: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            "message": "Production plan progress updated successfully.",
+            "plan_id": plan.id,
+            "new_status": plan.get_status_display()
+        }, status=status.HTTP_200_OK)
 
 class PartsUsedViewSet(viewsets.ModelViewSet):
     """

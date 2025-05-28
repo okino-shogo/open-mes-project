@@ -149,7 +149,9 @@ class WorkProgress(models.Model):
     )
     start_datetime = models.DateTimeField(null=True, blank=True, verbose_name="開始日時")
     end_datetime = models.DateTimeField(null=True, blank=True, verbose_name="終了日時")
-    quantity_completed = models.PositiveIntegerField(default=0, verbose_name="完了数量")
+    quantity_completed = models.PositiveIntegerField(default=0, verbose_name="完了数量 (良品数)") # This will store the good quantity
+    actual_reported_quantity = models.PositiveIntegerField(null=True, blank=True, verbose_name="実績報告数量 (総生産数)")
+    defective_reported_quantity = models.PositiveIntegerField(null=True, blank=True, verbose_name="不良報告数量")
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,

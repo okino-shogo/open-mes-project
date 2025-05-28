@@ -26,7 +26,7 @@ class MaterialAllocationAdmin(admin.ModelAdmin):
 
 @admin.register(WorkProgress)
 class WorkProgressAdmin(admin.ModelAdmin):
-    list_display = ('production_plan', 'process_step', 'operator', 'status', 'start_datetime', 'end_datetime', 'quantity_completed')
+    list_display = ('production_plan', 'process_step', 'operator', 'status', 'start_datetime', 'end_datetime', 'quantity_completed', 'actual_reported_quantity', 'defective_reported_quantity')
     list_filter = ('status', 'process_step', 'operator')
     search_fields = ('production_plan__plan_name', 'process_step', 'operator__username')
     autocomplete_fields = ['production_plan', 'operator']

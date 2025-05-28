@@ -4,7 +4,33 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>作業進捗 - 生産計画一覧</h2>
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-md-between mb-3">
+        <h2 class="mb-2 mb-md-0 me-md-3">作業進捗 - 生産計画一覧</h2>
+        
+        <div class="d-flex flex-wrap align-items-center">
+            <span class="me-2 fw-bold">ステータスフィルター:</span>
+            <div id="statusFiltersContainer" class="d-flex flex-wrap">
+                {# Status filter switches will be populated by JavaScript #}
+            </div>
+        </div>
+    </div>
+    <!-- Search Form -->
+    <div class="row mb-3 g-2">
+        <div class="col-md">
+            <label for="searchPlanName" class="form-label visually-hidden">計画名</label>
+            <input type="text" id="searchPlanName" class="form-control" placeholder="計画名で検索...">
+        </div>
+        <div class="col-md">
+            <label for="searchProductCode" class="form-label visually-hidden">製品コード</label>
+            <input type="text" id="searchProductCode" class="form-control" placeholder="製品コードで検索...">
+        </div>
+        <div class="col-md-auto">
+            <button id="searchButton" class="btn btn-primary w-100">検索</button>
+        </div>
+        <div class="col-md-auto">
+            <button id="resetSearchButton" class="btn btn-secondary w-100">リセット</button>
+        </div>
+    </div>
 
     <div id="loading-message" class="alert alert-info" role="alert">データを読み込み中です...</div>
     <div id="error-message" class="alert alert-danger" role="alert" style="display: none;"></div>
@@ -33,17 +59,82 @@
     </div>
 </div>
 
+<!-- Progress Modal -->
+<div class="modal fade" id="progressModal" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="progressModalLabel">作業進捗確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>計画ID:</strong> <span id="modalPlanId"></span></p>
+                <p><strong>計画名:</strong> <span id="modalPlanName"></span></p>
+                <p><strong>製品コード:</strong> <span id="modalProductCode"></span></p>
+                <p><strong>計画数量:</strong> <span id="modalPlannedQuantity" class="text-end d-inline-block"></span></p>
+                <p><strong>計画開始日時:</strong> <span id="modalPlannedStart"></span></p>
+                <p><strong>ステータス:</strong> <span id="modalStatus"></span></p>
+                <hr>
+                <form id="progressForm">
+                    <div id="quantityInputFieldsContainer" style="display: none;">
+                        <h5>進捗数量入力</h5>
+                        <div class="mb-3">
+                            <label for="modalActualQuantity" class="form-label">製作数量</label>
+                            <input type="number" class="form-control" id="modalActualQuantity" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="modalGoodQuantity" class="form-label">OK数量</label>
+                            <input type="number" class="form-control" id="modalGoodQuantity" min="0">
+                        </div>
+                        <div class="mb-3">
+                            <label for="modalDefectiveQuantity" class="form-label">NG数量</label>
+                            <input type="number" class="form-control" id="modalDefectiveQuantity" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ステータス変更</label>
+                        <div id="modalStatusButtonsContainer">
+                            <!-- Status buttons will be populated here by JavaScript -->
+                        </div>
+                    </div>
+                    <div id="progressFormError" class="alert alert-danger mt-2" style="display: none;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-primary" id="saveProgressButton">進捗を登録</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = "{{ csrf_token }}"; // Django テンプレート内で CSRF トークンを取得
     const tbody = document.getElementById('production-plans-tbody');
     const paginationControls = document.getElementById('pagination-controls');
     const loadingMessage = document.getElementById('loading-message');
     const errorMessage = document.getElementById('error-message');
     const noDataMessage = document.getElementById('no-data-message');
-    const initialUrl = '/api/production/plans/?ordering=-planned_start_datetime'; // Default ordering
+    // Search elements
+    const searchPlanNameInput = document.getElementById('searchPlanName');
+    const searchProductCodeInput = document.getElementById('searchProductCode');
+    const searchButton = document.getElementById('searchButton');
+    const resetSearchButton = document.getElementById('resetSearchButton');
 
-    async function fetchProductionPlans(url) {
-        loadingMessage.style.display = 'block';
+    const DEFAULT_PAGE_SIZE = 10; // Define a default page size for pagination
+
+    const AVAILABLE_STATUSES = [
+        { key: 'PENDING', label: '未着手', btnClass: 'btn-secondary', btnOutlineClass: 'btn-outline-secondary', default_selected: true },
+        { key: 'IN_PROGRESS', label: '進行中', btnClass: 'btn-info',     btnOutlineClass: 'btn-outline-info',    default_selected: true },
+        { key: 'COMPLETED', label: '完了',    btnClass: 'btn-success',  btnOutlineClass: 'btn-outline-success', default_selected: false },
+        { key: 'ON_HOLD', label: '保留',    btnClass: 'btn-warning',  btnOutlineClass: 'btn-outline-warning', default_selected: true },
+        { key: 'CANCELLED', label: '中止',  btnClass: 'btn-danger',   btnOutlineClass: 'btn-outline-danger',  default_selected: false }
+    ];
+    const statusFiltersContainer = document.getElementById('statusFiltersContainer');
+
+    async function fetchProductionPlans(url) { // url will be the complete API endpoint
+        // loadingMessage.style.display = 'block'; // Moved down
         errorMessage.style.display = 'none';
         noDataMessage.style.display = 'none';
         tbody.innerHTML = ''; // Clear existing rows
@@ -51,6 +142,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             const response = await fetch(url);
+            const selectedStatusKeys = getSelectedStatusKeys();
+            if (selectedStatusKeys.length === 0 && AVAILABLE_STATUSES.length > 0) {
+                loadingMessage.style.display = 'none';
+                errorMessage.style.display = 'none';
+                tbody.innerHTML = '';
+                paginationControls.innerHTML = '';
+                noDataMessage.textContent = '表示するステータスが選択されていません。いずれかのステータスフィルターをオンにしてください。';
+                noDataMessage.style.display = 'block';
+                return; // Stop further processing
+            }
+
+            loadingMessage.style.display = 'block'; // Show loading message now
+
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
@@ -69,36 +173,57 @@ document.addEventListener('DOMContentLoaded', function() {
                     quantityCell.textContent = plan.planned_quantity;
                     quantityCell.classList.add('text-end');
 
-                    // Format datetime, API returns ISO string e.g., "2025-05-18T09:37:00Z"
                     const startDate = new Date(plan.planned_start_datetime);
+                    const formattedStartDate = startDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
                     const dateCell = row.insertCell();
-                    dateCell.textContent = startDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    dateCell.textContent = formattedStartDate;
                     dateCell.classList.add('text-center');
 
                     const statusCell = row.insertCell();
-                    statusCell.textContent = plan.status; // Serializer provides get_status_display
-                    statusCell.classList.add('text-center');
+                    const statusInfo = AVAILABLE_STATUSES.find(s => s.key === plan.status);
+                    const statusDisplay = statusInfo?.label || plan.status;
 
+                    const statusButtonLike = document.createElement('span');
+                    statusButtonLike.textContent = statusDisplay;
+                    // Apply Bootstrap button classes for styling, make it non-interactive
+                    statusButtonLike.classList.add('btn', 'btn-sm', (statusInfo?.btnClass || 'btn-secondary'));
+                    statusButtonLike.style.pointerEvents = 'none'; 
+
+                    statusCell.appendChild(statusButtonLike);
+                    statusCell.classList.add('text-center');
+                    // Action Cell with Progress Check Button
                     const actionCell = row.insertCell();
                     actionCell.classList.add('text-center');
-                    // TODO: Update href to actual progress detail view when available
-                    actionCell.innerHTML = `<a href="#" class="btn btn-sm btn-primary" data-plan-id="${plan.id}">進捗確認</a>`;
+
+                    const progressButton = document.createElement('a');
+                    progressButton.href = '#';
+                    progressButton.classList.add('btn', 'btn-sm', 'btn-primary', 'progress-check-btn');
+                    progressButton.dataset.planId = plan.id;
+                    progressButton.dataset.planName = plan.plan_name;
+                    progressButton.dataset.productCode = plan.product_code;
+                    progressButton.dataset.plannedQuantity = plan.planned_quantity;
+                    progressButton.dataset.plannedStart = formattedStartDate;
+                    progressButton.dataset.status = plan.status; // Store status key
+                    progressButton.dataset.statusDisplay = statusDisplay; // Store display name
+                    progressButton.textContent = '進捗確認';
+                    actionCell.appendChild(progressButton);
                 });
             } else {
                 noDataMessage.style.display = 'block';
             }
 
-            renderPagination(data);
+            renderPagination(data, url); // Pass the URL used for fetching to pagination
 
         } catch (error) {
             loadingMessage.style.display = 'none';
             errorMessage.textContent = `データの読み込みに失敗しました: ${error.message}`;
             errorMessage.style.display = 'block';
             console.error('Error fetching production plans:', error);
+            paginationControls.innerHTML = ''; // Clear pagination on error
         }
     }
 
-    function renderPagination(data) {
+    function renderPagination(data, fetchedUrl) { // Add fetchedUrl as a parameter
         if (!data.count || data.count === 0) return;
 
         let currentPage = 1;
@@ -112,19 +237,381 @@ document.addEventListener('DOMContentLoaded', function() {
              // No next or previous, but results exist, so it's page 1
         }
 
-        const totalPages = Math.ceil(data.count / (data.results.length || 1)); // Assuming consistent page size
+        const fetchedUrlParams = new URL(fetchedUrl, window.location.origin).searchParams;
+        const pageSize = parseInt(fetchedUrlParams.get('page_size')) || DEFAULT_PAGE_SIZE;
+        const totalPages = Math.ceil(data.count / pageSize);
 
         let paginationHtml = '';
-        paginationHtml += `<button class="btn btn-outline-primary mx-1" ${data.previous ? '' : 'disabled'} onclick="fetchProductionPlans('${data.previous}')">前へ</button>`;
-        paginationHtml += `<span class="mx-2 align-middle">ページ ${currentPage} / ${totalPages} (全 ${data.count} 件)</span>`;
-        paginationHtml += `<button class="btn btn-outline-primary mx-1" ${data.next ? '' : 'disabled'} onclick="fetchProductionPlans('${data.next}')">次へ</button>`;
-        paginationControls.innerHTML = paginationHtml;
+        if (totalPages > 0) {
+            paginationHtml += `<button class="btn btn-outline-primary mx-1" ${data.previous ? '' : 'disabled'} onclick="fetchProductionPlans('${data.previous}')">前へ</button>`;
+            paginationHtml += `<span class="mx-2 align-middle">ページ ${currentPage} / ${totalPages} (全 ${data.count} 件)</span>`;
+            paginationHtml += `<button class="btn btn-outline-primary mx-1" ${data.next ? '' : 'disabled'} onclick="fetchProductionPlans('${data.next}')">次へ</button>`;
+            paginationControls.innerHTML = paginationHtml;
+        } else {
+            paginationControls.innerHTML = ''; // Clear if no pages (e.g. count is 0)
+        }
     }
 
-    // Initial fetch
-    fetchProductionPlans(initialUrl);
+    function getSelectedStatusKeys() {
+        const selectedKeys = [];
+        document.querySelectorAll('.status-filter-checkbox:checked').forEach(checkbox => {
+            selectedKeys.push(checkbox.value);
+        });
+        return selectedKeys;
+    }
 
-    // Make fetchProductionPlans globally accessible if pagination buttons need to call it directly
+    function renderStatusFilters() {
+        statusFiltersContainer.innerHTML = ''; // Clear existing
+        AVAILABLE_STATUSES.forEach(statusInfo => {
+            const filterId = `status-filter-${statusInfo.key}`;
+
+            const wrapper = document.createElement('div');
+            wrapper.classList.add('form-check', 'form-check-inline', 'me-2', 'mb-1');
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.classList.add('form-check-input', 'status-filter-checkbox', 'visually-hidden');
+            checkbox.id = filterId;
+            checkbox.value = statusInfo.key;
+            checkbox.checked = statusInfo.default_selected;
+
+            const label = document.createElement('label');
+            label.classList.add('btn', 'btn-sm');
+            label.htmlFor = filterId;
+            label.textContent = statusInfo.label;
+            label.classList.add(checkbox.checked ? statusInfo.btnClass : statusInfo.btnOutlineClass);
+
+            checkbox.addEventListener('change', handleStatusFilterChange);
+            wrapper.appendChild(checkbox);
+            wrapper.appendChild(label);
+            statusFiltersContainer.appendChild(wrapper);
+        });
+    }
+
+    // Modal related elements and instance
+    const progressModalElement = document.getElementById('progressModal');
+    const progressModalInstance = new bootstrap.Modal(progressModalElement);
+
+    const modalPlanIdSpan = document.getElementById('modalPlanId');
+    const modalPlanNameSpan = document.getElementById('modalPlanName');
+    const modalProductCodeSpan = document.getElementById('modalProductCode');
+    const modalPlannedQuantitySpan = document.getElementById('modalPlannedQuantity');
+    const modalPlannedStartSpan = document.getElementById('modalPlannedStart');
+    const modalStatusSpan = document.getElementById('modalStatus');
+    const progressModalLabel = document.getElementById('progressModalLabel');
+    // Progress form elements
+    const progressForm = document.getElementById('progressForm');
+    const modalActualQuantityInput = document.getElementById('modalActualQuantity');
+    const modalGoodQuantityInput = document.getElementById('modalGoodQuantity');
+    const modalDefectiveQuantityInput = document.getElementById('modalDefectiveQuantity');
+    const saveProgressButton = document.getElementById('saveProgressButton');
+    const quantityInputFieldsContainer = document.getElementById('quantityInputFieldsContainer');
+    const modalStatusButtonsContainer = document.getElementById('modalStatusButtonsContainer');
+    const progressFormError = document.getElementById('progressFormError');
+    let selectedNewStatus = null; // To store the new status key selected by button
+    let lastFocusedElementBeforeModal = null; // モーダルを開いた要素を保存する変数
+
+    modalGoodQuantityInput.readOnly = true; // Make OK数量 field read-only
+
+    // Event listener for "進捗確認" (Check Progress) buttons
+    tbody.addEventListener('click', function(event) {
+        const targetButton = event.target.closest('.progress-check-btn');
+        if (targetButton) {
+            event.preventDefault(); // Prevent default anchor action (e.g., navigating to '#')
+
+            // Populate modal content
+            modalPlanIdSpan.textContent = targetButton.dataset.planId;
+                    lastFocusedElementBeforeModal = targetButton; // モーダルを開いたボタンを保存
+            modalPlanNameSpan.textContent = targetButton.dataset.planName;
+            modalProductCodeSpan.textContent = targetButton.dataset.productCode;
+            modalPlannedQuantitySpan.textContent = targetButton.dataset.plannedQuantity;
+            modalPlannedStartSpan.textContent = targetButton.dataset.plannedStart;
+            modalStatusSpan.textContent = targetButton.dataset.statusDisplay; // Show display name
+            progressModalLabel.textContent = `作業進捗確認 - 計画ID: ${targetButton.dataset.planId}`;
+
+            // Populate status buttons
+            const currentStatusKey = targetButton.dataset.status; // Get status key
+            populateStatusButtons(currentStatusKey);
+
+            // Clear previous form inputs and errors
+            progressForm.reset();
+            progressFormError.style.display = 'none';
+            progressFormError.textContent = '';
+
+            // Show the modal
+            progressModalInstance.show();
+
+            console.log(`進捗確認モーダル表示。計画ID: ${targetButton.dataset.planId}`);
+        }
+    });
+
+    function updateGoodQuantity() {
+        const actual = parseInt(modalActualQuantityInput.value, 10) || 0;
+        const defective = parseInt(modalDefectiveQuantityInput.value, 10) || 0;
+
+        let good = actual - defective;
+        if (good < 0) {
+            good = 0; // OK数量 cannot be negative
+        }
+        modalGoodQuantityInput.value = good;
+    }
+
+    modalActualQuantityInput.addEventListener('input', updateGoodQuantity);
+    modalDefectiveQuantityInput.addEventListener('input', updateGoodQuantity);
+
+    function populateStatusButtons(currentStatusKey) {
+        modalStatusButtonsContainer.innerHTML = ''; // Clear existing buttons
+        selectedNewStatus = currentStatusKey; // Initialize with current status
+
+        if (currentStatusKey === 'COMPLETED') {
+            quantityInputFieldsContainer.style.display = 'block';
+            modalActualQuantityInput.value = modalPlannedQuantitySpan.textContent;
+            modalDefectiveQuantityInput.value = 0;
+            updateGoodQuantity(); // Calculate and set initial OK quantity
+        } else {
+            quantityInputFieldsContainer.style.display = 'none';
+        }
+
+        AVAILABLE_STATUSES.forEach(statusInfo => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.classList.add('btn', 'btn-sm', 'me-1', 'mb-1');
+            button.dataset.newStatus = statusInfo.key;
+            button.textContent = statusInfo.label;
+
+            if (statusInfo.key === currentStatusKey) {
+                button.classList.add(statusInfo.btnClass); 
+            } else {
+                button.classList.add(statusInfo.btnOutlineClass);
+            }
+            modalStatusButtonsContainer.appendChild(button);
+        });
+    }
+
+    modalStatusButtonsContainer.addEventListener('click', function(event) {
+        const clickedButton = event.target.closest('button[data-new-status]');
+        if (clickedButton) {
+            selectedNewStatus = clickedButton.dataset.newStatus;
+
+            // Update button styles
+            modalStatusButtonsContainer.querySelectorAll('button').forEach(btn => {
+                const statusKey = btn.dataset.newStatus;
+                const statusInfo = AVAILABLE_STATUSES.find(s => s.key === statusKey);
+                btn.classList.remove(statusInfo.btnClass, statusInfo.btnOutlineClass); // Remove existing styles
+                btn.classList.add(statusKey === selectedNewStatus ? statusInfo.btnClass : statusInfo.btnOutlineClass);
+            });
+
+            if (selectedNewStatus === 'COMPLETED') {
+                quantityInputFieldsContainer.style.display = 'block';
+                modalActualQuantityInput.value = modalPlannedQuantitySpan.textContent; // Set planned quantity as default
+                modalDefectiveQuantityInput.value = 0; // Set NG quantity to 0 as default
+                updateGoodQuantity(); // Calculate and set OK quantity
+            } else {
+                quantityInputFieldsContainer.style.display = 'none';
+            }
+            console.log('New status selected:', selectedNewStatus);
+        }
+    });
+
+    // Event listener for "進捗を登録" (Save Progress) button
+    saveProgressButton.addEventListener('click', async function(event) { // 'event' を引数として受け取る
+        const planId = modalPlanIdSpan.textContent; // Get planId from the modal display
+        const newStatusToSubmit = selectedNewStatus;
+
+        // Basic Validation
+        progressFormError.style.display = 'none';
+        progressFormError.textContent = '';
+
+        if (!newStatusToSubmit) { // Check if a status is selected/confirmed
+            progressFormError.textContent = 'ステータスを選択してください。';
+            progressFormError.style.display = 'block';
+            return;
+        }
+
+        let actualQuantity = null;
+        let goodQuantity = null;
+        let defectiveQuantity = null;
+
+        if (newStatusToSubmit === 'COMPLETED') {
+            actualQuantity = parseInt(modalActualQuantityInput.value, 10);
+            goodQuantity = parseInt(modalGoodQuantityInput.value, 10);
+            defectiveQuantity = parseInt(modalDefectiveQuantityInput.value, 10);
+
+            if (isNaN(actualQuantity) || actualQuantity < 0) {
+                progressFormError.textContent = '製作数量を正しく入力してください。';
+                progressFormError.style.display = 'block';
+                return;
+            }
+            if (isNaN(goodQuantity) || goodQuantity < 0) {
+                progressFormError.textContent = 'OK数量を正しく入力してください。';
+                progressFormError.style.display = 'block';
+                return;
+            }
+            if (isNaN(defectiveQuantity) || defectiveQuantity < 0) {
+                progressFormError.textContent = 'NG数量を正しく入力してください。';
+                progressFormError.style.display = 'block';
+                return;
+            }
+            if (goodQuantity + defectiveQuantity > actualQuantity) {
+                progressFormError.textContent = 'OK数量とNG数量の合計は、製作数量を超えることはできません。';
+                progressFormError.style.display = 'block';
+                return;
+            }
+        }
+
+        const progressData = {
+            plan_id: planId,
+            actual_quantity: actualQuantity,
+            good_quantity: goodQuantity,
+            defective_quantity: defectiveQuantity,
+            status: newStatusToSubmit // Always send the selected status
+        };
+
+        // Remove quantity fields if not 'COMPLETED' status, to send null or not send them
+        if (newStatusToSubmit !== 'COMPLETED') {
+            delete progressData.actual_quantity;
+            delete progressData.good_quantity;
+            delete progressData.defective_quantity;
+        }
+
+        console.log('進捗データ:', progressData);
+
+        // TODO: Implement API call to submit progress data
+        try {
+            const response = await fetch(`/api/production/plans/${planId}/update-progress/`, { // Corrected URL path
+                method: 'POST', // Use POST as defined in @action
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(progressData)
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                // Handle API errors (e.g., 400 Bad Request from backend validation)
+                const errorMessageText = responseData.error || responseData.detail || `API error! status: ${response.status}`;
+                progressFormError.textContent = `進捗の登録に失敗しました: ${errorMessageText}`;
+                progressFormError.style.display = 'block';
+                console.error('API Error:', responseData);
+                return; // Stop execution on error
+            }
+
+            // Explicitly blur the button before hiding the modal
+            event.target.blur(); // Blur the clicked button
+
+            progressModalInstance.hide(); 
+            fetchProductionPlans(getCurrentApiUrl(true)); // Refresh the list with current filters, to page 1
+        } catch (error) { // Ensure catch block is properly associated with try
+            progressFormError.textContent = `エラーが発生しました: ${error.message}`;
+            progressFormError.style.display = 'block';
+        }
+    });
+
+    // --- Search and Filter Logic ---
+    const baseApiUrl = '/api/production/plans/';
+    const defaultOrdering = 'ordering=-planned_start_datetime';
+
+    function getCurrentApiUrl(includeSearch = true) {
+        let queryParams = [defaultOrdering, `page_size=${DEFAULT_PAGE_SIZE}`];
+        if (includeSearch) {
+            const planNameSearch = searchPlanNameInput.value.trim();
+            const productCodeSearch = searchProductCodeInput.value.trim();
+
+            const selectedStatusKeys = getSelectedStatusKeys();
+            // Add status filter only if some (but not all) are selected.
+            // If all are selected, no filter is needed (shows all).
+            // If none are selected, fetchProductionPlans handles it by showing no data.
+            if (selectedStatusKeys.length > 0 && selectedStatusKeys.length < AVAILABLE_STATUSES.length) {
+                queryParams.push(`status__in=${selectedStatusKeys.join(',')}`);
+            }
+
+            if (planNameSearch) {
+                queryParams.push(`plan_name=${encodeURIComponent(planNameSearch)}`);
+                queryParams.push(`product_code=${encodeURIComponent(productCodeSearch)}`);
+            }
+        }
+        // Note: 'page' parameter is omitted here, so API defaults to page 1 for new searches.
+        return `${baseApiUrl}?${queryParams.join('&')}`;
+    }
+
+    function handleStatusFilterChange(event) {
+        const checkbox = event.target;
+        const label = document.querySelector(`label[for="${checkbox.id}"]`);
+        const statusInfo = AVAILABLE_STATUSES.find(s => s.key === checkbox.value);
+
+        if (statusInfo && label) {
+            label.classList.remove(statusInfo.btnClass, statusInfo.btnOutlineClass);
+            label.classList.add(checkbox.checked ? statusInfo.btnClass : statusInfo.btnOutlineClass);
+        }
+        fetchProductionPlans(getCurrentApiUrl(true));
+    }
+
+
+
+    searchButton.addEventListener('click', function() {
+        fetchProductionPlans(getCurrentApiUrl(true));
+    });
+
+    resetSearchButton.addEventListener('click', function() {
+        searchPlanNameInput.value = '';
+        searchProductCodeInput.value = '';
+        // Reset status filters to default
+        document.querySelectorAll('.status-filter-checkbox').forEach(checkbox => {
+            const statusInfo = AVAILABLE_STATUSES.find(s => s.key === checkbox.value);
+            if (statusInfo) {
+                checkbox.checked = statusInfo.default_selected;
+                const label = document.querySelector(`label[for="${checkbox.id}"]`);
+                label.classList.remove(statusInfo.btnClass, statusInfo.btnOutlineClass);
+                label.classList.add(checkbox.checked ? statusInfo.btnClass : statusInfo.btnOutlineClass);
+            }
+        });
+        fetchProductionPlans(getCurrentApiUrl(true)); // Will fetch with empty search fields
+    });
+
+    [searchPlanNameInput, searchProductCodeInput].forEach(input => {
+        input.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                searchButton.click();
+            }
+        });
+    });
+
+    // モーダルが非表示になる直前に呼び出されるイベント
+    progressModalElement.addEventListener('hide.bs.modal', function () {
+        // モーダル内の要素がフォーカスを持っている場合、フォーカスを解除する
+        // これにより、aria-hidden 警告を防ぐ
+        if (progressModalElement.contains(document.activeElement) &&
+            document.activeElement !== document.body && // body自体はblurしない
+            typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+    });
+
+    // モーダルが完全に非表示になった後に呼び出されるイベント
+    progressModalElement.addEventListener('hidden.bs.modal', function () {
+        // モーダルを開いた元の要素にフォーカスを戻す
+        if (lastFocusedElementBeforeModal) {
+            lastFocusedElementBeforeModal.focus();
+            lastFocusedElementBeforeModal = null; // 次回のためにリセット
+        }
+
+        // モーダル内の入力フィールドとエラーメッセージをクリア
+        modalActualQuantityInput.value = '';
+        modalDefectiveQuantityInput.value = '';
+        modalGoodQuantityInput.value = '';
+        progressFormError.style.display = 'none';
+        progressFormError.textContent = '';
+    });
+
+    // Initial setup
+    renderStatusFilters(); // Render status filters first
+    // Initial fetch
+    fetchProductionPlans(getCurrentApiUrl(true)); // Load initial data
+
+    // Make fetchProductionPlans globally accessible so pagination buttons can call it
     window.fetchProductionPlans = fetchProductionPlans;
 });
 </script>
