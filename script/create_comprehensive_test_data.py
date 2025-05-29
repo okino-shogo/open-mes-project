@@ -30,8 +30,7 @@ import string  # for production_plan code generation
 API_BASE_URL = "http://127.0.0.1:8000/api" # Adjust if your API base URL is different
 PRODUCTION_PLANS_ENDPOINT = f"{API_BASE_URL}/production/plans/"
 PARTS_USED_ENDPOINT = f"{API_BASE_URL}/production/parts-used/"
-# !!! ATTENTION: Verify this endpoint for PurchaseOrders in your Django app's urls.py !!!
-PURCHASE_ORDERS_ENDPOINT = f"{API_BASE_URL}/inventory/"
+PURCHASE_ORDERS_ENDPOINT = f"{API_BASE_URL}/inventory/purchase-orders/create/" # Corrected endpoint
 
 # --- Load API Token ---
 API_TOKEN = None
