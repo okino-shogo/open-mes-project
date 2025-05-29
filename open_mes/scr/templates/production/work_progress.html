@@ -15,19 +15,27 @@
         </div>
     </div>
     <!-- Search Form -->
-    <div class="row mb-3 g-2">
+    <div class="row mb-3 g-2 align-items-end">
         <div class="col-md">
-            <label for="searchPlanName" class="form-label visually-hidden">計画名</label>
-            <input type="text" id="searchPlanName" class="form-control" placeholder="計画名で検索...">
+            <label for="searchPlanName" class="form-label">計画名</label>
+            <input type="text" id="searchPlanName" class="form-control" placeholder="計画名...">
         </div>
         <div class="col-md">
-            <label for="searchProductCode" class="form-label visually-hidden">製品コード</label>
-            <input type="text" id="searchProductCode" class="form-control" placeholder="製品コードで検索...">
+            <label for="searchProductCode" class="form-label">製品コード</label>
+            <input type="text" id="searchProductCode" class="form-control" placeholder="製品コード...">
+        </div>
+        <div class="col-md">
+            <label for="searchPlannedStartAfter" class="form-label">計画開始日 (以降)</label>
+            <input type="date" id="searchPlannedStartAfter" class="form-control">
+        </div>
+        <div class="col-md">
+            <label for="searchPlannedStartBefore" class="form-label">計画開始日 (以前)</label>
+            <input type="date" id="searchPlannedStartBefore" class="form-control">
         </div>
         <div class="col-md-auto">
             <button id="searchButton" class="btn btn-primary w-100">検索</button>
         </div>
-        <div class="col-md-auto">
+        <div class="col-md-auto mt-3 mt-md-0"> <!-- Add margin top for small screens if buttons wrap -->
             <button id="resetSearchButton" class="btn btn-secondary w-100">リセット</button>
         </div>
     </div>
@@ -38,12 +46,22 @@
     <div class="table-responsive">
         <table class="table table-striped table-hover table-bordered work-progress-data-table">
             <thead>
-            <tr>
-                <th scope="col">計画名</th>
-                <th scope="col">製品コード</th>
-                <th scope="col" class="text-end">計画数量</th>
-                <th scope="col" class="text-center">計画開始日時</th>
-                <th scope="col" class="text-center">ステータス</th>
+            <tr id="sortable-table-header">
+                <th scope="col" class="sortable-header" data-sort-by="plan_name">
+                    計画名 <span class="sort-indicator"></span>
+                </th>
+                <th scope="col" class="sortable-header" data-sort-by="product_code">
+                    製品コード <span class="sort-indicator"></span>
+                </th>
+                <th scope="col" class="text-end sortable-header" data-sort-by="planned_quantity">
+                    計画数量 <span class="sort-indicator"></span>
+                </th>
+                <th scope="col" class="text-center sortable-header" data-sort-by="planned_start_datetime">
+                    計画開始日 <span class="sort-indicator"></span>
+                </th>
+                <th scope="col" class="text-center sortable-header" data-sort-by="status">
+                    ステータス <span class="sort-indicator"></span>
+                </th>
                 <th scope="col" class="text-center">アクション</th>
             </tr>
             </thead>
@@ -59,6 +77,21 @@
     </div>
 </div>
 
+<style>
+.sortable-header {
+    cursor: pointer;
+}
+.sort-indicator {
+    margin-left: 5px;
+    font-size: 0.8em;
+}
+.sort-indicator.asc::after {
+    content: "▲";
+}
+.sort-indicator.desc::after {
+    content: "▼";
+}
+</style>
 <!-- Progress Modal -->
 <div class="modal fade" id="progressModal" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -72,7 +105,7 @@
                 <p><strong>計画名:</strong> <span id="modalPlanName"></span></p>
                 <p><strong>製品コード:</strong> <span id="modalProductCode"></span></p>
                 <p><strong>計画数量:</strong> <span id="modalPlannedQuantity" class="text-end d-inline-block"></span></p>
-                <p><strong>計画開始日時:</strong> <span id="modalPlannedStart"></span></p>
+                <p><strong>計画開始日:</strong> <span id="modalPlannedStart"></span></p>
                 <p><strong>ステータス:</strong> <span id="modalStatus"></span></p>
                 <hr>
                 <form id="progressForm">
@@ -119,8 +152,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Search elements
     const searchPlanNameInput = document.getElementById('searchPlanName');
     const searchProductCodeInput = document.getElementById('searchProductCode');
+    const searchPlannedStartAfterInput = document.getElementById('searchPlannedStartAfter');
+    const searchPlannedStartBeforeInput = document.getElementById('searchPlannedStartBefore');
     const searchButton = document.getElementById('searchButton');
     const resetSearchButton = document.getElementById('resetSearchButton');
+    const sortableTableHeader = document.getElementById('sortable-table-header');
+
+    let currentSortField = 'planned_start_datetime'; // Default sort field
+    let currentSortDirection = 'desc'; // Default sort direction ('asc' or 'desc')
 
     const DEFAULT_PAGE_SIZE = 10; // Define a default page size for pagination
 
@@ -174,7 +213,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     quantityCell.classList.add('text-end');
 
                     const startDate = new Date(plan.planned_start_datetime);
-                    const formattedStartDate = startDate.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    // Display only date part: YYYY/MM/DD
+                    const formattedStartDate = startDate.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit' });
                     const dateCell = row.insertCell();
                     dateCell.textContent = formattedStartDate;
                     dateCell.classList.add('text-center');
@@ -511,25 +554,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Search and Filter Logic ---
     const baseApiUrl = '/api/production/plans/';
-    const defaultOrdering = 'ordering=-planned_start_datetime';
+    // const defaultOrdering = 'ordering=-planned_start_datetime'; // Replaced by dynamic sorting
 
     function getCurrentApiUrl(includeSearch = true) {
-        let queryParams = [defaultOrdering, `page_size=${DEFAULT_PAGE_SIZE}`];
+        let queryParams = [`page_size=${DEFAULT_PAGE_SIZE}`];
+
+        // Add sorting parameter
+        if (currentSortField) {
+            const sortOrderPrefix = currentSortDirection === 'desc' ? '-' : '';
+            queryParams.push(`ordering=${sortOrderPrefix}${currentSortField}`);
+        }
+
         if (includeSearch) {
             const planNameSearch = searchPlanNameInput.value.trim();
             const productCodeSearch = searchProductCodeInput.value.trim();
+            const plannedStartAfter = searchPlannedStartAfterInput.value;
+            const plannedStartBefore = searchPlannedStartBeforeInput.value;
 
             const selectedStatusKeys = getSelectedStatusKeys();
-            // Add status filter only if some (but not all) are selected.
-            // If all are selected, no filter is needed (shows all).
-            // If none are selected, fetchProductionPlans handles it by showing no data.
             if (selectedStatusKeys.length > 0 && selectedStatusKeys.length < AVAILABLE_STATUSES.length) {
                 queryParams.push(`status__in=${selectedStatusKeys.join(',')}`);
             }
 
             if (planNameSearch) {
                 queryParams.push(`plan_name=${encodeURIComponent(planNameSearch)}`);
+            }
+            // Corrected: product_code search should be independent of plan_name search
+            if (productCodeSearch) {
                 queryParams.push(`product_code=${encodeURIComponent(productCodeSearch)}`);
+            }
+
+            if (plannedStartAfter) {
+                queryParams.push(`planned_start_datetime_after=${encodeURIComponent(plannedStartAfter)}`); // YYYY-MM-DD will be sent
+            }
+            if (plannedStartBefore) {
+                queryParams.push(`planned_start_datetime_before=${encodeURIComponent(plannedStartBefore + 'T23:59:59')}`); // YYYY-MM-DDT23:59:59
             }
         }
         // Note: 'page' parameter is omitted here, so API defaults to page 1 for new searches.
@@ -548,8 +607,6 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchProductionPlans(getCurrentApiUrl(true));
     }
 
-
-
     searchButton.addEventListener('click', function() {
         fetchProductionPlans(getCurrentApiUrl(true));
     });
@@ -557,7 +614,11 @@ document.addEventListener('DOMContentLoaded', function() {
     resetSearchButton.addEventListener('click', function() {
         searchPlanNameInput.value = '';
         searchProductCodeInput.value = '';
+        searchPlannedStartAfterInput.value = '';
+        searchPlannedStartBeforeInput.value = '';
         // Reset status filters to default
+        currentSortField = 'planned_start_datetime'; // Reset to default sort
+        currentSortDirection = 'desc';
         document.querySelectorAll('.status-filter-checkbox').forEach(checkbox => {
             const statusInfo = AVAILABLE_STATUSES.find(s => s.key === checkbox.value);
             if (statusInfo) {
@@ -567,6 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 label.classList.add(checkbox.checked ? statusInfo.btnClass : statusInfo.btnOutlineClass);
             }
         });
+        updateSortIndicators();
         fetchProductionPlans(getCurrentApiUrl(true)); // Will fetch with empty search fields
     });
 
@@ -578,6 +640,39 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // --- Sorting Logic ---
+    function handleHeaderClick(event) {
+        const header = event.target.closest('.sortable-header');
+        if (!header) return;
+
+        const sortBy = header.dataset.sortBy;
+        if (currentSortField === sortBy) {
+            currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortField = sortBy;
+            // Default direction for new sort fields (e.g., text asc, numbers/dates desc)
+            if (['planned_quantity', 'planned_start_datetime'].includes(sortBy)) {
+                currentSortDirection = 'desc';
+            } else {
+                currentSortDirection = 'asc';
+            }
+        }
+        updateSortIndicators();
+        fetchProductionPlans(getCurrentApiUrl(true)); // Fetch data with new sorting, go to page 1
+    }
+
+    function updateSortIndicators() {
+        sortableTableHeader.querySelectorAll('.sortable-header').forEach(th => {
+            const indicator = th.querySelector('.sort-indicator');
+            indicator.className = 'sort-indicator'; // Reset
+            if (th.dataset.sortBy === currentSortField) {
+                indicator.classList.add(currentSortDirection);
+            }
+        });
+    }
+
+    sortableTableHeader.addEventListener('click', handleHeaderClick);
 
     // モーダルが非表示になる直前に呼び出されるイベント
     progressModalElement.addEventListener('hide.bs.modal', function () {
@@ -609,6 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial setup
     renderStatusFilters(); // Render status filters first
     // Initial fetch
+    updateSortIndicators(); // Set initial sort indicators
     fetchProductionPlans(getCurrentApiUrl(true)); // Load initial data
 
     // Make fetchProductionPlans globally accessible so pagination buttons can call it

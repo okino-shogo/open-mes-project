@@ -1,9 +1,9 @@
 from django.db import models
 # from master.models import Item, Supplier, Warehouse
-
+from django.utils import timezone
+from django.conf import settings
 import uuid
 from uuid6 import uuid7
-
 # 在庫情報
 class Inventory(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)  # UUIDv7を使用
@@ -39,13 +39,23 @@ class StockMovement(models.Model):
         ('incoming', 'Incoming'),  # 入庫
         ('outgoing', 'Outgoing'),  # 出庫
         ('used', 'Used in production'),  # 生産で使用
+        ('PRODUCTION_OUTPUT', 'Production Output'), # 生産完了による製品入庫
+        ('PRODUCTION_REVERSAL', 'Production Reversal'), # 生産完了取り消しによる製品出庫
     ]
 
     part_number = models.CharField(max_length=255, null=True, blank=True)  # 在庫対象の製品/材料の品番 (文字列として保持)
+    warehouse = models.CharField(max_length=255, null=True, blank=True, verbose_name="倉庫") # どの倉庫に関連する移動か
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPE_CHOICES)  # 入庫・出庫・使用
     quantity = models.PositiveIntegerField()  # 数量
-    timestamp = models.DateTimeField(auto_now_add=True)  # 変更日時
+    movement_date = models.DateTimeField(default=timezone.now, verbose_name="移動日時")  # 変更日時
     description = models.TextField(blank=True, null=True)  # 備考
+    reference_document = models.CharField(max_length=255, blank=True, null=True, verbose_name="参照ドキュメント") # 例: PO-123, SO-456, ProductionPlan-789
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        verbose_name="記録者"
+    )
 
     def __str__(self):
         return f"{self.part_number or 'N/A'} - {self.movement_type} - {self.quantity}"

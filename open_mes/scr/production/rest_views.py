@@ -7,15 +7,19 @@ from rest_framework.response import Response # Responseをインポート
 from .models import ProductionPlan, PartsUsed, MaterialAllocation # Add MaterialAllocation
 from .models import WorkProgress # Import WorkProgress
 from .serializers import ProductionPlanSerializer, PartsUsedSerializer, RequiredPartSerializer
-from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート # noqa: E501import inspect
+from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート
 from django.db.models import Q # Qオブジェクトをインポート
 from inventory.models import Inventory, StockMovement, SalesOrder # Add StockMovement and SalesOrder
+from rest_framework.filters import OrderingFilter # OrderingFilterをインポート
 from django.utils.dateparse import parse_datetime # 日時文字列のパース用
 from django.utils import timezone # timezoneをインポート
 from django.db import transaction # トランザクションのためにインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 # from .models import Product, BillOfMaterialItem # BOMに関連するモデル (仮のインポート、実際には適切なモデルを定義・インポートしてください)
 # from .serializers import RequiredPartSerializer # BOM部品用のシリアライザ (仮のインポート)
+
+# Define a constant for the default finished goods warehouse
+DEFAULT_FINISHED_GOODS_WAREHOUSE = "FG-MAIN" # TODO: Make this configurable
 
 # Define a pagination class specifically for Production Plans API
 class ProductionPlanApiPagination(PageNumberPagination):
@@ -27,10 +31,15 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Production Plans to be viewed or created.
     """
-    # queryset = ProductionPlan.objects.all().order_by('-planned_start_datetime') # Base queryset defined in get_queryset
     serializer_class = ProductionPlanSerializer
     pagination_class = ProductionPlanApiPagination # Use the custom pagination class for Production Plans
     # permission_classes = [permissions.IsAuthenticated] # Example: Add authentication
+    filter_backends = [OrderingFilter] # OrderingFilterを追加 (他のフィルターがあればそれもリストに含める)
+    ordering_fields = [
+        'plan_name', 'product_code', 'planned_quantity', 
+        'planned_start_datetime', 'status'
+    ] # ソート可能なフィールドを指定
+    ordering = ['-planned_start_datetime'] # デフォルトのソート順
 
     def get_queryset(self):
         queryset = ProductionPlan.objects.all() # Start with all objects
@@ -78,7 +87,9 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
         if filters:
             queryset = queryset.filter(filters)
             
-        return queryset.order_by('-planned_start_datetime') # Apply default ordering
+        # OrderingFilterが 'ordering' クエリパラメータとViewSetの 'ordering'/'ordering_fields' 属性に基づいて
+        # ソートを処理するため、ここでの明示的な .order_by() は不要です。
+        return queryset
 
     @action(detail=True, methods=['get'], url_path='required-parts')
     def required_parts(self, request, pk=None):
@@ -319,6 +330,8 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                 'status': 'NOT_STARTED' # Default status if created
             }
         )
+        # Store the completed quantity from WorkProgress *before* it's potentially updated by new 'COMPLETED' status logic
+        previous_wp_completed_quantity = work_progress.quantity_completed
 
         old_plan_status = plan.status
         plan.status = new_status
@@ -400,10 +413,124 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
+                # Handle inventory and WorkProgress quantity reversal if status changes FROM 'COMPLETED'
+                if old_plan_status == 'COMPLETED' and new_status != 'COMPLETED':
+                    if previous_wp_completed_quantity > 0: # Check if there was a completed quantity to reverse
+                        product_code_to_reverse = plan.product_code
+                        quantity_to_reverse = previous_wp_completed_quantity # This is the good quantity previously completed
+                        warehouse_to_reverse_from = DEFAULT_FINISHED_GOODS_WAREHOUSE
+
+                        try:
+                            inventory_item_to_reverse = Inventory.objects.select_for_update().get(
+                                part_number=product_code_to_reverse,
+                                warehouse=warehouse_to_reverse_from
+                            )
+
+                            if inventory_item_to_reverse.quantity < quantity_to_reverse:
+                                raise ValueError(
+                                    f"Cannot reverse production for {product_code_to_reverse} in {warehouse_to_reverse_from}. "
+                                    f"Required to deduct: {quantity_to_reverse}, Current stock: {inventory_item_to_reverse.quantity}."
+                                )
+                            
+                            inventory_item_to_reverse.quantity -= quantity_to_reverse
+                            inventory_item_to_reverse.save()
+
+                            StockMovement.objects.create(
+                                part_number=product_code_to_reverse,
+                                quantity=quantity_to_reverse, 
+                                warehouse=warehouse_to_reverse_from,
+                                movement_type='PRODUCTION_REVERSAL', # New movement type
+                                movement_date=now,
+                                reference_document=f"Reversal for PPlan-{plan.id}",
+                                description=f"Prod. completion reversed for plan {plan.id} (status: {old_plan_status} -> {new_status}).",
+                                operator=request.user if request.user.is_authenticated else None
+                            )
+                            print(f"Inventory reversed for {product_code_to_reverse} in {warehouse_to_reverse_from}. Deducted: {quantity_to_reverse}. New QOH: {inventory_item_to_reverse.quantity}")
+
+                            # Reset WorkProgress quantities as the completion is undone
+                            work_progress.quantity_completed = 0
+                            work_progress.actual_reported_quantity = None # Or 0, depending on desired behavior
+                            work_progress.defective_reported_quantity = None # Or 0
+
+                        except Inventory.DoesNotExist:
+                            raise ValueError(
+                                f"Inventory for product {product_code_to_reverse} in warehouse {warehouse_to_reverse_from} not found for reversal."
+                            )
+                
                 plan.save()
-                work_progress.save()
+                work_progress.save() # Save work_progress after potential quantity resets or updates
+
+                # If the plan is completed, adjust inventory based on the change in completed quantity
+                if new_status == 'COMPLETED':
+                    product_code = plan.product_code
+                    newly_reported_completed_quantity = work_progress.quantity_completed # New total from request, saved in work_progress
+
+                    quantity_to_adjust_inventory_by = 0
+                    if old_plan_status != 'COMPLETED':
+                        # Transitioning from non-completed to completed.
+                        quantity_to_adjust_inventory_by = newly_reported_completed_quantity
+                    else: # old_plan_status == 'COMPLETED'
+                        # Already completed, now updating the completed quantity. Adjust by the difference.
+                        quantity_to_adjust_inventory_by = newly_reported_completed_quantity - previous_wp_completed_quantity
+                    
+                    if quantity_to_adjust_inventory_by != 0:
+                        target_warehouse = DEFAULT_FINISHED_GOODS_WAREHOUSE
+                        
+                        # Get or create inventory item, ensuring row lock for update
+                        try:
+                            inventory_item = Inventory.objects.select_for_update().get(
+                                part_number=product_code,
+                                warehouse=target_warehouse
+                            )
+                        except Inventory.DoesNotExist:
+                            # If it doesn't exist, create it.
+                            inventory_item = Inventory.objects.create(
+                                part_number=product_code,
+                                warehouse=target_warehouse,
+                                quantity=0, # Initial quantity before adjustment
+                                reserved=0,
+                                is_active=True,
+                                is_allocatable=True
+                            )
+                        
+                        # Check for sufficient stock if reducing
+                        if quantity_to_adjust_inventory_by < 0:
+                            if inventory_item.quantity < abs(quantity_to_adjust_inventory_by):
+                                raise ValueError(
+                                    f"Cannot reduce completed quantity for {product_code} in {target_warehouse}. "
+                                    f"Attempting to deduct: {abs(quantity_to_adjust_inventory_by)}, Current stock: {inventory_item.quantity}."
+                                )
+                        
+                        inventory_item.quantity += quantity_to_adjust_inventory_by
+                        inventory_item.save()
+
+                        # Create a stock movement record
+                        movement_quantity_log = abs(quantity_to_adjust_inventory_by)
+                        movement_type_log = 'PRODUCTION_OUTPUT' if quantity_to_adjust_inventory_by > 0 else 'PRODUCTION_REVERSAL'
+                        
+                        StockMovement.objects.create(
+                            part_number=product_code,
+                            quantity=movement_quantity_log,
+                            warehouse=target_warehouse,
+                            movement_type=movement_type_log,
+                            movement_date=now,
+                            reference_document=f"ProductionPlan-{plan.id}",
+                            description=f"Plan {plan.id} completion. Qty changed by: {quantity_to_adjust_inventory_by}. New total completed: {newly_reported_completed_quantity}.",
+                            operator=request.user if request.user.is_authenticated else None
+                        )
+                        print(f"Inventory for {product_code} in {target_warehouse} changed by: {quantity_to_adjust_inventory_by}. New QOH: {inventory_item.quantity}")
+                    else:
+                        print(f"No inventory change for {product_code} as calculated adjustment is zero for plan {plan.id}.")
+
+        except ValueError as ve:
+            # Catch specific ValueErrors from our logic (e.g., insufficient stock for reversal)
+            return Response({"error": f"Failed to save progress: {str(ve)}"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to save progress: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Log the detailed error for debugging
+            import traceback
+            print(f"Error during progress update transaction: {str(e)}")
+            print(traceback.format_exc())
+            return Response({"error": f"Failed to save progress due to an unexpected error. Please check logs."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
             "message": "Production plan progress updated successfully.",
