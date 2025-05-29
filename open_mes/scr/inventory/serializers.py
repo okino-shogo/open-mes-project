@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PurchaseOrder, Inventory # Inventoryモデルをインポート
+from .models import PurchaseOrder, Inventory, StockMovement # StockMovementモデルをインポート
 # master.modelsのインポートは、将来的に関連モデルとして扱うための準備か、
 # あるいはビューなどで型ヒント等に利用されている可能性があります。
 # 現状このシリアライザー内では直接参照されていません。
@@ -80,6 +80,30 @@ class InventorySerializer(serializers.ModelSerializer):
             'is_allocatable',
         ]
         read_only_fields = ['id', 'last_updated', 'available_quantity']
+
+
+class StockMovementSerializer(serializers.ModelSerializer):
+    """
+    入出庫履歴モデルのためのシリアライザ。
+    """
+    movement_type_display = serializers.CharField(source='get_movement_type_display', read_only=True)
+    operator_username = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
+    movement_date = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+
+    class Meta:
+        model = StockMovement
+        fields = [
+            'id',
+            'part_number',
+            'warehouse',
+            'movement_type',
+            'movement_type_display', # 表示用の移動タイプ名
+            'quantity',
+            'movement_date',
+            'description',
+            'reference_document',
+            'operator_username',     # 記録者のユーザー名
+        ]
 
 
 class SalesOrderAllocationItemSerializer(serializers.Serializer):

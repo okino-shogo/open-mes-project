@@ -12,9 +12,9 @@ class InquiryView(generic.TemplateView):
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
-# 入庫予定
-class ScheduleView(generic.TemplateView):
-    template_name = 'inventory/schedule.html'
+# 入出庫履歴 (旧 入庫予定)
+class StockMovementHistoryView(generic.TemplateView):
+    template_name = 'inventory/stock_movement_history.html' # テンプレート名を変更
 
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)

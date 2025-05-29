@@ -36,12 +36,12 @@ class Inventory(models.Model):
 class StockMovement(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     MOVEMENT_TYPE_CHOICES = [
-        ('incoming', 'Incoming'),  # 入庫
-        ('outgoing', 'Outgoing'),  # 出庫
-        ('used', 'Used in production'),  # 生産で使用
-        ('PRODUCTION_OUTPUT', 'Production Output'), # 生産完了による製品入庫
-        ('PRODUCTION_REVERSAL', 'Production Reversal'), # 生産完了取り消しによる製品出庫
-        ('adjustment', 'Adjustment'), # 在庫修正
+        ('incoming', '入庫'),
+        ('outgoing', '出庫'),
+        ('used', '生産使用'),
+        ('PRODUCTION_OUTPUT', '生産完了入庫'),
+        ('PRODUCTION_REVERSAL', '生産完了取消'),
+        ('adjustment', '在庫調整'),
     ]
 
     part_number = models.CharField(max_length=255, null=True, blank=True)  # 在庫対象の製品/材料の品番 (文字列として保持)

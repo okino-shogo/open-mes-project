@@ -2,8 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated # 必要に応じて認証を追加
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from .serializers import PurchaseOrderSerializer, InventorySerializer, AllocateInventoryForSalesOrderRequestSerializer
+from rest_framework.pagination import PageNumberPagination # PageNumberPagination は StandardResultsSetPagination で使用
+from .serializers import PurchaseOrderSerializer, InventorySerializer, StockMovementSerializer, AllocateInventoryForSalesOrderRequestSerializer # StockMovementSerializer をインポート
 from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # SalesOrderモデルをインポート
 from django.http import JsonResponse
 from django.db import transaction # トランザクションのためにインポート # Qオブジェクトをインポートして複雑なクエリを構築
@@ -34,9 +34,9 @@ def create_purchase_order_api(request):
 
 # @login_required # ログインユーザーのみアクセス可能にする場合 (必要に応じてコメント解除)
 # @api_view(['GET']) # JsonResponse を使う場合は不要
-def get_schedule_data(request):
+def get_stock_movement_data(request): # 関数名を変更
     """
-    入庫予定データを取得し、JSON形式で返却するビュー (ページネーション対応)
+    入出庫履歴データを取得し、JSON形式で返却するビュー (ページネーション対応)
     """
     if request.method == 'GET':
         from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -54,110 +54,79 @@ def get_schedule_data(request):
         except (ValueError, TypeError):
             page_size = 25 # 無効な場合はデフォルトに戻す
 
-
-
-
-        # 未完了の入庫予定を取得 (ステータスが 'pending' のもの)
-        # schedule_items_query = PurchaseOrder.objects.filter(
-        #     status='pending'  # 'pending' 状態のものを取得 # この初期フィルタを修正
-        # )
-        schedule_items_query = PurchaseOrder.objects.all() # まず全件取得を基本とする
+        # StockMovement データを取得
+        history_items_query = StockMovement.objects.all()
 
         # 詳細検索フィルタリング
         filters = Q()
 
-        # ステータス検索
-        search_status_param = request.GET.get('search_status') # 'pending', 'received', 'canceled', '' (すべて), または None
-        if search_status_param is not None: # search_status パラメータが存在する場合
-            if search_status_param: # 'pending', 'received', 'canceled' のいずれか (空文字ではない)
-                filters &= Q(status=search_status_param)
-            # else: search_status_param が空文字 '' の場合はフィルタしない (すべて表示)
-        else: # search_status パラメータが存在しない場合 (例: schedule.html からの呼び出しで検索パラメータなしの場合)
-            filters &= Q(status='pending') # デフォルトで 'pending'
-
         # テキストベースの検索フィールド (icontains)
         text_search_params = {
-            'search_order_number': 'order_number__icontains',
-            'search_shipment_number': 'shipment_number__icontains',
-            'search_supplier': 'supplier__icontains',
             'search_part_number': 'part_number__icontains',
             'search_warehouse': 'warehouse__icontains',
+            'search_reference_document': 'reference_document__icontains',
+            'search_description': 'description__icontains',
+            'search_operator': 'operator__username__icontains', # 記録者ユーザー名で検索
         }
         for param, field_lookup in text_search_params.items():
             value = request.GET.get(param)
             if value:
                 filters &= Q(**{field_lookup: value})
 
-        # 品名 (item または product_name で検索)
-        item_product_name_search = request.GET.get('search_item_product_name')
-        if item_product_name_search:
-            filters &= (Q(item__icontains=item_product_name_search) | 
-                        Q(product_name__icontains=item_product_name_search))
+        # 移動タイプ検索 (OR条件)
+        search_movement_types = request.GET.getlist('search_movement_type') # Get a list of types
+        if search_movement_types: # If the list is not empty
+            # Filter for records where movement_type is one of the selected types
+            filters &= Q(movement_type__in=search_movement_types)
 
-        # 数値フィールド (完全一致)
-        numeric_search_params = {
-            'search_quantity': 'quantity',
-            'search_received_quantity': 'received_quantity',
-        }
-        for param, field_name in numeric_search_params.items():
-            value = request.GET.get(param)
-            if value:
-                try:
-                    filters &= Q(**{field_name: int(value)})
-                except ValueError:
-                    pass # 無効な数値の場合は無視
+        # 数量検索 (完全一致)
+        search_quantity = request.GET.get('search_quantity')
+        if search_quantity:
+            try:
+                filters &= Q(quantity=int(search_quantity))
+            except ValueError:
+                pass # 無効な数値の場合は無視
 
-        # 日付フィールド (範囲検索)
+        # 日付フィールド (範囲検索) - movement_date
         date_search_params = {
-            'order_date': 'order_date',
-            'expected_arrival': 'expected_arrival',
+            'movement_date': 'movement_date',
         }
-        for base_param, field_prefix in date_search_params.items():
+        for base_param, field_prefix in date_search_params.items(): # ループは残すが、実際には movement_date のみ
+            value = request.GET.get(param)
             date_from = request.GET.get(f'search_{base_param}_from')
             date_to = request.GET.get(f'search_{base_param}_to')
             if date_from:
                 filters &= Q(**{f'{field_prefix}__date__gte': date_from})
             if date_to:
                 filters &= Q(**{f'{field_prefix}__date__lte': date_to})
+        
 
         if filters: # filtersがQ()のまま（空）でない場合のみ適用
-            schedule_items_query = schedule_items_query.filter(filters)
+            history_items_query = history_items_query.filter(filters)
 
-        schedule_items = schedule_items_query.order_by('expected_arrival', 'order_number')
+        # デフォルトのソート順を移動日時の降順に変更
+        history_items = history_items_query.order_by('-movement_date', 'part_number')
 
-        paginator = Paginator(schedule_items, page_size)
+        paginator = Paginator(history_items, page_size)
 
         try:
-            schedule_items_page = paginator.page(page)
+            history_items_page = paginator.page(page)
         except PageNotAnInteger:
-            schedule_items_page = paginator.page(1) # ページ番号が整数でない場合は1ページ目
+            history_items_page = paginator.page(1) # ページ番号が整数でない場合は1ページ目
         except EmptyPage:
-            schedule_items_page = paginator.page(paginator.num_pages) # ページが空の場合は最終ページ
+            history_items_page = paginator.page(paginator.num_pages) # ページが空の場合は最終ページ
 
-        data = []
-        for item in schedule_items_page: # ページングされたオブジェクトをループ
-            data.append({ # `item` は PurchaseOrder のインスタンス
-                'order_number': item.order_number,
-                'supplier': item.supplier,
-                # 'item' フィールドには product_name を優先し、なければ item を使用
-                'item': item.product_name if item.product_name else item.item,
-                'quantity': item.quantity if item.quantity is not None else 0,
-                'received_quantity': item.received_quantity if item.received_quantity is not None else 0,
-                'order_date': item.order_date.strftime('%Y-%m-%d %H:%M:%S') if item.order_date else '', # 日時まで表示
-                'expected_arrival': item.expected_arrival.strftime('%Y-%m-%d %H:%M:%S') if item.expected_arrival else '', # 日時まで表示
-                'warehouse': item.warehouse,
-                'status': item.get_status_display(), # 選択肢の表示名を取得
-                'part_number': item.part_number if item.part_number else '',
-                'shipment_number': item.shipment_number if item.shipment_number else '',
-            })
+        # StockMovementSerializer を使用してデータをシリアライズ
+        serializer = StockMovementSerializer(history_items_page, many=True)
+        data = serializer.data
 
         # ページネーション情報をレスポンスに含める
         response_data = {
             'count': paginator.count, # 総件数
             'num_pages': paginator.num_pages, # 総ページ数
-            'current_page': schedule_items_page.number, # 現在のページ番号
-            'next': schedule_items_page.next_page_number() if schedule_items_page.has_next() else None, # 次のページ番号 (なければ None)
-            'previous': schedule_items_page.previous_page_number() if schedule_items_page.has_previous() else None, # 前のページ番号 (なければ None)
+            'current_page': history_items_page.number, # 現在のページ番号
+            'next': history_items_page.next_page_number() if history_items_page.has_next() else None, # 次のページ番号 (なければ None)
+            'previous': history_items_page.previous_page_number() if history_items_page.has_previous() else None, # 前のページ番号 (なければ None)
             'results': data # ページングされたデータ
         }
         return JsonResponse(response_data, safe=False)

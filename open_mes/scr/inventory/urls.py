@@ -9,7 +9,7 @@ urlpatterns = [
 
     # その他の在庫関連APIエンドポイント
     path('purchase-orders/create/', rest_views.create_purchase_order_api, name='api_create_purchase_order'),
-    path('schedules/data/', rest_views.get_schedule_data, name='api_get_schedule_data'),
+    path('stock-movements/data/', rest_views.get_stock_movement_data, name='api_get_stock_movement_data'), # APIパスを変更
     path('purchase-receipts/process/', rest_views.process_purchase_receipt_api, name='api_process_purchase_receipt'),
     path('data/', rest_views.get_inventory_data, name='api_get_inventory_data'),
     path('issue-single-order/', rest_views.process_single_sales_order_issue_api, name='api_process_single_sales_order_issue'),
