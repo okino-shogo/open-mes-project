@@ -13,4 +13,5 @@ urlpatterns = [
     path('purchase-receipts/process/', rest_views.process_purchase_receipt_api, name='api_process_purchase_receipt'),
     path('data/', rest_views.get_inventory_data, name='api_get_inventory_data'),
     path('issue-single-order/', rest_views.process_single_sales_order_issue_api, name='api_process_single_sales_order_issue'),
+    path('update/', rest_views.update_inventory_api, name='api_update_inventory'),
 ]

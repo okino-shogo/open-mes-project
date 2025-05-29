@@ -10,7 +10,7 @@ class CustomLoginView(LoginView):
     template_name = 'users/login.html'  # ログインフォームのテンプレート
     form_class = AuthenticationForm  # ログインフォームのクラス
     redirect_authenticated_user = True  # 認証済みユーザーがアクセスした場合、リダイレクトする
-    success_url = reverse_lazy('inventory_menu')  # ログイン成功時のリダイレクト先
+    success_url = reverse_lazy('main')  # ログイン成功時のリダイレクト先をトップページ('main')に変更
 
     def get_context_data(self, **kwargs):
         """

@@ -41,6 +41,7 @@ class StockMovement(models.Model):
         ('used', 'Used in production'),  # 生産で使用
         ('PRODUCTION_OUTPUT', 'Production Output'), # 生産完了による製品入庫
         ('PRODUCTION_REVERSAL', 'Production Reversal'), # 生産完了取り消しによる製品出庫
+        ('adjustment', 'Adjustment'), # 在庫修正
     ]
 
     part_number = models.CharField(max_length=255, null=True, blank=True)  # 在庫対象の製品/材料の品番 (文字列として保持)

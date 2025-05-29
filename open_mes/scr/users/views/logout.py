@@ -6,7 +6,7 @@ class CustomLogoutView(LogoutView):
     """
     カスタムログアウトビュー
     """
-    next_page = reverse_lazy('inventory_menu')  # ログアウト後のリダイレクト先
+    next_page = reverse_lazy('main')  # ログアウト後のリダイレクト先をトップページ('main')に変更
     template_name = 'users/logout.html' # ログアウト完了画面のテンプレート
 
     def get_context_data(self, **kwargs):

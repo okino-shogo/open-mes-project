@@ -580,3 +580,60 @@ def process_single_sales_order_issue_api(request):
         # Log the exception e for server-side debugging
         print(f"Error processing single sales order issue: {e}")
         return JsonResponse({'success': False, 'error': f"出庫処理中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+# @permission_classes([IsAuthenticated]) # Ensure user is authenticated
+def update_inventory_api(request):
+    """
+    Updates the quantity of a specific inventory item and records the movement.
+
+    Request Body (JSON):
+    {
+      "inventory_id": "uuid_of_inventory_item",
+      "quantity": 100
+    }
+    """
+    try:
+        inventory_id = request.data.get('inventory_id')
+        new_quantity_str = request.data.get('quantity')
+
+        if not inventory_id or new_quantity_str is None:
+            return Response({'success': False, 'error': 'inventory_id と quantity は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_quantity = int(new_quantity_str)
+            if new_quantity < 0: # 在庫数がマイナスになることは通常許可しない
+                return Response({'success': False, 'error': '数量は0以上である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({'success': False, 'error': '数量は有効な数値である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            inventory_item = get_object_or_404(Inventory.objects.select_for_update(), id=inventory_id)
+            
+            old_quantity = inventory_item.quantity
+            quantity_diff = new_quantity - old_quantity
+
+            if quantity_diff == 0:
+                return Response({'success': True, 'message': '在庫数量に変更はありませんでした。', 'data': InventorySerializer(inventory_item).data}, status=status.HTTP_200_OK)
+
+            inventory_item.quantity = new_quantity
+            inventory_item.save()
+
+            # Create StockMovement record for the adjustment
+            StockMovement.objects.create(
+                part_number=inventory_item.part_number,
+                warehouse=inventory_item.warehouse,
+                movement_type='adjustment', # New movement type
+                quantity=abs(quantity_diff), # Movement quantity is always positive
+                description=f"在庫修正: {old_quantity} -> {new_quantity} (差分: {quantity_diff})",
+                operator=request.user if request.user.is_authenticated else None
+            )
+
+            return Response({'success': True, 'message': '在庫数量を更新しました。', 'data': InventorySerializer(inventory_item).data}, status=status.HTTP_200_OK)
+
+    except Inventory.DoesNotExist:
+        return Response({'success': False, 'error': f"在庫ID {inventory_id} が見つかりません。"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        print(f"Error updating inventory: {e}") # Log for server-side debugging
+        return Response({'success': False, 'error': f"在庫更新中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
