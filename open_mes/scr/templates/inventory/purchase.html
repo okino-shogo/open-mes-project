@@ -187,18 +187,39 @@
             $('#purchase-table tbody').empty(); // テーブルの既存データをクリア
             if (itemsToDisplay && itemsToDisplay.length > 0) {
                 $.each(itemsToDisplay, function(index, item) {
+                    // Helper function to get Japanese status display text
+                    function getStatusDisplay(statusValue) {
+                        switch (statusValue) {
+                            case 'pending':
+                                return '未入庫';
+                            case 'received':
+                                return '入庫済み';
+                            case 'canceled':
+                                return 'キャンセル';
+                            default:
+                                return statusValue; // Fallback for unknown statuses
+                        }
+                    }
+
                     var row = $('<tr>');
                     row.append($('<td>').text(item.order_number));
-                    row.append($('<td>').text(item.shipment_number || ''));
-                    row.append($('<td>').text(item.supplier));
-                    row.append($('<td>').text(item.item)); // This is product_name or item.item from API
+                    row.append($('<td>').text(item.shipment_number || '')); // 便番号
+                    row.append($('<td>').text(item.supplier || '')); // 仕入れ先
+                    row.append($('<td>').text(item.product_name || item.item || '')); // 品名 (product_nameを優先、なければitem)
                     row.append($('<td>').text(item.part_number || '')); // 品番
                     row.append($('<td>').addClass('numeric-column').text(item.quantity)); // 発注数量
-                    row.append($('<td>').text(item.received_quantity));
-                    row.append($('<td>').text(item.order_date));
-                    row.append($('<td>').text(item.expected_arrival));
+                    row.append($('<td>').addClass('numeric-column').text(item.received_quantity)); // 入庫済数量 (クラス追加の提案)
+
+                    // 発注日 (YYYY-MM-DD format)
+                    const orderDateStr = item.order_date;
+                    row.append($('<td>').text(orderDateStr ? formatDate(orderDateStr) : ''));
+
+                    // 到着予定日 (YYYY-MM-DD format)
+                    const expectedArrivalStr = item.expected_arrival;
+                    row.append($('<td>').text(expectedArrivalStr ? formatDate(expectedArrivalStr) : ''));
+
                     row.append($('<td>').text(item.warehouse));
-                    row.append($('<td>').text(item.status));
+                    row.append($('<td>').text(getStatusDisplay(item.status))); // Changed to display Japanese status
                     row.append($('<td>').text(item.barcode || '')); // nullの場合空文字
                     row.append($('<td>').text(item.serial_number || '')); // nullの場合空文字
 
@@ -242,9 +263,8 @@
                 success: function(data) {
                     const actualData = data.results || [];
                     const totalCount = data.count || 0;
-                    // APIがnum_pagesを提供しない場合に備えてフォールバック計算を追加
-                    // ただし、API側でnum_pagesを提供することが推奨されます
-                    const totalPages = data.num_pages || (totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0);
+                    // DRFのStandardResultsSetPaginationからのレスポンスには total_pages が含まれる
+                    const totalPages = data.total_pages || (totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0);
                     const startItem = totalCount > 0 ? (currentPage - 1) * pageSize + 1 : 0;
                     const endItem = totalCount > 0 ? Math.min(startItem + pageSize - 1, totalCount) : 0;
 

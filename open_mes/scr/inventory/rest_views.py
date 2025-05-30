@@ -246,6 +246,7 @@ def process_purchase_receipt_api(request):
                 movement_type='incoming',
                 quantity=actual_received_quantity,
                 description=f"PO {purchase_order.order_number} による入庫" + (f" (場所: {location})" if location else ""),
+                operator=request.user if request.user.is_authenticated else None,
             )
 
             # 6. 入庫完了した場合、POのステータスを更新
@@ -538,7 +539,8 @@ def process_single_sales_order_issue_api(request):
                 part_number=sales_order.item,
                 movement_type='outgoing',
                 quantity=quantity_to_ship,
-                description=f"SO {sales_order.order_number} による出庫 (倉庫: {sales_order.warehouse})"
+                description=f"SO {sales_order.order_number} による出庫 (倉庫: {sales_order.warehouse})",
+                operator=request.user if request.user.is_authenticated else None,
             )
 
             return JsonResponse({'success': True, 'message': f"受注 {sales_order.order_number} から {quantity_to_ship} 個の {sales_order.item} を出庫しました。"})
@@ -606,3 +608,71 @@ def update_inventory_api(request):
     except Exception as e:
         print(f"Error updating inventory: {e}") # Log for server-side debugging
         return Response({'success': False, 'error': f"在庫更新中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def get_purchase_orders_api(request):
+    """
+    Retrieves a paginated list of purchase orders with filtering capabilities.
+    This endpoint is used by the purchase receipt page.
+    """
+    paginator = StandardResultsSetPagination()
+    
+    filters = Q()
+
+    # Text-based search fields
+    search_params_text = {
+        'search_order_number': 'order_number__icontains',
+        'search_shipment_number': 'shipment_number__icontains',
+        'search_supplier': 'supplier__icontains', # Assuming supplier is stored as CharField
+        'search_part_number': 'part_number__icontains',
+        'search_warehouse': 'warehouse__icontains', # Assuming warehouse is stored as CharField
+    }
+    for param, field_lookup in search_params_text.items():
+        value = request.query_params.get(param)
+        if value:
+            filters &= Q(**{field_lookup: value})
+
+    # Special search for item/product name
+    search_item_product_name = request.query_params.get('search_item_product_name')
+    if search_item_product_name:
+        filters &= (Q(item__icontains=search_item_product_name) | 
+                    Q(product_name__icontains=search_item_product_name))
+
+    # Status filter (exact match)
+    search_status = request.query_params.get('search_status')
+    if search_status:
+        filters &= Q(status=search_status)
+
+    # Date range filters
+    date_filters_map = {
+        'search_order_date_from': 'order_date__date__gte',
+        'search_order_date_to': 'order_date__date__lte',
+        'search_expected_arrival_from': 'expected_arrival__date__gte',
+        'search_expected_arrival_to': 'expected_arrival__date__lte',
+    }
+    for param, field_lookup in date_filters_map.items():
+        value = request.query_params.get(param)
+        if value:
+            filters &= Q(**{field_lookup: value})
+
+    # order_by の指定: expected_arrival の昇順、次に order_number の昇順
+    # expected_arrival が NULL の場合は最後に表示されるように調整 (Fオブジェクトとasc/desc(nulls_last=True)を使用)
+    # Django 3.2以降では F().asc(nulls_last=True) や F().desc(nulls_first=True) が使えますが、
+    # それ以前のバージョンやDBによっては annotate と Case/When を使う必要があるかもしれません。
+    # ここではシンプルに order_by を使用します。DBによってはNULLの扱いはデフォルトで最後になることがあります。
+    # 必要に応じて、より複雑なソートロジックを検討してください。
+    purchase_orders_qs = PurchaseOrder.objects.filter(filters).order_by(
+        F('expected_arrival').asc(nulls_last=True), 
+        'order_number'
+    )
+
+    paginated_purchase_orders = paginator.paginate_queryset(purchase_orders_qs, request)
+    serializer = PurchaseOrderSerializer(paginated_purchase_orders, many=True)
+    
+    # DRFのStandardResultsSetPaginationはget_paginated_responseメソッドで
+    # 'count', 'next', 'previous', 'results' を含むレスポンスを返します。
+    # 'total_pages' や 'current_page' も含めるようにStandardResultsSetPaginationをカスタマイズ済みなので、
+    # そのまま paginator.get_paginated_response を使用します。
+    return paginator.get_paginated_response(serializer.data)
