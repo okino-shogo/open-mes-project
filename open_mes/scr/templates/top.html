@@ -117,14 +117,17 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* ホバー時に軽い影 */
 }
 .link-button {
-    background: none;
-    border: none;
-    color: #0056b3;
-    padding: 0;
-    font: inherit;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline; /* Align with list item text */
+    background-color: #EBF8FF; /* Matches link background */
+    border: 1px solid #BEE3F8; /* Matches link border */
+    border-radius: 4px; /* Matches link border-radius */
+    color: #0056b3; /* Kept existing color */
+    cursor: pointer; /* Kept existing cursor */
+    display: inline-block; /* Changed for better padding/border handling, like links */
+    font: inherit; /* Inherits base font properties */
+    font-size: 0.95em; /* Matches link font size */
+    padding: 6px 10px; /* Matches link padding */
+    text-decoration: none; /* Kept existing text-decoration */
+    transition: all 0.2s ease-in-out; /* Matches link transition for hover effects */
 }
 </style>
 
