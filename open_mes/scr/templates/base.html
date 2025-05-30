@@ -284,14 +284,17 @@
 <body id="page_base">
 
 <header>
+    {% if user.is_authenticated %}
     <div id="hamburger-menu">
         <span></span>
         <span></span>
         <span></span>
     </div>
+    {% endif %}
     <h1 id="title">みんなのMES</h1>
 </header>
 
+{% if user.is_authenticated %}
 <nav id='menu-bar'>
     <a href="{% url 'main' %}">トップページ</a>
     <div class="menu-category-title">在庫管理</div>
@@ -313,16 +316,19 @@
     <a href="{% url 'machine_start_inspection' %}" class="menu-subcategory-link">始業点検</a>
     <a href="{% url 'machine_inspection_history' %}" class="menu-subcategory-link">点検履歴</a>
     <a href="{% url 'machine_master_creation' %}" class="menu-subcategory-link">マスター作成</a>
-    {% if user.is_authenticated %}
+    {# The following user check is now redundant if the whole menu is wrapped, but kept for clarity if menu structure changes #}
+    {# {% if user.is_authenticated %} #}
         <form id="logout-form" action="{% url 'users_logout' %}" method="post">
             {% csrf_token %}
             <button type="submit" class="menu-logout-button">ログアウト</button>
         </form>
-    {% else %}
-        <a href="{% url 'users_login' %}">ログイン</a>
-    {% endif %}
+    {# {% else %} #}
+        {# This part would not be reached if the outer user.is_authenticated is false #}
+        {# <a href="{% url 'users_login' %}">ログイン</a> #}
+    {# {% endif %} #}
 </nav>
 <div id="menu-overlay"></div>
+{% endif %}
 
 <div class="container">
     <main class="main-contents">
