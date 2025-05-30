@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ page_title|default:_("User Settings") }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ page_title|default:_("User Settings") }}</h1>
+    <p>{% trans "This is the user settings page. You can add various account management options here." %}</p>
+    <ul>
+        <li><a href="{% url 'password_change' %}">{% trans "Change password" %}</a></li>
+        {# Add more settings links here as needed #}
+    </ul>
+</div>
+{% endblock %}

@@ -316,16 +316,14 @@
     <a href="{% url 'machine_start_inspection' %}" class="menu-subcategory-link">始業点検</a>
     <a href="{% url 'machine_inspection_history' %}" class="menu-subcategory-link">点検履歴</a>
     <a href="{% url 'machine_master_creation' %}" class="menu-subcategory-link">マスター作成</a>
-    {# The following user check is now redundant if the whole menu is wrapped, but kept for clarity if menu structure changes #}
-    {# {% if user.is_authenticated %} #}
-        <form id="logout-form" action="{% url 'users_logout' %}" method="post">
-            {% csrf_token %}
-            <button type="submit" class="menu-logout-button">ログアウト</button>
-        </form>
-    {# {% else %} #}
-        {# This part would not be reached if the outer user.is_authenticated is false #}
-        {# <a href="{% url 'users_login' %}">ログイン</a> #}
-    {# {% endif %} #}
+
+    <div class="menu-category-title">アカウント設定</div>
+    <a href="{% url 'users_settings' %}" class="menu-subcategory-link">ユーザー設定</a>
+    <a href="{% url 'password_change' %}" class="menu-subcategory-link">パスワード変更</a>
+    <form id="logout-form" action="{% url 'users_logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="menu-logout-button">ログアウト</button>
+    </form>
 </nav>
 <div id="menu-overlay"></div>
 {% endif %}

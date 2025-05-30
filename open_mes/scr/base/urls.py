@@ -19,7 +19,7 @@ from django.urls import include, path, reverse_lazy
 from .views import top
 from inventory.views import menu as inventory_menu
 from inventory import rest_views as inventory_rest_views # noqa: F401
-from production.views import menu as production_menu_views # Renamed to avoid conflict if other menu views exist
+from production.views import menu as production_menu_views
 from production import rest_views as production_rest_views # Import production rest_views
 from users.views import login, logout, rest
 from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
@@ -27,6 +27,7 @@ from rest_framework.routers import DefaultRouter # Import DefaultRouter
 from rest_framework.authtoken import views as authtoken_views # authtoken の views をインポート
 from machine import views as machine_views
 
+from users.views import views as users_general_views # For UserSettingsView
 
 production_router = DefaultRouter()
 production_router.register(r'plans', production_rest_views.ProductionPlanViewSet, basename='production_plan')
@@ -63,6 +64,7 @@ urlpatterns = [
 
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
+    path('users/settings/', users_general_views.UserSettingsView.as_view(), name='users_settings'), # ユーザー設定ページ
         # --- Django標準のパスワード変更ビューのURLを追加 ---
     path('users/password_change/',
          auth_views.PasswordChangeView.as_view(
