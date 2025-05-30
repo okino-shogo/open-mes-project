@@ -47,7 +47,7 @@
         <h3>アカウント</h3>
         <ul>
             {% if user.is_authenticated %}
-                <li><a href="{% url 'users_settings' %}">ユーザー設定</a></li>
+                <li><a href="{% url 'users:users_settings' %}">ユーザー設定</a></li>
                 <li><a href="{% url 'password_change' %}">パスワード変更</a></li>
                 <li>
                     <form id="logout-form-top" action="{% url 'users_logout' %}" method="post" style="display: inline;">

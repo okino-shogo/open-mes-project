@@ -27,8 +27,6 @@ from rest_framework.routers import DefaultRouter # Import DefaultRouter
 from rest_framework.authtoken import views as authtoken_views # authtoken の views をインポート
 from machine import views as machine_views
 
-from users.views import views as users_general_views # For UserSettingsView
-
 production_router = DefaultRouter()
 production_router.register(r'plans', production_rest_views.ProductionPlanViewSet, basename='production_plan')
 production_router.register(r'parts-used', production_rest_views.PartsUsedViewSet, basename='parts_used') # PartsUsedViewSetを登録
@@ -64,7 +62,7 @@ urlpatterns = [
 
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
-    path('users/settings/', users_general_views.UserSettingsView.as_view(), name='users_settings'), # ユーザー設定ページ
+    path('users/', include('users.urls', namespace='users')), # users アプリケーションのURLをインクルード
         # --- Django標準のパスワード変更ビューのURLを追加 ---
     path('users/password_change/',
          auth_views.PasswordChangeView.as_view(
