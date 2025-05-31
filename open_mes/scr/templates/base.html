@@ -317,6 +317,9 @@
     <a href="{% url 'machine_inspection_history' %}" class="menu-subcategory-link">点検履歴</a>
     <a href="{% url 'machine_master_creation' %}" class="menu-subcategory-link">マスター作成</a>
 
+    <div class="menu-category-title">データメンテナンス</div>
+    <a href="{% url 'master:data_import' %}" class="menu-subcategory-link">データ投入</a>
+
     <div class="menu-category-title">アカウント設定</div>
     <a href="{% url 'users:users_settings' %}" class="menu-subcategory-link">ユーザー設定</a>
     <form id="logout-form" action="{% url 'users_logout' %}" method="post">

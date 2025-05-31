@@ -44,6 +44,13 @@
     </div>
 
     <div class="menu-section">
+        <h3>データメンテナンス</h3>
+        <ul>
+            <li><a href="{% url 'master:data_import' %}">データ投入</a></li>
+        </ul>
+    </div>
+
+    <div class="menu-section">
         <h3>アカウント</h3>
         <ul>
             {% if user.is_authenticated %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load md5url %}
+
+{% block title %}{{ page_title|default:"データ投入" }}{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>{{ page_title|default:"データ投入" }}</h2>
+    <p>ここにデータ投入フォームや関連情報を表示します。</p>
+    {# TODO: データ投入フォームの実装 #}
+</div>
+{% endblock content %}
+
+{% block js_link %}
+{# <script src="{% md5url 'js/master_data_import.js' %}"></script> #}
+{# <link rel="stylesheet" href="{% md5url 'css/master_data_import.css' %}" /> #}
+{% endblock js_link %}
