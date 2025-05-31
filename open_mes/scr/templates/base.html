@@ -319,7 +319,6 @@
 
     <div class="menu-category-title">アカウント設定</div>
     <a href="{% url 'users:users_settings' %}" class="menu-subcategory-link">ユーザー設定</a>
-    <a href="{% url 'password_change' %}" class="menu-subcategory-link">パスワード変更</a>
     <form id="logout-form" action="{% url 'users_logout' %}" method="post">
         {% csrf_token %}
         <button type="submit" class="menu-logout-button">ログアウト</button>
