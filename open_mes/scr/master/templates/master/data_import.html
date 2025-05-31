@@ -5,13 +5,192 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>{{ page_title|default:"データ投入" }}</h2>
-    <p>ここにデータ投入フォームや関連情報を表示します。</p>
-    {# TODO: データ投入フォームの実装 #}
+    <h2>{{ page_title|default:"マスターデータ投入" }}</h2>
+
+    <p>登録したいマスターを選択してください。</p>
+
+    <div class="mb-4">
+        <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="item" data-master-name="品番マスター">
+            品番マスター登録
+        </button>
+        <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="supplier" data-master-name="サプライヤーマスター">
+            サプライヤーマスター登録
+        </button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="warehouse" data-master-name="倉庫マスター">
+            倉庫マスター登録
+        </button>
+    </div>
+
+    <!-- 非表示のフォームテンプレートエリア -->
+    <div id="form-templates" style="display: none;">
+        <div id="item-form-template">
+            <form method="post" id="itemMasterForm" action="{% url 'master:item_create_ajax' %}">
+                {% csrf_token %}
+                {{ item_form.as_p }}
+            </form>
+        </div>
+        <div id="supplier-form-template">
+            <form method="post" id="supplierMasterForm" action="{% url 'master:supplier_create_ajax' %}">
+                {% csrf_token %}
+                {{ supplier_form.as_p }}
+            </form>
+        </div>
+        <div id="warehouse-form-template">
+            <form method="post" id="warehouseMasterForm" action="{% url 'master:warehouse_create_ajax' %}">
+                {% csrf_token %}
+                {{ warehouse_form.as_p }}
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="dataImportModal" tabindex="-1" aria-labelledby="dataImportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dataImportModalLabel">マスターデータ登録</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>選択されたマスター: <strong id="selectedMasterTypeDisplay"></strong></p>
+                    <div id="masterFormContainer">
+                        
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                    <button type="button" class="btn btn-success" id="saveMasterDataButton">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock content %}
 
 {% block js_link %}
 {# <script src="{% md5url 'js/master_data_import.js' %}"></script> #}
 {# <link rel="stylesheet" href="{% md5url 'css/master_data_import.css' %}" /> #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dataImportModal = document.getElementById('dataImportModal');
+    // masterFormContainer はモーダル内にあり、DOM構築時には存在するのでここで取得します。
+    const masterFormContainer = document.getElementById('masterFormContainer');
+
+    if (dataImportModal && masterFormContainer) { // masterFormContainer の存在も確認
+        dataImportModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget; // モーダルをトリガーしたボタン
+            const masterName = button.getAttribute('data-master-name');
+            const masterType = button.getAttribute('data-master-type');
+
+            const modalTitle = dataImportModal.querySelector('.modal-title');
+            const selectedMasterTypeDisplay = dataImportModal.querySelector('#selectedMasterTypeDisplay');
+
+            modalTitle.textContent = masterName + ' 登録';
+            selectedMasterTypeDisplay.textContent = masterName;
+            masterFormContainer.innerHTML = ''; // 既存のフォームをクリア
+
+            let formTemplateHtml = '';
+            if (masterType === 'item') {
+                const itemFormTemplate = document.getElementById('item-form-template');
+                if (itemFormTemplate) {
+                    formTemplateHtml = itemFormTemplate.innerHTML;
+                } else {
+                    formTemplateHtml = '<p class="text-danger">品番マスターのフォームテンプレートが見つかりません。</p>';
+                }
+            } else if (masterType === 'supplier') {
+                const supplierFormTemplate = document.getElementById('supplier-form-template');
+                if (supplierFormTemplate) {
+                    formTemplateHtml = supplierFormTemplate.innerHTML;
+                } else {
+                    formTemplateHtml = '<p class="text-danger">サプライヤーマスターのフォームテンプレートが見つかりません。</p>';
+                }
+            } else if (masterType === 'warehouse') {
+                const warehouseFormTemplate = document.getElementById('warehouse-form-template');
+                if (warehouseFormTemplate) {
+                    formTemplateHtml = warehouseFormTemplate.innerHTML;
+                } else {
+                    formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
+                }
+            }
+            masterFormContainer.innerHTML = formTemplateHtml;
+        });
+
+        dataImportModal.addEventListener('shown.bs.modal', function () {
+            // モーダルが完全に表示された後、フォーム内の最初のフォーカス可能な要素にフォーカスを当てる
+            // (data-bs-dismiss属性を持つボタンは除外しても良いが、現状のフォーム内には無いためシンプルに)
+            const firstFocusableElement = masterFormContainer.querySelector('input, select, textarea, button');
+            if (firstFocusableElement) {
+                firstFocusableElement.focus();
+            }
+        });
+    }
+
+    const saveMasterDataButton = document.getElementById('saveMasterDataButton');
+    if (saveMasterDataButton) {
+        saveMasterDataButton.addEventListener('click', function() {
+            const currentForm = masterFormContainer.querySelector('form');
+            if (!currentForm) {
+                console.error('No form found in modal.');
+                alert('エラー: フォームが見つかりません。');
+                return;
+            }
+
+            const formData = new FormData(currentForm);
+            const url = currentForm.getAttribute('action');
+            const method = currentForm.getAttribute('method');
+
+            fetch(url, {
+                method: method.toUpperCase(),
+                body: formData,
+                // CSRFトークンはFormDataに含まれているため、通常はヘッダーで明示的に送信する必要はありません。
+                // DjangoはPOSTデータ内の`csrfmiddlewaretoken`フィールドを自動的にチェックします。
+            })
+            .then(response => {
+                // HTTPステータスコードがエラー(4xx, 5xx)の場合でもJSON本文を解析試行
+                return response.json().then(data => ({ status: response.status, body: data }));
+            })
+            .then(res => {
+                // res.status は HTTPステータスコード
+                // res.body は JSONレスポンスボディ
+                if (res.status === 200 && res.body.status === 'success') {
+                    alert(res.body.message || '保存しました。');
+                    // モーダルを閉じる前に、現在フォーカスされている要素（通常は保存ボタン）からフォーカスを外す
+                    // これにより、aria-hiddenが設定される要素の子孫がフォーカスを保持する問題を回避する
+                    if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur();
+                    }
+                    bootstrap.Modal.getInstance(dataImportModal).hide();
+
+                    // モーダルが閉じた後、元のテンプレート内のフォームをリセット
+                    const formId = currentForm.id; // 例: "itemMasterForm"
+                    let originalFormToReset;
+                    if (formId === 'itemMasterForm') {
+                        originalFormToReset = document.getElementById('item-form-template')?.querySelector('form');
+                    } else if (formId === 'supplierMasterForm') {
+                        originalFormToReset = document.getElementById('supplier-form-template')?.querySelector('form');
+                    } else if (formId === 'warehouseMasterForm') {
+                        originalFormToReset = document.getElementById('warehouse-form-template')?.querySelector('form');
+                    }
+                    if (originalFormToReset) {
+                        originalFormToReset.reset();
+                    }
+
+                } else if (res.body.status === 'error' && res.body.errors) {
+                    let errorMessages = '以下のエラーが発生しました:\n';
+                    for (const field in res.body.errors) {
+                        errorMessages += `・${field}: ${res.body.errors[field].join(', ')}\n`;
+                    }
+                    alert(errorMessages);
+                } else {
+                    alert(res.body.message || 'エラーが発生しました。サーバーからの応答を確認してください。');
+                }
+            })
+            .catch(error => {
+                console.error('Save error:', error);
+                alert('保存中に通信エラーまたは予期しないエラーが発生しました。コンソールを確認してください。');
+            });
+        });
+    }
+});
+</script>
 {% endblock js_link %}
