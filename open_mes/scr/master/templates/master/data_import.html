@@ -5,11 +5,12 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>{{ page_title|default:"マスターデータ投入" }}</h2>
+    <h2>{{ page_title|default:"データ投入" }}</h2>
 
+    <h3 class="mt-4">マスターデータ登録</h3>
     <p>登録したいマスターを選択してください。</p>
 
-    <div class="mb-4">
+    <div class="mb-5">
         <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="item" data-master-name="品番マスター">
             品番マスター登録
         </button>
@@ -18,6 +19,21 @@
         </button>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="warehouse" data-master-name="倉庫マスター">
             倉庫マスター登録
+        </button>
+    </div>
+
+    <h3 class="mt-5">業務データ登録</h3>
+    <p>登録したい業務データを選択してください。</p>
+
+    <div class="mb-4">
+        <button type="button" class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="inventory_purchase_entry" data-master-name="入庫予定登録">
+            入庫予定登録
+        </button>
+        <button type="button" class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="production_plan_entry" data-master-name="生産計画登録">
+            生産計画登録
+        </button>
+        <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="parts_used_entry" data-master-name="使用部品登録">
+            使用部品登録
         </button>
     </div>
 
@@ -45,7 +61,7 @@
 
     <!-- Modal -->
     <div class="modal fade" id="dataImportModal" tabindex="-1" aria-labelledby="dataImportModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="dataImportModalLabel">マスターデータ登録</h5>
@@ -111,6 +127,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
                 }
+            } else if (masterType === 'inventory_purchase_entry') {
+                formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
+            } else if (masterType === 'production_plan_entry') {
+                formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
+            } else if (masterType === 'parts_used_entry') {
+                formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
             }
             masterFormContainer.innerHTML = formTemplateHtml;
         });
@@ -170,6 +192,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         originalFormToReset = document.getElementById('supplier-form-template')?.querySelector('form');
                     } else if (formId === 'warehouseMasterForm') {
                         originalFormToReset = document.getElementById('warehouse-form-template')?.querySelector('form');
+                    } else {
+                        // 新しい業務データ登録用のフォームリセットロジックはここに追加
+                        console.log('Form reset logic for ' + formId + ' not yet implemented.');
                     }
                     if (originalFormToReset) {
                         originalFormToReset.reset();
