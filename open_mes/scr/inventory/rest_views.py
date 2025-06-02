@@ -10,7 +10,11 @@ from django.db import transaction # トランザクションのためにイン�
 from django.db.models import Q, F # Fオブジェクトをインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 from master.models import Item, Warehouse # masterアプリケーションからItem, Warehouseをインポート (現在は文字列として使用)
-from django.contrib.auth.decorators import login_required # 認証が必要な場合
+from django.contrib.auth.decorators import login_required # 認証が必要な場合 (関数ビュー用)
+from django.views import View # クラスベースビュー用
+from django.utils.decorators import method_decorator # クラスベースビューでデコレータ使用
+from .forms import PurchaseOrderEntryForm # 新しいフォームをインポート
+
 @permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
 @api_view(['POST'])
 def create_purchase_order_api(request):
@@ -676,3 +680,18 @@ def get_purchase_orders_api(request):
     # 'total_pages' や 'current_page' も含めるようにStandardResultsSetPaginationをカスタマイズ済みなので、
     # そのまま paginator.get_paginated_response を使用します。
     return paginator.get_paginated_response(serializer.data)
+
+
+@method_decorator(login_required, name='dispatch')
+class PurchaseOrderCreateAjaxView(View):
+    def post(self, request, *args, **kwargs):
+        form = PurchaseOrderEntryForm(request.POST)
+        if form.is_valid():
+            try:
+                purchase_order = form.save()
+                return JsonResponse({'status': 'success', 'message': '入庫予定を登録しました。', 'purchase_order_id': purchase_order.id})
+            except Exception as e:
+                # Consider logging the error e
+                return JsonResponse({'status': 'error', 'message': f'保存中にエラーが発生しました: {str(e)}'}, status=500)
+        else:
+            return JsonResponse({'status': 'error', 'errors': form.errors}, status=400)

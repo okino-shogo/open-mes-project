@@ -57,6 +57,24 @@
                 {{ warehouse_form.as_p }}
             </form>
         </div>
+        <div id="inventory-purchase-entry-form-template">
+            <form method="post" id="inventoryPurchaseEntryForm" action="{% url 'inventory_api:purchase_order_create_ajax' %}">
+                {% csrf_token %}
+                {{ inventory_purchase_entry_form.as_p }}
+            </form>
+        </div>
+        <div id="production-plan-entry-form-template">
+            <form method="post" id="productionPlanEntryForm" action="{% url 'production:production_plan_create_ajax' %}">
+                {% csrf_token %}
+                {{ production_plan_data_entry_form.as_p }}
+            </form>
+        </div>
+        <div id="parts-used-entry-form-template">
+            <form method="post" id="partsUsedEntryForm" action="{% url 'production:parts_used_create_ajax' %}">
+                {% csrf_token %}
+                {{ parts_used_data_entry_form.as_p }}
+            </form>
+        </div>
     </div>
 
     <!-- Modal -->
@@ -128,11 +146,27 @@ document.addEventListener('DOMContentLoaded', function () {
                     formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
                 }
             } else if (masterType === 'inventory_purchase_entry') {
-                formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
+                const purchaseEntryFormTemplate = document.getElementById('inventory-purchase-entry-form-template');
+                if (purchaseEntryFormTemplate) {
+                    formTemplateHtml = purchaseEntryFormTemplate.innerHTML;
+                } else {
+                    formTemplateHtml = '<p class="text-danger">入庫予定登録のフォームテンプレートが見つかりません。</p>';
+                }
             } else if (masterType === 'production_plan_entry') {
-                formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
+                // formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
+                const planFormTemplate = document.getElementById('production-plan-entry-form-template');
+                if (planFormTemplate) {
+                    formTemplateHtml = planFormTemplate.innerHTML;
+                } else {
+                    formTemplateHtml = '<p class="text-danger">生産計画登録のフォームテンプレートが見つかりません。</p>';
+                }
             } else if (masterType === 'parts_used_entry') {
-                formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
+                const partsUsedFormTemplate = document.getElementById('parts-used-entry-form-template');
+                if (partsUsedFormTemplate) {
+                    formTemplateHtml = partsUsedFormTemplate.innerHTML;
+                } else {
+                    formTemplateHtml = '<p class="text-danger">使用部品登録のフォームテンプレートが見つかりません。</p>';
+                }
             }
             masterFormContainer.innerHTML = formTemplateHtml;
         });
@@ -192,8 +226,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         originalFormToReset = document.getElementById('supplier-form-template')?.querySelector('form');
                     } else if (formId === 'warehouseMasterForm') {
                         originalFormToReset = document.getElementById('warehouse-form-template')?.querySelector('form');
-                    } else {
-                        // 新しい業務データ登録用のフォームリセットロジックはここに追加
+                    } else if (formId === 'inventoryPurchaseEntryForm') {
+                        originalFormToReset = document.getElementById('inventory-purchase-entry-form-template')?.querySelector('form');
+                    } else if (formId === 'productionPlanEntryForm') {
+                        originalFormToReset = document.getElementById('production-plan-entry-form-template')?.querySelector('form');
+                    } else if (formId === 'partsUsedEntryForm') {
+                        originalFormToReset = document.getElementById('parts-used-entry-form-template')?.querySelector('form');
+                    }  else {
                         console.log('Form reset logic for ' + formId + ' not yet implemented.');
                     }
                     if (originalFormToReset) {

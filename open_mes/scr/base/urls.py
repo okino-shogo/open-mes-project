@@ -18,19 +18,10 @@ from django.contrib import admin
 from django.urls import include, path, reverse_lazy
 from .views import top
 from inventory.views import menu as inventory_menu
-from inventory import rest_views as inventory_rest_views # noqa: F401
-from production.views import menu as production_menu_views
-from production import rest_views as production_rest_views # Import production rest_views
 from users.views import login, logout, rest
 from django.contrib.auth import views as auth_views  # 追記：認証ビューをインポート
-from rest_framework.routers import DefaultRouter # Import DefaultRouter
 from rest_framework.authtoken import views as authtoken_views # authtoken の views をインポート
 from machine import views as machine_views
-
-production_router = DefaultRouter()
-production_router.register(r'plans', production_rest_views.ProductionPlanViewSet, basename='production_plan')
-production_router.register(r'parts-used', production_rest_views.PartsUsedViewSet, basename='parts_used') # PartsUsedViewSetを登録
-
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django管理サイトへのURL
@@ -44,12 +35,8 @@ urlpatterns = [
     path('inventory/purchase/', inventory_menu.PurchaseView.as_view(), name="inventory_purchase"),  # 入庫処理ページへのURL (入庫処置)
     path('inventory/issue/', inventory_menu.IssueView.as_view(), name="inventory_issue"),  # 出庫処理ページへのURL (出庫処理)    
 
-    # 生産関係
-    # path('production/menu/', production_menu_views.ProductionMenuView.as_view(), name="production_menu"),  # 生産管理メニューページへのURL (削除)
-    path('production/plan/', production_menu_views.ProductionPlanView.as_view(), name="production_plan"),  # 生産計画ページへのURL
-    path('production/parts_used/', production_menu_views.PartsUsedView.as_view(), name="production_parts_used"),  # 使用部品ページへのURL
-    path('production/material_allocation/', production_menu_views.MaterialAllocationView.as_view(), name="production_material_allocation"),  # 材料引当ページへのURL
-    path('production/work_progress/', production_menu_views.WorkProgressView.as_view(), name="production_work_progress"),  # 作業進捗ページへのURL
+    # Production URLs (Menu and AJAX)
+    path('production/', include('production.urls', namespace='production')),
 
     # 設備関係
     path('machine/menu/', machine_views.MachineMenuView.as_view(), name="machine_menu"),  # メインページへのURL
@@ -81,8 +68,8 @@ urlpatterns = [
     # API Endpoints
     path('api/token-auth/', authtoken_views.obtain_auth_token, name='api_token_auth'),
     path('users/api-register/', rest.register_user, name='users_api_register'),
-    # Production API paths (using the router)
-    path('api/production/', include(production_router.urls)),
+    # Production API paths
+    path('api/production/', include('production.api_urls', namespace='production_api')),
     # Inventory API paths
     path('api/inventory/', include('inventory.urls', namespace='inventory_api')),
 

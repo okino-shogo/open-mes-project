@@ -219,12 +219,22 @@ echo     Initial migrations completed successfully.
 echo.
 
 REM --- Create Superuser (Optional but Recommended, during initial setup) ---
-echo [+] You might want to create a superuser to access the Django admin panel.
-set /p createsuperuser="Do you want to create a superuser now? (y/N): "
-if /i "%createsuperuser%"=="y" (
-    echo     Running createsuperuser command...
-    python "%MANAGE_PY%" createsuperuser
+echo [+] Creating superuser 'admin' with a predefined password...
+
+REM Set environment variables for non-interactive superuser creation
+set "DJANGO_SUPERUSER_USERNAME=admin"
+set "DJANGO_SUPERUSER_PASSWORD=admin"
+
+python "%MANAGE_PY%" createsuperuser --noinput
+if %errorlevel% neq 0 (
+    echo [!] WARNING: Failed to create superuser 'admin' automatically.
+    echo     This might happen if the user already exists or another error occurred.
+    echo     You may need to create it manually using: python manage.py createsuperuser
+) else (
+    echo     Superuser 'admin' created successfully or already exists.
 )
+set "DJANGO_SUPERUSER_USERNAME="
+set "DJANGO_SUPERUSER_PASSWORD="
 echo.
 
 REM --- Mark setup as complete ---

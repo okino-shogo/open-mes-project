@@ -17,4 +17,7 @@ urlpatterns = [
 
     # Endpoint for the purchase.html page to fetch purchase order data
     path('schedules/data/', rest_views.get_purchase_orders_api, name='api_get_purchase_schedules_data'),
+
+    # AJAX endpoint for creating Purchase Orders from the data_import page
+    path('purchase-order/create-ajax/', rest_views.PurchaseOrderCreateAjaxView.as_view(), name='purchase_order_create_ajax'),
 ]
