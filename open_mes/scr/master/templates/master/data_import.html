@@ -8,18 +8,59 @@
     <h2>{{ page_title|default:"データ投入" }}</h2>
 
     <h3 class="mt-4">マスターデータ登録</h3>
-    <p>登録したいマスターを選択してください。</p>
+    <p>登録または呼び出したいマスターを選択してください。</p>
 
     <div class="mb-5">
-        <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="item" data-master-name="品番マスター">
-            品番マスター登録
-        </button>
-        <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="supplier" data-master-name="サプライヤーマスター">
-            サプライヤーマスター登録
-        </button>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="warehouse" data-master-name="倉庫マスター">
-            倉庫マスター登録
-        </button>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">品番マスター</h5>
+                        <p class="card-text small">新しい品番マスターデータを登録します。</p>
+                        <button type="button" class="btn btn-primary w-100 mt-auto mb-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="item" data-master-name="品番マスター">
+                            品番マスター登録
+                        </button>
+                        <a href="#" class="btn btn-outline-secondary w-100"
+                           data-bs-toggle="modal" data-bs-target="#dataListModal"
+                           data-list-url="{% url 'master:item_list_ajax' %}"
+                           data-master-name="品番マスター"
+                           data-master-type="item">品番マスター呼び出し</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">サプライヤーマスター</h5>
+                        <p class="card-text small">新しいサプライヤーマスターデータを登録します。</p>
+                        <button type="button" class="btn btn-primary w-100 mt-auto mb-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="supplier" data-master-name="サプライヤーマスター">
+                            サプライヤーマスター登録
+                        </button>
+                        <a href="#" class="btn btn-outline-secondary w-100"
+                           data-bs-toggle="modal" data-bs-target="#dataListModal"
+                           data-list-url="{% url 'master:supplier_list_ajax' %}"
+                           data-master-name="サプライヤーマスター"
+                           data-master-type="supplier">サプライヤーマスター呼び出し</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">倉庫マスター</h5>
+                        <p class="card-text small">新しい倉庫マスターデータを登録します。</p>
+                        <button type="button" class="btn btn-primary w-100 mt-auto mb-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="warehouse" data-master-name="倉庫マスター">
+                            倉庫マスター登録
+                        </button>
+                        <a href="#" class="btn btn-outline-secondary w-100"
+                           data-bs-toggle="modal" data-bs-target="#dataListModal"
+                           data-list-url="{% url 'master:warehouse_list_ajax' %}"
+                           data-master-name="倉庫マスター"
+                           data-master-type="warehouse">倉庫マスター呼び出し</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <h3 class="mt-5">業務データ登録</h3>
@@ -42,18 +83,21 @@
         <div id="item-form-template">
             <form method="post" id="itemMasterForm" action="{% url 'master:item_create_ajax' %}">
                 {% csrf_token %}
+                <input type="hidden" name="id" id="item_id">
                 {{ item_form.as_p }}
             </form>
         </div>
         <div id="supplier-form-template">
             <form method="post" id="supplierMasterForm" action="{% url 'master:supplier_create_ajax' %}">
                 {% csrf_token %}
+                <input type="hidden" name="id" id="supplier_id">
                 {{ supplier_form.as_p }}
             </form>
         </div>
         <div id="warehouse-form-template">
             <form method="post" id="warehouseMasterForm" action="{% url 'master:warehouse_create_ajax' %}">
                 {% csrf_token %}
+                <input type="hidden" name="id" id="warehouse_id">
                 {{ warehouse_form.as_p }}
             </form>
         </div>
@@ -78,7 +122,7 @@
     </div>
 
     <!-- Modal -->
-    <div class="modal fade" id="dataImportModal" tabindex="-1" aria-labelledby="dataImportModalLabel" aria-hidden="true">
+    <div class="modal fade" id="dataImportModal" tabindex="-1" aria-labelledby="dataImportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -98,6 +142,43 @@
             </div>
         </div>
     </div>
+
+    <!-- List Modal -->
+    <div class="modal fade" id="dataListModal" tabindex="-1" aria-labelledby="dataListModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dataListModalLabel">登録済み一覧</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="dataListModalBody">
+                    <p class="text-center">データを読み込んでいます...</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteConfirmModalLabel">削除確認</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>本当に「<strong id="deleteMasterNamePlaceholder"></strong>」を削除しますか？この操作は元に戻せません。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-danger" id="executeDeleteButton">削除実行</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock content %}
 
@@ -107,15 +188,22 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataImportModal = document.getElementById('dataImportModal');
-    // masterFormContainer はモーダル内にあり、DOM構築時には存在するのでここで取得します。
     const masterFormContainer = document.getElementById('masterFormContainer');
 
-    if (dataImportModal && masterFormContainer) { // masterFormContainer の存在も確認
+    // Registration Modal Logic
+    if (dataImportModal && masterFormContainer) {
         dataImportModal.addEventListener('show.bs.modal', function (event) {
+            // data-bs-backdrop="static" と data-bs-keyboard="false" を設定
+            dataImportModal.setAttribute('data-bs-backdrop', 'static');
+            dataImportModal.setAttribute('data-bs-keyboard', 'false');
             const button = event.relatedTarget; // モーダルをトリガーしたボタン
             const masterName = button.getAttribute('data-master-name');
             const masterType = button.getAttribute('data-master-type');
 
+            // 修正モードでない場合は、IDフィールドをクリア
+            if (!button.hasAttribute('data-record-id')) {
+                 clearHiddenIdFields();
+            }
             const modalTitle = dataImportModal.querySelector('.modal-title');
             const selectedMasterTypeDisplay = dataImportModal.querySelector('#selectedMasterTypeDisplay');
 
@@ -124,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function () {
             masterFormContainer.innerHTML = ''; // 既存のフォームをクリア
 
             let formTemplateHtml = '';
+            let formIdPrefix = '';
             if (masterType === 'item') {
                 const itemFormTemplate = document.getElementById('item-form-template');
                 if (itemFormTemplate) {
@@ -131,6 +220,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     formTemplateHtml = '<p class="text-danger">品番マスターのフォームテンプレートが見つかりません。</p>';
                 }
+                formIdPrefix = 'item';
             } else if (masterType === 'supplier') {
                 const supplierFormTemplate = document.getElementById('supplier-form-template');
                 if (supplierFormTemplate) {
@@ -138,6 +228,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     formTemplateHtml = '<p class="text-danger">サプライヤーマスターのフォームテンプレートが見つかりません。</p>';
                 }
+                formIdPrefix = 'supplier';
             } else if (masterType === 'warehouse') {
                 const warehouseFormTemplate = document.getElementById('warehouse-form-template');
                 if (warehouseFormTemplate) {
@@ -145,6 +236,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
                 }
+                formIdPrefix = 'warehouse';
             } else if (masterType === 'inventory_purchase_entry') {
                 const purchaseEntryFormTemplate = document.getElementById('inventory-purchase-entry-form-template');
                 if (purchaseEntryFormTemplate) {
@@ -169,6 +261,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
             masterFormContainer.innerHTML = formTemplateHtml;
+
+            // フォームのaction属性をデフォルト（新規作成用）に設定
+            const newForm = masterFormContainer.querySelector('form');
+            if (newForm) newForm.setAttribute('action', getFormActionUrl(masterType, null));
+
         });
 
         dataImportModal.addEventListener('shown.bs.modal', function () {
@@ -179,6 +276,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 firstFocusableElement.focus();
             }
         });
+
+        dataImportModal.addEventListener('hide.bs.modal', function () {
+            // モーダルが閉じるときに属性を元に戻すか削除
+            dataImportModal.removeAttribute('data-bs-backdrop');
+            dataImportModal.removeAttribute('data-bs-keyboard');
+            // フォーム内のIDフィールドもクリア
+            clearHiddenIdFieldsInModal();
+        });
+    }
+
+    function clearHiddenIdFieldsInModal() {
+        const idFields = masterFormContainer.querySelectorAll('input[type="hidden"][name="id"]');
+        idFields.forEach(field => field.value = '');
+    }
+    function clearHiddenIdFields() {
+        document.getElementById('item_id')?.setAttribute('value', '');
+        document.getElementById('supplier_id')?.setAttribute('value', '');
+        document.getElementById('warehouse_id')?.setAttribute('value', '');
     }
 
     const saveMasterDataButton = document.getElementById('saveMasterDataButton');
@@ -237,6 +352,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     if (originalFormToReset) {
                         originalFormToReset.reset();
+                        clearHiddenIdFields(); // テンプレート内のIDもクリア
                     }
 
                 } else if (res.body.status === 'error' && res.body.errors) {
@@ -254,6 +370,256 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('保存中に通信エラーまたは予期しないエラーが発生しました。コンソールを確認してください。');
             });
         });
+    }
+
+    // List Modal Logic
+    const dataListModal = document.getElementById('dataListModal');
+    const dataListModalBody = document.getElementById('dataListModalBody');
+    const dataListModalLabel = document.getElementById('dataListModalLabel');
+
+    if (dataListModal && dataListModalBody && dataListModalLabel) {
+        dataListModal.addEventListener('show.bs.modal', async function (event) {
+            const button = event.relatedTarget;
+            const listUrl = button.getAttribute('data-list-url');
+            const masterName = button.getAttribute('data-master-name');
+            const masterType = button.getAttribute('data-master-type');
+
+            dataListModalLabel.textContent = masterName + ' 一覧';
+            dataListModalBody.innerHTML = '<p class="text-center">データを読み込んでいます...</p>';
+
+            try {
+                const response = await fetch(listUrl);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({})); // Try to parse error, default to empty obj
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.message || response.statusText}`);
+                }
+                const result = await response.json();
+                const data = result.data;
+
+                if (data && data.length > 0) {
+                    let tableHtml = '<div class="table-responsive"><table class="table table-striped table-hover table-sm">';
+                    tableHtml += '<thead class="table-light"><tr>';
+
+                    let headers = [];
+                    let rowKeys = []; // 表示するデータのキー
+                    let idKey = 'id'; // レコードの主キー
+
+                    if (masterType === 'item') {
+                        headers = ['コード', '品番名', '品目タイプ', '単位', '説明', '操作'];
+                        rowKeys = ['code', 'name', 'item_type', 'unit', 'description'];
+                    } else if (masterType === 'supplier') {
+                        headers = ['サプライヤー名', '担当者名', '電話番号', 'メールアドレス', '住所', '操作'];
+                        rowKeys = ['name', 'contact_person', 'phone', 'email', 'address'];
+                    } else if (masterType === 'warehouse') {
+                        headers = ['倉庫番号', '倉庫名', '所在地', '操作'];
+                        rowKeys = ['warehouse_number', 'name', 'location'];
+                        // Warehouseの主キーは'id' (UUID)
+                    }
+
+                    headers.forEach(header => tableHtml += `<th>${header}</th>`);
+                    tableHtml += '</tr></thead><tbody>';
+
+                    data.forEach(row => {
+                        tableHtml += '<tr>';
+                        rowKeys.forEach(key => {
+                            // HTMLエスケープを簡易的に行う（より堅牢なライブラリ使用を推奨する場合もある）
+                            const cellData = row[key] !== null && row[key] !== undefined ? String(row[key]) : '';
+                            const escapedCellData = cellData.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+                            tableHtml += `<td>${escapedCellData}</td>`;
+                        });
+                        // 修正ボタンを追加
+                        const recordId = row[idKey];
+                        tableHtml += `<td>
+                                        <button type="button" class="btn btn-sm btn-warning edit-master-btn me-1" 
+                                                data-record-id="${recordId}" data-master-type="${masterType}"
+                                                data-master-name="${masterName}">修正</button>
+                                        <button type="button" class="btn btn-sm btn-danger delete-master-btn"
+                                                data-record-id="${recordId}" data-master-type="${masterType}"
+                                                data-master-name="${masterName}">削除</button>
+                                      </td>`;
+                        tableHtml += '</tr>';
+                    });
+
+                    tableHtml += '</tbody></table></div>';
+                    dataListModalBody.innerHTML = tableHtml;
+                } else {
+                    dataListModalBody.innerHTML = '<p class="text-center">登録されているデータはありません。</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching list data:', error);
+                dataListModalBody.innerHTML = `<p class="text-center text-danger">データの読み込みに失敗しました。<br>${error.message}</p>`;
+            }
+        });
+
+        // オプション: モーダルが閉じられたときに内容をクリアする
+        dataListModal.addEventListener('hidden.bs.modal', function () {
+            dataListModalBody.innerHTML = '<p class="text-center">データを読み込んでいます...</p>'; // 次回表示時のため
+            // イベントリスナーのクリーンアップ（重複登録を防ぐため）
+            const oldEditButtons = dataListModalBody.querySelectorAll('.edit-master-btn');
+            oldEditButtons.forEach(btn => {
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+            });
+        });
+
+        // 一覧モーダル内の修正ボタンのイベントリスナー (イベント委譲を使用)
+        dataListModalBody.addEventListener('click', async function(event) { // Combined event listener
+            const targetButton = event.target;
+            if (targetButton.classList.contains('edit-master-btn')) {
+                const button = event.target;
+                const recordId = button.getAttribute('data-record-id');
+                const masterType = button.getAttribute('data-master-type');
+                const masterName = button.getAttribute('data-master-name');
+                
+                const detailUrl = getDetailUrl(masterType, recordId);
+                if (!detailUrl) {
+                    alert('エラー: 詳細情報のURLが取得できません。');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(detailUrl);
+                    if (!response.ok) {
+                        throw new Error(`Error fetching record details: ${response.statusText}`);
+                    }
+                    const result = await response.json();
+                    if (result.status === 'success' && result.data) {
+                        // 1. 登録用モーダルを開く準備
+                        const registrationModal = bootstrap.Modal.getInstance(dataImportModal) || new bootstrap.Modal(dataImportModal);
+                        
+                        // 登録用モーダルのタイトルなどを設定
+                        dataImportModal.querySelector('.modal-title').textContent = masterName + ' 修正';
+                        dataImportModal.querySelector('#selectedMasterTypeDisplay').textContent = masterName;
+                        
+                        // フォームテンプレートをロード
+                        const formTemplate = document.getElementById(`${masterType}-form-template`);
+                        if (formTemplate) {
+                            masterFormContainer.innerHTML = formTemplate.innerHTML;
+                            const form = masterFormContainer.querySelector('form');
+                            if (form) {
+                                // フォームに取得したデータを設定
+                                for (const key in result.data) {
+                                    const field = form.elements[key];
+                                    if (field) {
+                                        if (field.type === 'checkbox' || field.type === 'radio') {
+                                            // TODO: 必要に応じてラジオボタンやチェックボックスの処理を追加
+                                        } else {
+                                            field.value = result.data[key] === null ? '' : result.data[key];
+                                        }
+                                    }
+                                }
+                                // IDフィールドにも値を設定
+                                const idField = form.elements['id'];
+                                if (idField) idField.value = result.data.id;
+
+                                // action属性は既存の作成用URLのままでOK (ビュー側でIDの有無で判定)
+                                form.setAttribute('action', getFormActionUrl(masterType, result.data.id));
+                            }
+                        } else {
+                             masterFormContainer.innerHTML = `<p class="text-danger">${masterName}のフォームテンプレートが見つかりません。</p>`;
+                        }
+
+                        // 2. 一覧モーダルを閉じる
+                        const listModalInstance = bootstrap.Modal.getInstance(dataListModal);
+                        if (listModalInstance) listModalInstance.hide();
+                        
+                        // 3. 登録用モーダルを開く
+                        // hideイベントが完了してからshowを呼ぶために少し遅延させる
+                        setTimeout(() => {
+                             registrationModal.show();
+                        }, 150); // Bootstrapのモーダル遷移時間程度
+
+                    } else {
+                        alert('エラー: ' + (result.message || 'レコード詳細の取得に失敗しました。'));
+                    }
+                } catch (error) {
+                    console.error('Error handling edit button click:', error);
+                    alert('修正処理中にエラーが発生しました: ' + error.message);
+                }
+            } else if (targetButton.classList.contains('delete-master-btn')) {
+                const button = targetButton;
+                const recordId = button.getAttribute('data-record-id');
+                const masterType = button.getAttribute('data-master-type');
+                const masterName = button.getAttribute('data-master-name'); // For confirmation message
+
+                const deleteConfirmModalInstance = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+                document.getElementById('deleteMasterNamePlaceholder').textContent = masterName + " (ID: " + recordId + ")";
+                
+                const executeDeleteButton = document.getElementById('executeDeleteButton');
+                // Store data on the button for the execution step
+                executeDeleteButton.dataset.recordId = recordId;
+                executeDeleteButton.dataset.masterType = masterType;
+
+                deleteConfirmModalInstance.show();
+            }
+        });
+
+        const executeDeleteButton = document.getElementById('executeDeleteButton');
+        if (executeDeleteButton) {
+            executeDeleteButton.addEventListener('click', async function() {
+                const recordId = this.dataset.recordId;
+                const masterType = this.dataset.masterType;
+                const deleteUrl = getDeleteUrl(masterType, recordId);
+
+                if (!deleteUrl) {
+                    alert('エラー: 削除用URLが取得できません。');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(deleteUrl, {
+                        method: 'POST', // Using POST for CSRF handling simplicity
+                        headers: {
+                            'X-CSRFToken': getCsrfToken(), // Helper function to get CSRF token
+                            'Content-Type': 'application/json' // Or 'application/x-www-form-urlencoded' if not sending JSON body
+                        },
+                        // body: JSON.stringify({ id: recordId }) // Optional: send ID in body
+                    });
+                    const result = await response.json();
+
+                    if (response.ok && result.status === 'success') {
+                        alert(result.message || '削除しました。');
+                        bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
+                        
+                        // Remove the row from the list modal table
+                        const rowToRemove = dataListModalBody.querySelector(`button.delete-master-btn[data-record-id="${recordId}"]`)?.closest('tr');
+                        if (rowToRemove) rowToRemove.remove();
+                        // Optionally, check if table is empty and show "no data" message
+                    } else {
+                        alert('エラー: ' + (result.message || '削除に失敗しました。'));
+                    }
+                } catch (error) {
+                    console.error('Error executing delete:', error);
+                    alert('削除処理中にエラーが発生しました: ' + error.message);
+                }
+            });
+        }
+    }
+    function getDetailUrl(masterType, recordId) {
+        if (masterType === 'item') return `/master/item/${recordId}/detail/ajax/`;
+        if (masterType === 'supplier') return `/master/supplier/${recordId}/detail/ajax/`;
+        if (masterType === 'warehouse') return `/master/warehouse/${recordId}/detail/ajax/`; // UUID
+        return null;
+    }
+    function getFormActionUrl(masterType, recordId) { // recordIdは更新時はセット、新規はnull
+        // 更新時も新規作成と同じエンドポイントを使用し、ビュー側でIDの有無で処理を分ける
+        if (masterType === 'item') return "{% url 'master:item_create_ajax' %}";
+        if (masterType === 'supplier') return "{% url 'master:supplier_create_ajax' %}";
+        if (masterType === 'warehouse') return "{% url 'master:warehouse_create_ajax' %}";
+        // 他の業務データフォームも同様に
+        if (masterType === 'inventory_purchase_entry') return "{% url 'inventory_api:purchase_order_create_ajax' %}";
+        if (masterType === 'production_plan_entry') return "{% url 'production:production_plan_create_ajax' %}";
+        if (masterType === 'parts_used_entry') return "{% url 'production:parts_used_create_ajax' %}";
+        return '#'; // Fallback
+    }
+    function getDeleteUrl(masterType, recordId) {
+        if (masterType === 'item') return `/master/item/${recordId}/delete/ajax/`;
+        if (masterType === 'supplier') return `/master/supplier/${recordId}/delete/ajax/`;
+        if (masterType === 'warehouse') return `/master/warehouse/${recordId}/delete/ajax/`;
+        return null;
+    }
+    function getCsrfToken() {
+        return document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
     }
 });
 </script>
