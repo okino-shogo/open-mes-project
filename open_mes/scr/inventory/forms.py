@@ -66,6 +66,11 @@ class PurchaseOrderEntryForm(forms.ModelForm):
 
     def clean_order_number(self):
         order_number = self.cleaned_data.get('order_number')
-        if PurchaseOrder.objects.filter(order_number=order_number).exists():
+        # If updating an instance, exclude its own pk from the uniqueness check
+        if self.instance and self.instance.pk:
+            if PurchaseOrder.objects.filter(order_number=order_number).exclude(pk=self.instance.pk).exists():
+                raise forms.ValidationError("この発注番号は他のレコードで既に使用されています。")
+        # If creating a new instance
+        elif PurchaseOrder.objects.filter(order_number=order_number).exists():
             raise forms.ValidationError("この発注番号は既に使用されています。")
         return order_number

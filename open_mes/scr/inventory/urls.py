@@ -20,4 +20,7 @@ urlpatterns = [
 
     # AJAX endpoint for creating Purchase Orders from the data_import page
     path('purchase-order/create-ajax/', rest_views.PurchaseOrderCreateAjaxView.as_view(), name='purchase_order_create_ajax'),
+    path('purchase-order/list/ajax/', rest_views.PurchaseOrderListAjaxView.as_view(), name='purchase_order_list_ajax'),
+    path('purchase-order/<uuid:pk>/detail/ajax/', rest_views.PurchaseOrderDetailAjaxView.as_view(), name='purchase_order_detail_ajax'),
+    path('purchase-order/<uuid:pk>/delete/ajax/', rest_views.PurchaseOrderDeleteAjaxView.as_view(), name='purchase_order_delete_ajax'),
 ]

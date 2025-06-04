@@ -65,17 +65,55 @@
 
     <h3 class="mt-5">業務データ登録</h3>
     <p>登録したい業務データを選択してください。</p>
-
-    <div class="mb-4">
-        <button type="button" class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="inventory_purchase_entry" data-master-name="入庫予定登録">
-            入庫予定登録
-        </button>
-        <button type="button" class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="production_plan_entry" data-master-name="生産計画登録">
-            生産計画登録
-        </button>
-        <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="parts_used_entry" data-master-name="使用部品登録">
-            使用部品登録
-        </button>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">入庫予定登録</h5>
+                    <p class="card-text small">新しい入庫予定データを登録します。</p>
+                    <button type="button" class="btn btn-info w-100 mt-auto mb-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="inventory-purchase-entry" data-master-name="入庫予定">
+                        入庫予定登録
+                    </button>
+                    <a href="#" class="btn btn-outline-secondary w-100"
+                       data-bs-toggle="modal" data-bs-target="#dataListModal"
+                       data-list-url="{% url 'inventory_api:purchase_order_list_ajax' %}"
+                       data-master-name="入庫予定"
+                       data-master-type="inventory-purchase-entry">入庫予定呼び出し</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">生産計画登録</h5>
+                    <p class="card-text small">新しい生産計画データを登録します。</p>
+                    <button type="button" class="btn btn-info w-100 mt-auto mb-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="production-plan-entry" data-master-name="生産計画">
+                        生産計画登録
+                    </button>
+                    <a href="#" class="btn btn-outline-secondary w-100"
+                       data-bs-toggle="modal" data-bs-target="#dataListModal"
+                       data-list-url="{% url 'production:production_plan_list_ajax' %}"
+                       data-master-name="生産計画"
+                       data-master-type="production-plan-entry">生産計画呼び出し</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">使用部品登録</h5>
+                    <p class="card-text small">新しい使用部品データを登録します。</p>
+                    <button type="button" class="btn btn-info w-100 mt-auto mb-2" data-bs-toggle="modal" data-bs-target="#dataImportModal" data-master-type="parts-used-entry" data-master-name="使用部品">
+                        使用部品登録
+                    </button>
+                    <a href="#" class="btn btn-outline-secondary w-100"
+                       data-bs-toggle="modal" data-bs-target="#dataListModal"
+                       data-list-url="{% url 'production:parts_used_list_ajax' %}"
+                       data-master-name="使用部品"
+                       data-master-type="parts-used-entry">使用部品呼び出し</a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 非表示のフォームテンプレートエリア -->
@@ -104,18 +142,21 @@
         <div id="inventory-purchase-entry-form-template">
             <form method="post" id="inventoryPurchaseEntryForm" action="{% url 'inventory_api:purchase_order_create_ajax' %}">
                 {% csrf_token %}
+                <input type="hidden" name="id" id="inventory_purchase_entry_id">
                 {{ inventory_purchase_entry_form.as_p }}
             </form>
         </div>
         <div id="production-plan-entry-form-template">
             <form method="post" id="productionPlanEntryForm" action="{% url 'production:production_plan_create_ajax' %}">
                 {% csrf_token %}
+                <input type="hidden" name="id" id="production_plan_entry_id">
                 {{ production_plan_data_entry_form.as_p }}
             </form>
         </div>
         <div id="parts-used-entry-form-template">
             <form method="post" id="partsUsedEntryForm" action="{% url 'production:parts_used_create_ajax' %}">
                 {% csrf_token %}
+                <input type="hidden" name="id" id="parts_used_entry_id">
                 {{ parts_used_data_entry_form.as_p }}
             </form>
         </div>
@@ -197,75 +238,67 @@ document.addEventListener('DOMContentLoaded', function () {
             dataImportModal.setAttribute('data-bs-backdrop', 'static');
             dataImportModal.setAttribute('data-bs-keyboard', 'false');
             const button = event.relatedTarget; // モーダルをトリガーしたボタン
-            const masterName = button.getAttribute('data-master-name');
-            const masterType = button.getAttribute('data-master-type');
 
-            // 修正モードでない場合は、IDフィールドをクリア
-            if (!button.hasAttribute('data-record-id')) {
-                 clearHiddenIdFields();
-            }
-            const modalTitle = dataImportModal.querySelector('.modal-title');
-            const selectedMasterTypeDisplay = dataImportModal.querySelector('#selectedMasterTypeDisplay');
+            if (button) { // `button` is event.relatedTarget. Only proceed if modal was triggered by a button.
+                const masterName = button.getAttribute('data-master-name');
+                const masterType = button.getAttribute('data-master-type');
 
-            modalTitle.textContent = masterName + ' 登録';
-            selectedMasterTypeDisplay.textContent = masterName;
-            masterFormContainer.innerHTML = ''; // 既存のフォームをクリア
+                // This block is for NEW registrations.
+                // For NEW, ID fields should be clear. data-record-id won't be on the "New" button.
+                clearHiddenIdFields(); 
 
-            let formTemplateHtml = '';
-            let formIdPrefix = '';
-            if (masterType === 'item') {
-                const itemFormTemplate = document.getElementById('item-form-template');
-                if (itemFormTemplate) {
-                    formTemplateHtml = itemFormTemplate.innerHTML;
-                } else {
-                    formTemplateHtml = '<p class="text-danger">品番マスターのフォームテンプレートが見つかりません。</p>';
+                const modalTitle = dataImportModal.querySelector('.modal-title');
+                const selectedMasterTypeDisplay = dataImportModal.querySelector('#selectedMasterTypeDisplay');
+
+                modalTitle.textContent = masterName + ' 登録'; // Set title for new registration
+                selectedMasterTypeDisplay.textContent = masterName;
+                masterFormContainer.innerHTML = ''; // Clear previous form content
+
+                let formTemplateHtml = '';
+                // let formIdPrefix = ''; // formIdPrefix was not used, can be removed if not needed later
+                if (masterType === 'item') {
+                    const itemFormTemplate = document.getElementById('item-form-template');
+                    if (itemFormTemplate) formTemplateHtml = itemFormTemplate.innerHTML;
+                    else formTemplateHtml = '<p class="text-danger">品番マスターのフォームテンプレートが見つかりません。</p>';
+                    // formIdPrefix = 'item';
+                } else if (masterType === 'supplier') {
+                    const supplierFormTemplate = document.getElementById('supplier-form-template');
+                    if (supplierFormTemplate) formTemplateHtml = supplierFormTemplate.innerHTML;
+                    else formTemplateHtml = '<p class="text-danger">サプライヤーマスターのフォームテンプレートが見つかりません。</p>';
+                    // formIdPrefix = 'supplier';
+                } else if (masterType === 'warehouse') {
+                    const warehouseFormTemplate = document.getElementById('warehouse-form-template');
+                    if (warehouseFormTemplate) formTemplateHtml = warehouseFormTemplate.innerHTML;
+                    else formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
+                    // formIdPrefix = 'warehouse';
+                } else if (masterType === 'inventory-purchase-entry') { {# Corrected masterType #}
+                    const purchaseEntryFormTemplate = document.getElementById('inventory-purchase-entry-form-template');
+                    if (purchaseEntryFormTemplate) formTemplateHtml = purchaseEntryFormTemplate.innerHTML;
+                    else formTemplateHtml = '<p class="text-danger">入庫予定登録のフォームテンプレートが見つかりません。</p>';
+                } else if (masterType === 'production-plan-entry') { {# Corrected masterType #}
+                    const planFormTemplate = document.getElementById('production-plan-entry-form-template');
+                    if (planFormTemplate) formTemplateHtml = planFormTemplate.innerHTML;
+                    else formTemplateHtml = '<p class="text-danger">生産計画登録のフォームテンプレートが見つかりません。</p>';
+                } else if (masterType === 'parts-used-entry') { {# Corrected masterType #}
+                    const partsUsedFormTemplate = document.getElementById('parts-used-entry-form-template');
+                    if (partsUsedFormTemplate) formTemplateHtml = partsUsedFormTemplate.innerHTML;
+                    else formTemplateHtml = '<p class="text-danger">使用部品登録のフォームテンプレートが見つかりません。</p>';
                 }
-                formIdPrefix = 'item';
-            } else if (masterType === 'supplier') {
-                const supplierFormTemplate = document.getElementById('supplier-form-template');
-                if (supplierFormTemplate) {
-                    formTemplateHtml = supplierFormTemplate.innerHTML;
-                } else {
-                    formTemplateHtml = '<p class="text-danger">サプライヤーマスターのフォームテンプレートが見つかりません。</p>';
-                }
-                formIdPrefix = 'supplier';
-            } else if (masterType === 'warehouse') {
-                const warehouseFormTemplate = document.getElementById('warehouse-form-template');
-                if (warehouseFormTemplate) {
-                    formTemplateHtml = warehouseFormTemplate.innerHTML;
-                } else {
-                    formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
-                }
-                formIdPrefix = 'warehouse';
-            } else if (masterType === 'inventory_purchase_entry') {
-                const purchaseEntryFormTemplate = document.getElementById('inventory-purchase-entry-form-template');
-                if (purchaseEntryFormTemplate) {
-                    formTemplateHtml = purchaseEntryFormTemplate.innerHTML;
-                } else {
-                    formTemplateHtml = '<p class="text-danger">入庫予定登録のフォームテンプレートが見つかりません。</p>';
-                }
-            } else if (masterType === 'production_plan_entry') {
-                // formTemplateHtml = '<p>ここに<strong>' + masterName + '</strong>の入力フォームを実装します。</p>';
-                const planFormTemplate = document.getElementById('production-plan-entry-form-template');
-                if (planFormTemplate) {
-                    formTemplateHtml = planFormTemplate.innerHTML;
-                } else {
-                    formTemplateHtml = '<p class="text-danger">生産計画登録のフォームテンプレートが見つかりません。</p>';
-                }
-            } else if (masterType === 'parts_used_entry') {
-                const partsUsedFormTemplate = document.getElementById('parts-used-entry-form-template');
-                if (partsUsedFormTemplate) {
-                    formTemplateHtml = partsUsedFormTemplate.innerHTML;
-                } else {
-                    formTemplateHtml = '<p class="text-danger">使用部品登録のフォームテンプレートが見つかりません。</p>';
+                masterFormContainer.innerHTML = formTemplateHtml;
+
+                // Set form action for new registration and ensure hidden ID is clear
+                const newForm = masterFormContainer.querySelector('form');
+                if (newForm) {
+                    newForm.setAttribute('action', getFormActionUrl(masterType, null));
+                    const idFieldInNewForm = newForm.querySelector('input[type="hidden"][name="id"]');
+                    if (idFieldInNewForm) {
+                        idFieldInNewForm.value = '';
+                    }
                 }
             }
-            masterFormContainer.innerHTML = formTemplateHtml;
-
-            // フォームのaction属性をデフォルト（新規作成用）に設定
-            const newForm = masterFormContainer.querySelector('form');
-            if (newForm) newForm.setAttribute('action', getFormActionUrl(masterType, null));
-
+            // If 'button' (event.relatedTarget) is null, the modal was shown programmatically (e.g., for editing).
+            // In that case, the calling code (edit button handler) is responsible for setting up the modal's
+            // title, form content, populating data, and setting the action URL.
         });
 
         dataImportModal.addEventListener('shown.bs.modal', function () {
@@ -294,6 +327,9 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('item_id')?.setAttribute('value', '');
         document.getElementById('supplier_id')?.setAttribute('value', '');
         document.getElementById('warehouse_id')?.setAttribute('value', '');
+        document.getElementById('inventory_purchase_entry_id')?.setAttribute('value', '');
+        document.getElementById('production_plan_entry_id')?.setAttribute('value', '');
+        document.getElementById('parts_used_entry_id')?.setAttribute('value', '');
     }
 
     const saveMasterDataButton = document.getElementById('saveMasterDataButton');
@@ -399,7 +435,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data && data.length > 0) {
                     let tableHtml = '<div class="table-responsive"><table class="table table-striped table-hover table-sm">';
                     tableHtml += '<thead class="table-light"><tr>';
-
                     let headers = [];
                     let rowKeys = []; // 表示するデータのキー
                     let idKey = 'id'; // レコードの主キー
@@ -411,8 +446,20 @@ document.addEventListener('DOMContentLoaded', function () {
                         headers = ['サプライヤー名', '担当者名', '電話番号', 'メールアドレス', '住所', '操作'];
                         rowKeys = ['name', 'contact_person', 'phone', 'email', 'address'];
                     } else if (masterType === 'warehouse') {
-                        headers = ['倉庫番号', '倉庫名', '所在地', '操作'];
+                        headers = ['倉庫番号', '倉庫名', '所在地', '操作']; // 3 data columns + 操作
                         rowKeys = ['warehouse_number', 'name', 'location'];
+                    } else if (masterType === 'inventory-purchase-entry') {
+                        // 8 data columns + 操作 (Corrected rowKeys below)
+                        headers = ['発注番号', '便番号', '仕入れ先', '品番', '品名', '数量', '入荷予定日', 'ステータス', '操作'];
+                        // Fix: Added 'delivery_number' to match '便番号' header and reordered keys
+                        rowKeys = ['order_number', 'delivery_number', 'supplier', 'part_number', 'product_name', 'quantity', 'expected_arrival', 'status'];
+                    } else if (masterType === 'production-plan-entry') { {# Corrected masterType #}
+                        headers = ['計画名', '製品コード', '品名', '計画数量', '計画開始日時', 'ステータス', '操作']; // 6 data columns + 操作
+                        // Note: 'product_name' is used here, ensure it's available in the API response for production plans
+                        rowKeys = ['plan_name', 'product_code', 'product_name', 'planned_quantity', 'planned_start_datetime', 'status'];
+                    } else if (masterType === 'parts-used-entry') { {# Corrected masterType #}
+                        headers = ['生産計画', '部品コード', '倉庫', '使用数量', '使用日時', '操作'];
+                        rowKeys = ['production_plan', 'part_code', 'warehouse', 'quantity_used', 'used_datetime'];
                         // Warehouseの主キーは'id' (UUID)
                     }
 
@@ -522,6 +569,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         // 2. 一覧モーダルを閉じる
                         const listModalInstance = bootstrap.Modal.getInstance(dataListModal);
                         if (listModalInstance) listModalInstance.hide();
+
+                        // 閉じられるモーダル内の要素からフォーカスを外す
+                        // これにより、aria-hidden警告を回避できる可能性があります。
+                        if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                        }
                         
                         // 3. 登録用モーダルを開く
                         // hideイベントが完了してからshowを呼ぶために少し遅延させる
@@ -597,25 +650,32 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function getDetailUrl(masterType, recordId) {
         if (masterType === 'item') return `/master/item/${recordId}/detail/ajax/`;
-        if (masterType === 'supplier') return `/master/supplier/${recordId}/detail/ajax/`;
-        if (masterType === 'warehouse') return `/master/warehouse/${recordId}/detail/ajax/`; // UUID
+        if (masterType === 'supplier') return `/master/supplier/${recordId}/detail/ajax/`; // Supplier uses int PK
+        if (masterType === 'warehouse') return `/master/warehouse/${recordId}/detail/ajax/`; // Warehouse uses UUID
+        if (masterType === 'inventory-purchase-entry') return `/api/inventory/purchase-order/${recordId}/detail/ajax/`;
+        if (masterType === 'production-plan-entry') return `/production/ajax/plan/${recordId}/detail/`;
+        if (masterType === 'parts-used-entry') return `/production/ajax/parts-used/${recordId}/detail/`; {# Corrected masterType #}
         return null;
     }
     function getFormActionUrl(masterType, recordId) { // recordIdは更新時はセット、新規はnull
         // 更新時も新規作成と同じエンドポイントを使用し、ビュー側でIDの有無で処理を分ける
-        if (masterType === 'item') return "{% url 'master:item_create_ajax' %}";
+        if (masterType === 'item') return "{% url 'master:item_create_ajax' %}"; // Item uses int PK
         if (masterType === 'supplier') return "{% url 'master:supplier_create_ajax' %}";
-        if (masterType === 'warehouse') return "{% url 'master:warehouse_create_ajax' %}";
+        if (masterType === 'warehouse') return "{% url 'master:warehouse_create_ajax' %}"; // Warehouse uses UUID
         // 他の業務データフォームも同様に
-        if (masterType === 'inventory_purchase_entry') return "{% url 'inventory_api:purchase_order_create_ajax' %}";
-        if (masterType === 'production_plan_entry') return "{% url 'production:production_plan_create_ajax' %}";
-        if (masterType === 'parts_used_entry') return "{% url 'production:parts_used_create_ajax' %}";
+        if (masterType === 'inventory-purchase-entry') return "{% url 'inventory_api:purchase_order_create_ajax' %}";
+        if (masterType === 'production-plan-entry') return "{% url 'production:production_plan_create_ajax' %}";
+        if (masterType === 'parts-used-entry') return "{% url 'production:parts_used_create_ajax' %}";
         return '#'; // Fallback
     }
     function getDeleteUrl(masterType, recordId) {
         if (masterType === 'item') return `/master/item/${recordId}/delete/ajax/`;
-        if (masterType === 'supplier') return `/master/supplier/${recordId}/delete/ajax/`;
-        if (masterType === 'warehouse') return `/master/warehouse/${recordId}/delete/ajax/`;
+        if (masterType === 'supplier') return `/master/supplier/${recordId}/delete/ajax/`; // Supplier uses int PK
+        // Fix: Corrected delete URLs
+        if (masterType === 'warehouse') return `/master/warehouse/${recordId}/delete/ajax/`; // Assuming this URL exists for UUID PK
+        if (masterType === 'inventory-purchase-entry') return `/api/inventory/purchase-order/${recordId}/delete/ajax/`; // Assuming this URL exists
+        if (masterType === 'production-plan-entry') return `/production/ajax/plan/${recordId}/delete/`; {# Corrected masterType #}
+        if (masterType === 'parts_used_entry') return `/production/ajax/parts-used/${recordId}/delete/`;
         return null;
     }
     function getCsrfToken() {

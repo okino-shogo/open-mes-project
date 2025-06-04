@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination # PageNumberPagination は StandardResultsSetPagination で使用
 from .serializers import PurchaseOrderSerializer, InventorySerializer, StockMovementSerializer, AllocateInventoryForSalesOrderRequestSerializer # StockMovementSerializer をインポート
 from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # SalesOrderモデルをインポート
-from django.http import JsonResponse
+from django.http import JsonResponse # JsonResponse をインポート
 from django.db import transaction # トランザクションのためにインポート # Qオブジェクトをインポートして複雑なクエリを構築
 from django.db.models import Q, F # Fオブジェクトをインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
@@ -685,13 +685,95 @@ def get_purchase_orders_api(request):
 @method_decorator(login_required, name='dispatch')
 class PurchaseOrderCreateAjaxView(View):
     def post(self, request, *args, **kwargs):
-        form = PurchaseOrderEntryForm(request.POST)
+        instance_id = request.POST.get('id')
+        instance = None
+        message_verb = "登録" # Default for new
+
+        if instance_id:
+            try:
+                instance = PurchaseOrder.objects.get(pk=instance_id)
+                message_verb = "更新"
+            except PurchaseOrder.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=404)
+        
+        # Initialize form with instance if updating, otherwise instance is None for new
+        form = PurchaseOrderEntryForm(request.POST, instance=instance) 
+
         if form.is_valid():
             try:
                 purchase_order = form.save()
-                return JsonResponse({'status': 'success', 'message': '入庫予定を登録しました。', 'purchase_order_id': purchase_order.id})
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': f'入庫予定を{message_verb}しました。', 
+                    'purchase_order_id': purchase_order.id
+                })
             except Exception as e:
-                # Consider logging the error e
+                # Log the error e for server-side debugging
+                print(f"Error saving PurchaseOrder: {str(e)}") 
                 return JsonResponse({'status': 'error', 'message': f'保存中にエラーが発生しました: {str(e)}'}, status=500)
         else:
-            return JsonResponse({'status': 'error', 'errors': form.errors}, status=400)
+            return JsonResponse({'status': 'error', 'errors': form.errors, 'message': '入力内容にエラーがあります。'}, status=400)
+
+
+class PurchaseOrderListAjaxView(View): # No LoginRequiredMixin as it's in rest_views, adjust if needed
+    def get(self, request, *args, **kwargs):
+        # Using existing get_purchase_orders_api logic might be complex due to pagination differences.
+        # For simplicity, a direct query similar to master list views.
+        # Note: This doesn't use DRF pagination like get_purchase_orders_api.
+        # Consider if the full features of get_purchase_orders_api are needed for this modal.
+        # For now, a simpler list for the modal.
+        orders = PurchaseOrder.objects.all().order_by('-order_date')[:200] # Limit for performance
+        data = [{
+            'id': order.id,
+            'order_number': order.order_number,
+            'supplier': order.supplier,
+            'item': order.item,
+            'part_number': order.part_number,
+            'product_name': order.product_name, # Add product_name for display
+            'shipment_number': order.shipment_number or '', # Add shipment_number for display
+            'quantity': order.quantity,
+            'expected_arrival': order.expected_arrival.strftime('%Y-%m-%d %H:%M') if order.expected_arrival else '',
+            'status': order.get_status_display(),
+        } for order in orders]
+        return JsonResponse({'data': data})
+
+class PurchaseOrderDetailAjaxView(View):
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            order = PurchaseOrder.objects.get(pk=pk)
+            # Map all relevant fields from PurchaseOrderEntryForm
+            data = {
+                'id': order.id,
+                'order_number': order.order_number,
+                'supplier': order.supplier,
+                'item': order.item,
+                'part_number': order.part_number,
+                'product_name': order.product_name,
+                'quantity': order.quantity,
+                'expected_arrival': order.expected_arrival.isoformat() if order.expected_arrival else None,
+                'warehouse': order.warehouse,
+                'parent_part_number': order.parent_part_number,
+                'instruction_document': order.instruction_document,
+                'shipment_number': order.shipment_number,
+                'model_type': order.model_type,
+                'is_first_time': order.is_first_time,
+                'color_info': order.color_info,
+                'delivery_destination': order.delivery_destination,
+                'delivery_source': order.delivery_source,
+                'remarks1': order.remarks1,
+            }
+            return JsonResponse({'status': 'success', 'data': data})
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Purchase Order not found'}, status=404)
+
+class PurchaseOrderDeleteAjaxView(View):
+    def post(self, request, pk, *args, **kwargs):
+        try:
+            order = PurchaseOrder.objects.get(pk=pk)
+            order_number = order.order_number
+            order.delete()
+            return JsonResponse({'status': 'success', 'message': f'入庫予定「{order_number}」を削除しました。'})
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=404)
+        except ProtectedError: # If PurchaseOrder is protected by other models
+            return JsonResponse({'status': 'error', 'message': 'この入庫予定は他で使用されているため削除できません。'}, status=400)
