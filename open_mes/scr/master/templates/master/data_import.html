@@ -116,6 +116,53 @@
         </div>
     </div>
 
+    <h3 class="mt-5">CSVデータ一括登録</h3>
+    <p>登録したいデータの種類を選択し、CSVファイルをアップロードしてください。</p>
+
+    <div class="card mb-5">
+        <div class="card-body">
+            <form id="csvUploadForm" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label for="csvDataType" class="form-label">データ種類</label>
+                        <select id="csvDataType" name="data_type" class="form-select" required>
+                            <option value="" selected disabled>選択してください...</option>
+                            <optgroup label="マスターデータ">
+                                <option value="item" data-template-url="{% url 'master:item_csv_template' %}" data-upload-url="{% url 'master:item_import_csv' %}">品番マスター</option>
+                                <option value="supplier" data-template-url="{% url 'master:supplier_csv_template' %}" data-upload-url="{% url 'master:supplier_import_csv' %}">サプライヤーマスター</option>
+                                <option value="warehouse" data-template-url="{% url 'master:warehouse_csv_template' %}" data-upload-url="{% url 'master:warehouse_import_csv' %}">倉庫マスター</option>
+                            </optgroup>
+                            <optgroup label="業務データ">
+                                <option value="purchase_order" data-template-url="{% url 'inventory_api:purchase_order_csv_template' %}" data-upload-url="{% url 'inventory_api:purchase_order_import_csv' %}">入庫予定</option>
+                                <option value="production_plan" data-template-url="{% url 'production:production_plan_csv_template' %}" data-upload-url="{% url 'production:production_plan_import_csv' %}">生産計画</option>
+                                <option value="parts_used" data-template-url="{% url 'production:parts_used_csv_template' %}" data-upload-url="{% url 'production:parts_used_import_csv' %}">使用部品</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="csvFile" class="form-label">CSVファイル <span class="text-muted small">(ドラッグ＆ドロップまたはクリックで選択)</span></label>
+                        <!-- Hidden file input, triggered by dragDropArea click -->
+                        <input class="form-control" type="file" id="csvFile" name="csv_file" accept=".csv" style="display: none;">
+                        
+                        <!-- Drag and Drop Area -->
+                        <div id="dragDropArea" style="border: 2px dashed #ccc; padding: 20px; text-align: center; cursor: pointer; border-radius: .25rem;">
+                            ここにCSVファイルをドラッグ＆ドロップ<br>
+                            <span class="small text-muted">または、このエリアをクリックしてファイルを選択</span>
+                            <p id="fileNameDisplay" class="mt-2 mb-0 small" style="word-break: break-all;"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" id="uploadCsvButton" class="btn btn-success w-100" disabled>アップロード</button>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="#" id="csvTemplateDownloadLink" class="btn btn-link btn-sm p-0" style="display: none;" target="_blank" download>テンプレートCSVをダウンロード</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 非表示のフォームテンプレートエリア -->
     <div id="form-templates" style="display: none;">
         <div id="item-form-template">
@@ -271,15 +318,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (warehouseFormTemplate) formTemplateHtml = warehouseFormTemplate.innerHTML;
                     else formTemplateHtml = '<p class="text-danger">倉庫マスターのフォームテンプレートが見つかりません。</p>';
                     // formIdPrefix = 'warehouse';
-                } else if (masterType === 'inventory-purchase-entry') { {# Corrected masterType #}
+                } else if (masterType === 'inventory-purchase-entry') {
                     const purchaseEntryFormTemplate = document.getElementById('inventory-purchase-entry-form-template');
                     if (purchaseEntryFormTemplate) formTemplateHtml = purchaseEntryFormTemplate.innerHTML;
                     else formTemplateHtml = '<p class="text-danger">入庫予定登録のフォームテンプレートが見つかりません。</p>';
-                } else if (masterType === 'production-plan-entry') { {# Corrected masterType #}
+                } else if (masterType === 'production-plan-entry') {
                     const planFormTemplate = document.getElementById('production-plan-entry-form-template');
                     if (planFormTemplate) formTemplateHtml = planFormTemplate.innerHTML;
                     else formTemplateHtml = '<p class="text-danger">生産計画登録のフォームテンプレートが見つかりません。</p>';
-                } else if (masterType === 'parts-used-entry') { {# Corrected masterType #}
+                } else if (masterType === 'parts-used-entry') {
                     const partsUsedFormTemplate = document.getElementById('parts-used-entry-form-template');
                     if (partsUsedFormTemplate) formTemplateHtml = partsUsedFormTemplate.innerHTML;
                     else formTemplateHtml = '<p class="text-danger">使用部品登録のフォームテンプレートが見つかりません。</p>';
@@ -453,14 +500,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         headers = ['発注番号', '便番号', '仕入れ先', '品番', '品名', '数量', '入荷予定日', 'ステータス', '操作'];
                         // Fix: Added 'delivery_number' to match '便番号' header and reordered keys
                         rowKeys = ['order_number', 'delivery_number', 'supplier', 'part_number', 'product_name', 'quantity', 'expected_arrival', 'status'];
-                    } else if (masterType === 'production-plan-entry') { {# Corrected masterType #}
+                    } else if (masterType === 'production-plan-entry') {
                         headers = ['計画名', '製品コード', '品名', '計画数量', '計画開始日時', 'ステータス', '操作']; // 6 data columns + 操作
                         // Note: 'product_name' is used here, ensure it's available in the API response for production plans
                         rowKeys = ['plan_name', 'product_code', 'product_name', 'planned_quantity', 'planned_start_datetime', 'status'];
-                    } else if (masterType === 'parts-used-entry') { {# Corrected masterType #}
+                    } else if (masterType === 'parts-used-entry') {
                         headers = ['生産計画', '部品コード', '倉庫', '使用数量', '使用日時', '操作'];
                         rowKeys = ['production_plan', 'part_code', 'warehouse', 'quantity_used', 'used_datetime'];
-                        // Warehouseの主キーは'id' (UUID)
                     }
 
                     headers.forEach(header => tableHtml += `<th>${header}</th>`);
@@ -654,7 +700,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (masterType === 'warehouse') return `/master/warehouse/${recordId}/detail/ajax/`; // Warehouse uses UUID
         if (masterType === 'inventory-purchase-entry') return `/api/inventory/purchase-order/${recordId}/detail/ajax/`;
         if (masterType === 'production-plan-entry') return `/production/ajax/plan/${recordId}/detail/`;
-        if (masterType === 'parts-used-entry') return `/production/ajax/parts-used/${recordId}/detail/`; {# Corrected masterType #}
+        if (masterType === 'parts-used-entry') return `/production/ajax/parts-used/${recordId}/detail/`;
         return null;
     }
     function getFormActionUrl(masterType, recordId) { // recordIdは更新時はセット、新規はnull
@@ -674,12 +720,153 @@ document.addEventListener('DOMContentLoaded', function () {
         // Fix: Corrected delete URLs
         if (masterType === 'warehouse') return `/master/warehouse/${recordId}/delete/ajax/`; // Assuming this URL exists for UUID PK
         if (masterType === 'inventory-purchase-entry') return `/api/inventory/purchase-order/${recordId}/delete/ajax/`; // Assuming this URL exists
-        if (masterType === 'production-plan-entry') return `/production/ajax/plan/${recordId}/delete/`; {# Corrected masterType #}
+        if (masterType === 'production-plan-entry') return `/production/ajax/plan/${recordId}/delete/`;
         if (masterType === 'parts_used_entry') return `/production/ajax/parts-used/${recordId}/delete/`;
         return null;
     }
     function getCsrfToken() {
         return document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+    }
+
+    // CSV Upload Logic
+    const csvUploadForm = document.getElementById('csvUploadForm');
+    const csvDataTypeSelect = document.getElementById('csvDataType');
+    const csvFileInput = document.getElementById('csvFile');
+    const uploadCsvButton = document.getElementById('uploadCsvButton');
+    const csvTemplateDownloadLink = document.getElementById('csvTemplateDownloadLink');
+    const dragDropArea = document.getElementById('dragDropArea');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+    function updateUploadButtonState() {
+        const dataTypeSelected = csvDataTypeSelect.value !== "";
+        const fileSelected = csvFileInput.files && csvFileInput.files.length > 0;
+        const selectedOption = csvDataTypeSelect.options[csvDataTypeSelect.selectedIndex];
+        let uploadUrlValid = false;
+        if (selectedOption) {
+            const uploadUrl = selectedOption.getAttribute('data-upload-url');
+            uploadUrlValid = uploadUrl && uploadUrl !== '#';
+        }
+        uploadCsvButton.disabled = !(dataTypeSelected && fileSelected && uploadUrlValid);
+    }
+
+    function getDataTypeFromFilename(filename) {
+        if (!filename) return null;
+        const nameLower = filename.toLowerCase();
+        // e.g., "item_master_2023.csv" -> "item"
+        const parts = nameLower.split('_');
+        if (parts.length > 0) {
+            const prefix = parts[0];
+            for (let i = 0; i < csvDataTypeSelect.options.length; i++) {
+                const optionValue = csvDataTypeSelect.options[i].value;
+                if (optionValue && prefix === optionValue) {
+                    return optionValue;
+                }
+            }
+        }
+        return null;
+    }
+
+    function handleFileSelect(file) {
+        if (file && file.name.toLowerCase().endsWith('.csv')) {
+            csvFileInput.files = new FileListItems([file]); // Set the file to the hidden input
+            fileNameDisplay.textContent = '選択されたファイル: ' + file.name;
+
+            const dataType = getDataTypeFromFilename(file.name);
+            if (dataType) {
+                csvDataTypeSelect.value = dataType;
+            } else {
+                csvDataTypeSelect.value = ""; // Reset if type not found
+                alert('ファイル名からデータ種類を自動判別できませんでした。データ種類を選択してください。');
+            }
+            // Trigger change on select to update URLs and button state
+            csvDataTypeSelect.dispatchEvent(new Event('change'));
+        } else {
+            alert('CSVファイルを選択してください。');
+            csvFileInput.value = ''; // Clear the input
+            fileNameDisplay.textContent = '';
+            csvDataTypeSelect.value = "";
+            csvDataTypeSelect.dispatchEvent(new Event('change'));
+        }
+        updateUploadButtonState();
+    }
+
+    // Helper for FileList (since input.files is read-only)
+    function FileListItems (files) {
+      let b = new ClipboardEvent("").clipboardData || new DataTransfer()
+      for (let i = 0, len = files.length; i<len; i++) b.items.add(files[i])
+      return b.files
+    }
+
+    if (csvDataTypeSelect && csvFileInput && uploadCsvButton && csvTemplateDownloadLink && csvUploadForm && dragDropArea && fileNameDisplay) {
+        csvDataTypeSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            let templateUrl = null;
+            let uploadUrl = null;
+
+            if (selectedOption) {
+                templateUrl = selectedOption.getAttribute('data-template-url');
+                uploadUrl = selectedOption.getAttribute('data-upload-url');
+            }
+
+            // Template download link logic: depends only on templateUrl
+            if (this.value && templateUrl && templateUrl !== '#') { // Check this.value to ensure an option is selected
+                csvTemplateDownloadLink.href = templateUrl;
+                csvTemplateDownloadLink.style.display = 'inline';
+            } else {
+                csvTemplateDownloadLink.style.display = 'none';
+                csvTemplateDownloadLink.href = '#';
+            }
+
+            // Form action logic: depends on uploadUrl
+            if (this.value && uploadUrl && uploadUrl !== '#') { // Check this.value to ensure an option is selected
+                csvUploadForm.action = uploadUrl;
+            } else {
+                csvUploadForm.action = ''; // Clear form action
+            }
+            // Clear file info if data type is cleared (no selection)
+            if (!this.value) {
+                fileNameDisplay.textContent = '';
+                if(csvFileInput) csvFileInput.value = ''; // Clear file input
+            }
+            updateUploadButtonState();
+        });
+
+        // Trigger click on hidden file input when dragDropArea is clicked
+        dragDropArea.addEventListener('click', () => {
+            csvFileInput.click();
+        });
+
+        csvFileInput.addEventListener('change', (event) => {
+            if (event.target.files && event.target.files.length > 0) {
+                handleFileSelect(event.target.files[0]);
+            }
+        });
+
+        // Drag and Drop event listeners
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dragDropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dragDropArea.addEventListener(eventName, () => dragDropArea.style.borderColor = '#007bff', false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dragDropArea.addEventListener(eventName, () => dragDropArea.style.borderColor = '#ccc', false);
+        });
+
+        dragDropArea.addEventListener('drop', (event) => {
+            const dt = event.dataTransfer;
+            const files = dt.files;
+            if (files && files.length > 0) {
+                handleFileSelect(files[0]); // Handle the first file dropped
+            }
+        }, false);
+
+        // Initial state update
+        updateUploadButtonState();
     }
 });
 </script>

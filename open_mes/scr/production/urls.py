@@ -22,4 +22,10 @@ urlpatterns = [
     path('parts_used/', production_menu_views.PartsUsedView.as_view(), name="production_parts_used"),
     path('material_allocation/', production_menu_views.MaterialAllocationView.as_view(), name="production_material_allocation"),
     path('work_progress/', production_menu_views.WorkProgressView.as_view(), name="production_work_progress"),
+
+    # CSV Template and Import URLs
+    path('plan/csv-template/', views.ProductionPlanCSVTemplateView.as_view(), name='production_plan_csv_template'),
+    path('plan/import-csv/', views.ProductionPlanImportCSVView.as_view(), name='production_plan_import_csv'),
+    path('parts-used/csv-template/', views.PartsUsedCSVTemplateView.as_view(), name='parts_used_csv_template'),
+    path('parts-used/import-csv/', views.PartsUsedImportCSVView.as_view(), name='parts_used_import_csv'),
 ]

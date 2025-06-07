@@ -18,4 +18,13 @@ urlpatterns = [
     path('item/<int:pk>/delete/ajax/', views.ItemDeleteAjaxView.as_view(), name='item_delete_ajax'),
     path('supplier/<int:pk>/delete/ajax/', views.SupplierDeleteAjaxView.as_view(), name='supplier_delete_ajax'),
     path('warehouse/<uuid:pk>/delete/ajax/', views.WarehouseDeleteAjaxView.as_view(), name='warehouse_delete_ajax'),
+
+    # CSV Template Download URLs
+    path('item/csv-template/', views.ItemCSVTemplateView.as_view(), name='item_csv_template'),
+    path('supplier/csv-template/', views.SupplierCSVTemplateView.as_view(), name='supplier_csv_template'),
+    path('warehouse/csv-template/', views.WarehouseCSVTemplateView.as_view(), name='warehouse_csv_template'),
+    # CSV Import URLs
+    path('item/import-csv/', views.ItemImportCSVView.as_view(), name='item_import_csv'),
+    path('supplier/import-csv/', views.SupplierImportCSVView.as_view(), name='supplier_import_csv'),
+    path('warehouse/import-csv/', views.WarehouseImportCSVView.as_view(), name='warehouse_import_csv'),
 ]

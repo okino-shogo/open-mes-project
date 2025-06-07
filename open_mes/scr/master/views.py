@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.views import generic, View # type: ignore
 from django.db.models import ProtectedError
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from .forms import ItemForm, SupplierForm, WarehouseForm
 from .models import Item, Supplier, Warehouse # Import master models
 from production.forms import ProductionPlanDataEntryForm # Import the new form
@@ -199,3 +199,36 @@ class WarehouseDeleteAjaxView(LoginRequiredMixin, View):
             # WarehouseモデルにForeignKeyで直接関連しているモデルがない場合、このエラーは通常発生しにくい
             # (他のアプリで間接的に参照されている場合は別)
             return JsonResponse({'status': 'error', 'message': 'この倉庫は他で使用されているため削除できません。関連データを確認してください。'}, status=400)
+
+# --- CSV Template and Import Views (Stubs) ---
+class ItemCSVTemplateView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        # TODO: Implement actual CSV template generation
+        response = HttpResponse("品番コード,品番名,品目タイプ,単位,説明\nITEM-001,製品X,product,個,これはサンプルです", content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="item_template.csv"'
+        return response
+
+class ItemImportCSVView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        # TODO: Implement actual CSV import logic
+        return JsonResponse({'status': 'success', 'message': '品番マスターCSVがインポートされました (スタブ)。'})
+
+class SupplierCSVTemplateView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        response = HttpResponse("サプライヤー名,担当者名,電話番号,メールアドレス,住所\n株式会社サンプル,山田太郎,03-xxxx-xxxx,yamada@example.com,東京都...", content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="supplier_template.csv"'
+        return response
+
+class SupplierImportCSVView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        return JsonResponse({'status': 'success', 'message': 'サプライヤーマスターCSVがインポートされました (スタブ)。'})
+
+class WarehouseCSVTemplateView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        response = HttpResponse("倉庫番号,倉庫名,所在地\nWH-001,本社倉庫,東京都...", content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="warehouse_template.csv"'
+        return response
+
+class WarehouseImportCSVView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        return JsonResponse({'status': 'success', 'message': '倉庫マスターCSVがインポートされました (スタブ)。'})

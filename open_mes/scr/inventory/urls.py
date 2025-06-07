@@ -1,5 +1,6 @@
 from django.urls import path
 from . import rest_views # inventory/rest_views.py をインポート
+from . import views      # views.py をインポート (CSV関連ビューのため)
 
 app_name = 'inventory_api'  # このURL設定の名前空間
 
@@ -23,4 +24,8 @@ urlpatterns = [
     path('purchase-order/list/ajax/', rest_views.PurchaseOrderListAjaxView.as_view(), name='purchase_order_list_ajax'),
     path('purchase-order/<uuid:pk>/detail/ajax/', rest_views.PurchaseOrderDetailAjaxView.as_view(), name='purchase_order_detail_ajax'),
     path('purchase-order/<uuid:pk>/delete/ajax/', rest_views.PurchaseOrderDeleteAjaxView.as_view(), name='purchase_order_delete_ajax'),
+
+    # CSV Template and Import URLs for Purchase Orders
+    path('purchase-order/csv-template/', views.PurchaseOrderCSVTemplateView.as_view(), name='purchase_order_csv_template'),
+    path('purchase-order/import-csv/', views.PurchaseOrderImportCSVView.as_view(), name='purchase_order_import_csv'),
 ]
