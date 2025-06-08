@@ -3,7 +3,7 @@ REM ### Encoding and Unicode settings ###
 REM 重要: このバッチファイル自体を「Shift_JIS (SJIS)」エンコーディングで保存してください。
 REM SJIS環境で実行する場合、コンソールのコードページはデフォルト (932) のままとします。
 
-setlocal
+setlocal EnableDelayedExpansion
 REM スクリプトのあるディレクトリをカレントディレクトリにする
 pushd "%~dp0"
 REM --- Configuration ---
@@ -125,42 +125,69 @@ if not exist "%ENV_FILE%" (
     echo     一意の SECRET_KEY が自動的に生成されます。
     echo     生成されたファイル内の他の設定を確認してください。
     echo(
-
     REM --- SECRET_KEY の生成 ---
     echo     新しい SECRET_KEY を生成しています...
-    REM Python が何も出力しない場合や空文字列を出力した場合に備え、変数を初期化しておく
     set "GENERATED_SECRET_KEY="
+    REM Python の出力を直接キャプチャ
+    REM 一時ファイルを使用して Python スクリプトの出力を取得
+    echo     デバッグ: Pythonコマンドを実行してSECRET_KEYを一時ファイルに書き込みます... (コマンドは次の行に記載)
+    REM デバッグ用に実行されるコマンドの例 (実際の実行は次の行): "%VENV_DIR%\Scripts\python.exe" -c "from django.core.management.utils import get_random_secret_key; print^(get_random_secret_key^())"
+    "%VENV_DIR%\Scripts\python.exe" -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())" > "%TEMP%\secret_key_temp.txt" 2> "%TEMP%\secret_key_error.txt"
+    set "PY_ERRORLEVEL=%errorlevel%"
+    echo     デバッグ: Pythonコマンドのerrorlevel: %PY_ERRORLEVEL%
 
-    REM 一時ファイルを使用して SECRET_KEY を取得 (for /f は長い文字列や特殊文字の扱いに問題があるため)
-    set "SECRET_KEY_TEMP_FILE=%TEMP%\django_secret_key_%RANDOM%.txt"
-    REM Python で SECRET_KEY を生成し、一時ファイルに出力します。エラー出力は抑制します。
-    python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())" > "%SECRET_KEY_TEMP_FILE%" 2>NUL
-    REM 一時ファイルから SECRET_KEY を読み込みます。
-    set /p "GENERATED_SECRET_KEY=" < "%SECRET_KEY_TEMP_FILE%"
-    REM 一時ファイルが定義かつ存在する場合のみ静かに削除
-    if defined SECRET_KEY_TEMP_FILE (
-        if exist "%SECRET_KEY_TEMP_FILE%" (
-            del /Q "%SECRET_KEY_TEMP_FILE%" 2>NUL
-        )
+    if exist "%TEMP%\secret_key_temp.txt" (
+        echo     デバッグ: 一時ファイル "%TEMP%\secret_key_temp.txt" が存在します。
+        echo     デバッグ: --- BEGIN %TEMP%\secret_key_temp.txt ---
+        type "%TEMP%\secret_key_temp.txt"
+        echo     デバッグ: --- END %TEMP%\secret_key_temp.txt ---
+        set /p GENERATED_SECRET_KEY=<"%TEMP%\secret_key_temp.txt"
+        del "%TEMP%\secret_key_temp.txt"
+    ) else (
+        echo     デバッグ: [!] 一時ファイル "%TEMP%\secret_key_temp.txt" が作成されませんでした。
     )
-    
-    if "%GENERATED_SECRET_KEY%"=="" (
-        echo [!] 警告: SECRET_KEY の自動生成に失敗しました。Django がまだインストールされていないか、エラーが発生した可能性があります。
+    if exist "%TEMP%\secret_key_error.txt" (
+        echo     デバッグ: Pythonエラー出力ファイル "%TEMP%\secret_key_error.txt" の内容:
+        echo     デバッグ: --- BEGIN %TEMP%\secret_key_error.txt ---
+        type "%TEMP%\secret_key_error.txt"
+        echo     デバッグ: --- END %TEMP%\secret_key_error.txt ---
+        del "%TEMP%\secret_key_error.txt"
+    )
+
+    REM Check if GENERATED_SECRET_KEY is empty using a GOTO structure
+    REM We use !GENERATED_SECRET_KEY!X == X for the check; this uses the !-expanded value,
+    REM but for an emptiness check, it's generally okay. The main colon error is the target here.
+    if "!GENERATED_SECRET_KEY!X"=="X" GOTO :handle_empty_secret_key
+
+    REM This block executes if SECRET_KEY is NOT empty (based on the !-expanded check)
+    echo     SECRET_KEY が正常に生成されました。
+    echo     デバッグ: GENERATED_SECRET_KEY は空ではないと判断されました。 (注意: 表示/使用されるキーは ! の影響を受ける可能性があります: [!GENERATED_SECRET_KEY!])
+    GOTO :secret_key_check_done
+
+:handle_empty_secret_key
+        echo [!] 警告: SECRET_KEY の自動生成に失敗しました。
+        echo            Django がまだインストールされていないか、Python スクリプト実行中にエラーが発生した可能性があります。
         echo            プレースホルダーキーが使用されます。"%ENV_FILE%" で手動で変更する必要があります。
         set "GENERATED_SECRET_KEY=your_very_secret_and_unique_django_key_here_please_change_me_manually_!!!"
-    ) else (
-        echo     SECRET_KEY が正常に生成されました。
-    )
+
+:secret_key_check_done
+    
     echo(
 
-    (
-        echo SECRET_KEY=%GENERATED_SECRET_KEY%
-        echo DEBUG=True
-        echo ALLOWED_HOSTS=*
-        echo CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
-        echo DB_ENGINE=django.db.backends.sqlite3
-        echo DB_NAME=db.sqlite3
-    ) > "%ENV_FILE%"
+    REM Write the original, uncorrupted SECRET_KEY to the .env file
+    REM The variable GENERATED_SECRET_KEY (from set /p) holds the original key.
+    REM To write it safely, avoiding issues with ! and &()^%, we write it to a temp file first, then append.
+    (echo %GENERATED_SECRET_KEY%) > "%TEMP%\actual_secret_key.txt"
+    (echo|set /p ".=SECRET_KEY=") > "%ENV_FILE%"
+    type "%TEMP%\actual_secret_key.txt" >> "%ENV_FILE%"
+    echo.>> "%ENV_FILE%" REM Add a newline after the key
+    del "%TEMP%\actual_secret_key.txt"
+
+    echo DEBUG=True >> "%ENV_FILE%"
+    echo ALLOWED_HOSTS=* >> "%ENV_FILE%"
+    echo CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000 >> "%ENV_FILE%"
+    echo DB_ENGINE=django.db.backends.sqlite3 >> "%ENV_FILE%"
+    echo DB_NAME=db.sqlite3 >> "%ENV_FILE%"
     echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されました。
     echo(
     echo     ========================= 重要: 対応が必要です =========================
