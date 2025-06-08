@@ -113,13 +113,25 @@ echo(
 
 REM --- .env File Setup (during initial setup) ---
 echo [+] %ENV_FILE% の .env ファイルを確認しています...
+echo DEBUG: Point A - Just after echoing ENV_FILE check.
+echo DEBUG: SCR_DIR is [%SCR_DIR%]
 REM 書き込み先ディレクトリがなければ作成
 if not exist "%SCR_DIR%" (
+    echo DEBUG: Point B - SCR_DIR does not exist.
     echo [+] ディレクトリ "%SCR_DIR%" を作成しています...
     mkdir "%SCR_DIR%"
 )
+echo DEBUG: Point C - After SCR_DIR check/creation. ENV_FILE is [%ENV_FILE%]
+REM Reset errorlevel before the next IF statement as a precaution
+(call )
+echo DEBUG: Point D - Before checking if ENV_FILE exists.
 
-if not exist "%ENV_FILE%" (
+REM --- Check if .env file exists and branch accordingly ---
+if exist "%ENV_FILE%" GOTO :handle_env_file_exists
+
+REM --- .env file does NOT exist ---
+    echo DEBUG: Point E - ENV_FILE does not exist. Starting .env creation block.
+    REM This is the block for when .env does NOT exist
     echo [!] %ENV_FILE% が見つかりません。
     echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されます。
     echo     一意の SECRET_KEY が自動的に生成されます。
@@ -127,62 +139,49 @@ if not exist "%ENV_FILE%" (
     echo(
     REM --- SECRET_KEY の生成 ---
     echo     新しい SECRET_KEY を生成しています...
-    set "GENERATED_SECRET_KEY="
-    REM Python の出力を直接キャプチャ
-    REM 一時ファイルを使用して Python スクリプトの出力を取得
-    echo     デバッグ: Pythonコマンドを実行してSECRET_KEYを一時ファイルに書き込みます... (コマンドは次の行に記載)
-    REM デバッグ用に実行されるコマンドの例 (実際の実行は次の行): "%VENV_DIR%\Scripts\python.exe" -c "from django.core.management.utils import get_random_secret_key; print^(get_random_secret_key^())"
-    "%VENV_DIR%\Scripts\python.exe" -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())" > "%TEMP%\secret_key_temp.txt" 2> "%TEMP%\secret_key_error.txt"
+    set "SECRET_KEY_TEMP_LINE_FILE=%TEMP%\secret_key_line.txt"
+    set "SECRET_KEY_ERROR_FILE=%TEMP%\secret_key_error.txt"
+
+    REM Python script now prints "SECRET_KEY=value" directly to the temp file
+    "%VENV_DIR%\Scripts\python.exe" -c "from django.core.management.utils import get_random_secret_key; print(f'SECRET_KEY={get_random_secret_key()}')" > "%SECRET_KEY_TEMP_LINE_FILE%" 2> "%SECRET_KEY_ERROR_FILE%"
     set "PY_ERRORLEVEL=%errorlevel%"
     echo     デバッグ: Pythonコマンドのerrorlevel: %PY_ERRORLEVEL%
 
-    if exist "%TEMP%\secret_key_temp.txt" (
-        echo     デバッグ: 一時ファイル "%TEMP%\secret_key_temp.txt" が存在します。
-        echo     デバッグ: --- BEGIN %TEMP%\secret_key_temp.txt ---
-        type "%TEMP%\secret_key_temp.txt"
-        echo     デバッグ: --- END %TEMP%\secret_key_temp.txt ---
-        set /p GENERATED_SECRET_KEY=<"%TEMP%\secret_key_temp.txt"
-        del "%TEMP%\secret_key_temp.txt"
-    ) else (
-        echo     デバッグ: [!] 一時ファイル "%TEMP%\secret_key_temp.txt" が作成されませんでした。
-    )
-    if exist "%TEMP%\secret_key_error.txt" (
-        echo     デバッグ: Pythonエラー出力ファイル "%TEMP%\secret_key_error.txt" の内容:
-        echo     デバッグ: --- BEGIN %TEMP%\secret_key_error.txt ---
-        type "%TEMP%\secret_key_error.txt"
-        echo     デバッグ: --- END %TEMP%\secret_key_error.txt ---
-        del "%TEMP%\secret_key_error.txt"
+    if exist "%SECRET_KEY_ERROR_FILE%" (
+        echo     デバッグ: Pythonエラー出力ファイル "%SECRET_KEY_ERROR_FILE%" の内容:
+        type "%SECRET_KEY_ERROR_FILE%"
+        del "%SECRET_KEY_ERROR_FILE%"
     )
 
-    REM Check if GENERATED_SECRET_KEY is empty using a GOTO structure
-    REM We use !GENERATED_SECRET_KEY!X == X for the check; this uses the !-expanded value,
-    REM but for an emptiness check, it's generally okay. The main colon error is the target here.
-    if "!GENERATED_SECRET_KEY!X"=="X" GOTO :handle_empty_secret_key
+    set "line_not_empty="
+    if %PY_ERRORLEVEL% equ 0 (
+        if exist "%SECRET_KEY_TEMP_LINE_FILE%" (
+            REM Check if the temp file is not empty
+            for /F "usebackq" %%A in ("%SECRET_KEY_TEMP_LINE_FILE%") do set "line_not_empty=1"
+            if defined line_not_empty (
+                echo     SECRET_KEY が正常に生成されました。
+                copy /Y "%SECRET_KEY_TEMP_LINE_FILE%" "%ENV_FILE%" > nul
+                GOTO :secret_key_written_to_env
+            ) else (
+                echo     デバッグ: Pythonは成功しましたが、出力ファイル "%SECRET_KEY_TEMP_LINE_FILE%" が空です。
+            )
+        ) else (
+            echo     デバッグ: Pythonは成功しましたが、出力ファイル "%SECRET_KEY_TEMP_LINE_FILE%" が見つかりません。
+        )
+    )
 
-    REM This block executes if SECRET_KEY is NOT empty (based on the !-expanded check)
-    echo     SECRET_KEY が正常に生成されました。
-    echo     デバッグ: GENERATED_SECRET_KEY は空ではないと判断されました。 (注意: 表示/使用されるキーは ! の影響を受ける可能性があります: [!GENERATED_SECRET_KEY!])
-    GOTO :secret_key_check_done
-
-:handle_empty_secret_key
+    REM Fallthrough to here means SECRET_KEY generation failed
+:handle_secret_key_generation_failure
         echo [!] 警告: SECRET_KEY の自動生成に失敗しました。
         echo            Django がまだインストールされていないか、Python スクリプト実行中にエラーが発生した可能性があります。
         echo            プレースホルダーキーが使用されます。"%ENV_FILE%" で手動で変更する必要があります。
-        set "GENERATED_SECRET_KEY=your_very_secret_and_unique_django_key_here_please_change_me_manually_!!!"
+        (echo SECRET_KEY=your_very_secret_and_unique_django_key_here_please_change_me_manually_!!!) > "%ENV_FILE%"
 
-:secret_key_check_done
-    
+:secret_key_written_to_env
+    if exist "%SECRET_KEY_TEMP_LINE_FILE%" del "%SECRET_KEY_TEMP_LINE_FILE%"
     echo(
 
-    REM Write the original, uncorrupted SECRET_KEY to the .env file
-    REM The variable GENERATED_SECRET_KEY (from set /p) holds the original key.
-    REM To write it safely, avoiding issues with ! and &()^%, we write it to a temp file first, then append.
-    (echo %GENERATED_SECRET_KEY%) > "%TEMP%\actual_secret_key.txt"
-    (echo|set /p ".=SECRET_KEY=") > "%ENV_FILE%"
-    type "%TEMP%\actual_secret_key.txt" >> "%ENV_FILE%"
-    echo.>> "%ENV_FILE%" REM Add a newline after the key
-    del "%TEMP%\actual_secret_key.txt"
-
+    REM Append other settings to .env file
     echo DEBUG=True >> "%ENV_FILE%"
     echo ALLOWED_HOSTS=* >> "%ENV_FILE%"
     echo CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000 >> "%ENV_FILE%"
@@ -193,7 +192,7 @@ if not exist "%ENV_FILE%" (
     echo     ========================= 重要: 対応が必要です =========================
     echo     1. 新しく作成された "%ENV_FILE%" を確認してください。一意の SECRET_KEY が
     echo        自動的に生成されました。生成に失敗した場合は、手動で設定する必要があります。
-    echo     2. ALLOWED_HOSTS やデータベース設定など、他の設定を確認してください。
+    echo     2. ALLOWED_HOSTS やデータベース設定など、他の設定を確認してください。    
     echo     3. デフォルトのデータベースは SQLite です ^("%ENV_FILE%" で事前設定済み^)。
     echo        SQLite データベースファイル ^(例: デフォルトの .env に従い db.sqlite3^) は、
     echo        存在しない場合、マイグレーション中に Django によって自動的に作成されます。
@@ -201,15 +200,20 @@ if not exist "%ENV_FILE%" (
     echo        PostgreSQL サーバーの詳細を入力し、実行されていることを確認する必要があります。
     echo     ===========================================================================
     echo(
-    pause
-) else (
+    pause    
+    GOTO :after_env_file_handling
+
+:handle_env_file_exists
+    REM This is the block for when .env DOES exist
+    echo DEBUG: Point F - ENV_FILE exists.
     echo     %ENV_FILE% が見つかりました。正しく設定されていることを確認してください。
     echo     SQLite ^(デフォルト^) の場合: DB_ENGINE=django.db.backends.sqlite3, DB_NAME=db.sqlite3
     echo     そして、一意の SECRET_KEY が設定されていることを確認してください。
     echo     PostgreSQL を使用する場合は、接続詳細が正しいことを確認してください。
-)
-echo(
+    GOTO :after_env_file_handling
 
+:after_env_file_handling
+echo(
 REM --- Database Setup Reminder (during initial setup) ---
 echo =====================================
 echo  データベース設定
