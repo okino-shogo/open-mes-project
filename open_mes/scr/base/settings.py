@@ -101,16 +101,26 @@ WSGI_APPLICATION = 'base.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': env('DB_ENGINE'),
-        'NAME': env('DB_NAME'),
-        'USER': env('DB_USER'),
-        'PASSWORD': env('DB_PASSWORD'),
-        'HOST': env('DB_HOST'),
-        'PORT': env('DB_PORT')
+if env('DB_ENGINE') == 'django.db.backends.sqlite3':
+    DATABASES = {
+        'default': {
+            'ENGINE': env('DB_ENGINE'),
+            'NAME': BASE_DIR / 'db.sqlite3',  # SQLiteの場合、ファイルパスを指定
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': env.db(), # DJANGO_DATABASE_URL形式で環境変数を読み込む
+                             # または、個別に設定する場合は下記のようにします
+        # 'default': {
+        #     'ENGINE': env('DB_ENGINE'),
+        #     'NAME': env('DB_NAME'),
+        #     'USER': env('DB_USER'),
+        #     'PASSWORD': env('DB_PASSWORD'),
+        #     'HOST': env('DB_HOST'),
+        #     'PORT': env('DB_PORT')
+        # }
+    }
 
 
 # Password validation

@@ -1,225 +1,229 @@
 @echo off
-setlocal
+REM ### Encoding and Unicode settings ###
+REM 重要: このバッチファイル自体を「Shift_JIS (SJIS)」エンコーディングで保存してください。
+REM SJIS環境で実行する場合、コンソールのコードページはデフォルト (932) のままとします。
 
+setlocal
+REM スクリプトのあるディレクトリをカレントディレクトリにする
+pushd "%~dp0"
 REM --- Configuration ---
-set "PROJECT_DIR=%~dp0"
-set "VENV_DIR=%PROJECT_DIR%venv"
-set "SCR_DIR=%PROJECT_DIR%scr"
-set "IMAGE_DIR=%PROJECT_DIR%image"
-set "REQUIREMENTS_FILE=%IMAGE_DIR%requirements.txt"
-set "MANAGE_PY=%SCR_DIR%manage.py"
+REM PROJECT_DIR は pushd によりカレントディレクトリがプロジェクトルートになるため、ここでのパス定義には不要
+set "VENV_DIR=venv"
+set "SCR_DIR=open_mes\scr"
+set "IMAGE_DIR=open_mes\image"
+set "REQUIREMENTS_FILE=requirements.txt"
+set "MANAGE_PY=%SCR_DIR%\manage.py"
 set "ENV_FILE=%SCR_DIR%\.env"
 set "ENV_EXAMPLE_FILE=%SCR_DIR%\.env.example"
 set "SETUP_COMPLETE_FLAG_FILE=%VENV_DIR%\.setup_complete"
 
 REM --- Title ---
-title Open MES Project Windows Setup
+title Open MES Project Windows セットアップ
 
 echo =======================================================
-echo  Open MES Project Windows Development Environment Setup
+echo  Open MES Project Windows 開発環境セットアップ
 echo =======================================================
-echo.
+echo(
 
 REM --- Check if setup has been completed ---
 if exist "%SETUP_COMPLETE_FLAG_FILE%" (
-    echo [+] Setup has been completed previously.
-    echo [+] Proceeding to start the application...
+    echo [+] セットアップは以前に完了しています。
+    echo [+] アプリケーションの起動に進みます...
     echo.
     goto :run_application
 )
 
 REM --- Initial Setup Process ---
-echo This script will help you set up the project to run on Windows.
-echo It assumes it is run from the project root directory.
-echo.
-echo [+] Starting initial setup...
-echo.
+echo このスクリプトは、Windows でプロジェクトを実行するためのセットアップを支援します。
+echo プロジェクトのルートディレクトリから実行されることを前提としています。
+echo(
+echo [+] 初期セットアップを開始します...
+echo(
 
 REM --- Check for Python and Pip ---
-echo [+] Checking for Python and Pip...
+echo [+] Python と Pip を確認しています...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Python is not installed or not found in your system's PATH.
-    echo     Please install Python 3.11 (from https://www.python.org/)
-    echo     and ensure it's added to your PATH during installation.
-    goto :eof
+    echo [!] エラー: Python がインストールされていないか、システムの PATH に見つかりません。
+    echo     Python 3.11 ^(https://www.python.org/^ から^) をインストールしてください。
+    echo     インストール中に PATH に追加されていることを確認してください。
+    goto :eof_final
 )
 
 pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Pip is not installed. This is unusual if Python is installed correctly.
-    echo     Please ensure your Python installation includes Pip.
-    goto :eof
+    echo [!] エラー: Pip がインストールされていません。Python が正しくインストールされていれば、これは通常発生しません。
+    echo     Python のインストールに Pip が含まれていることを確認してください。
+    goto :eof_final
 )
-echo     Python and Pip found.
-echo.
+echo     Python と Pip が見つかりました。
+echo(
 
 REM --- Create and Activate Virtual Environment ---
 REM Create Virtual Environment
 if not exist "%VENV_DIR%\Scripts\activate.bat" (
-    echo [+] Creating virtual environment in "%VENV_DIR%"...
+    echo [+] 仮想環境を "%VENV_DIR%" に作成しています...
     python -m venv "%VENV_DIR%"
     if %errorlevel% neq 0 (
-        echo [!] ERROR: Failed to create virtual environment.
+        echo [!] エラー: 仮想環境の作成に失敗しました。
         goto :eof_final
     )
-    echo     Virtual environment created successfully.
+    echo     仮想環境が正常に作成されました。
 ) else (
-    echo [+] Virtual environment already exists at "%VENV_DIR%".
+    echo [+] 仮想環境は "%VENV_DIR%" に既に存在します。
 )
-echo.
-echo [+] Activating virtual environment for setup...
+echo(
+echo [+] セットアップのために仮想環境をアクティベートしています...
 call "%VENV_DIR%\Scripts\activate.bat"
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Failed to activate virtual environment.
-    goto :eof
+    echo [!] エラー: 仮想環境のアクティベートに失敗しました。
+    goto :eof_final
 )
-echo     Virtual environment activated.
-echo.
+echo     仮想環境がアクティベートされました。
+echo(
 
 REM --- Install Dependencies (during initial setup) ---
-echo [+] Installing dependencies from "%REQUIREMENTS_FILE%"...
-pip install -r "%REQUIREMENTS_FILE%"
-if %errorlevel% neq 0 (
-    echo [!] ERROR: Failed to install dependencies. Please check the error messages above.
-    echo     Note: This project is configured to use SQLite by default.
-    echo     The dependency 'psycopg2' (for PostgreSQL) is also being installed as per "%REQUIREMENTS_FILE%".
-    echo     If errors are related to 'psycopg2':
-    echo     1. Ensure PostgreSQL client libraries are installed and in your PATH.
-    echo        (This is needed even if you primarily plan to use SQLite, as 'psycopg2' is a listed dependency).
-    echo     2. You might need Microsoft Visual C++ Build Tools.
-    echo     3. For easier 'psycopg2' installation, you could consider manually editing
-    echo        "%REQUIREMENTS_FILE%" to use 'psycopg2-binary' instead of 'psycopg2',
-    echo        then re-run this script or 'pip install -r "%REQUIREMENTS_FILE%"' manually.
-    echo     A successful installation of all dependencies, including 'psycopg2', is required for initial setup.
+echo [+] 依存関係ファイル "%REQUIREMENTS_FILE%" の存在を確認しています...
+if not exist "%REQUIREMENTS_FILE%" (
+    echo [!] エラー: 依存関係ファイルが見つかりません: "%REQUIREMENTS_FILE%"
+    echo     プロジェクトの "%IMAGE_DIR%" フォルダ内に "requirements.txt" が正しい名前で存在するか確認してください。
+    echo     現在のスクリプトの場所 ^(カレントディレクトリ^): "%CD%"
     goto :deactivate_venv_after_setup_error
 )
-echo     Dependencies installed successfully. (Includes 'psycopg2' for optional PostgreSQL use)
-echo.
+echo     依存関係ファイルが見つかりました。
+echo [+] "%REQUIREMENTS_FILE%" から依存関係をインストールしています...
+python -m pip install -r "%REQUIREMENTS_FILE%"
+if %errorlevel% neq 0 (
+    echo [!] エラー: 依存関係のインストールに失敗しました。上記のエラーメッセージを確認してください。
+    echo     注意: このプロジェクトはデフォルトで SQLite を使用するように設定されています。
+    echo     %REQUIREMENTS_FILE% に従って、PostgreSQL用の依存関係 'psycopg2' もインストールされます。
+    echo     'psycopg2' に関連するエラーの場合:
+    echo     1. PostgreSQL クライアントライブラリがインストールされ、PATH に含まれていることを確認してください。
+    echo        主に SQLite を使用する予定でも、'psycopg2' が依存関係として含まれているため必要です。
+    echo     2. Microsoft Visual C++ Build Tools が必要になる場合があります。
+    echo     3. 'psycopg2' のインストールを容易にするために、手動で編集することを検討できます
+    echo        "%REQUIREMENTS_FILE%" の 'psycopg2' を 'psycopg2-binary' に変更し、
+    echo        その後、このスクリプトを再実行するか、手動で 'pip install -r "%REQUIREMENTS_FILE%"' を実行してください。
+    echo     初期セットアップには、'psycopg2' を含むすべての依存関係の正常なインストールが必要です。
+    goto :deactivate_venv_after_setup_error
+) else (
+    echo     依存関係が正常にインストールされました。^(オプションの PostgreSQL 使用のための 'psycopg2' を含みます^)
+)
+echo(
 
 REM --- .env File Setup (during initial setup) ---
-echo [+] Checking for .env file at "%ENV_FILE%"...
+echo [+] %ENV_FILE% の .env ファイルを確認しています...
+REM 書き込み先ディレクトリがなければ作成
+if not exist "%SCR_DIR%" (
+    echo [+] ディレクトリ "%SCR_DIR%" を作成しています...
+    mkdir "%SCR_DIR%"
+)
+
 if not exist "%ENV_FILE%" (
-    echo [!] "%ENV_FILE%" not found.
-    echo     A default .env file (configured for SQLite) will be created at "%ENV_FILE%".
-    echo     A unique SECRET_KEY will be automatically generated.
-    echo     Please review the other settings in the generated file.
-    echo.
+    echo [!] %ENV_FILE% が見つかりません。
+    echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されます。
+    echo     一意の SECRET_KEY が自動的に生成されます。
+    echo     生成されたファイル内の他の設定を確認してください。
+    echo(
 
-    REM --- Generate SECRET_KEY ---
-    echo     Generating a new SECRET_KEY...
-    REM Create a temporary Python script to generate the secret key
-    (
-        echo from django.core.management.utils import get_random_secret_key
-        echo print(get_random_secret_key())
-    ) > "%SCR_DIR%_generate_secret_key.py"
+    REM --- SECRET_KEY の生成 ---
+    echo     新しい SECRET_KEY を生成しています...
+    REM Python が何も出力しない場合や空文字列を出力した場合に備え、変数を初期化しておく
+    set "GENERATED_SECRET_KEY="
 
-    REM Execute the script and capture its output (ensure venv is active)
-    for /f "delims=" %%i in ('python "%SCR_DIR%_generate_secret_key.py"') do set "GENERATED_SECRET_KEY=%%i"
-
-    REM Delete the temporary script
-    if exist "%SCR_DIR%_generate_secret_key.py" del "%SCR_DIR%_generate_secret_key.py"
-
-    if not defined GENERATED_SECRET_KEY (
-        echo [!] WARNING: Failed to automatically generate SECRET_KEY. Django might not be installed yet or an error occurred.
-        echo            A placeholder key will be used. You MUST change it manually in "%ENV_FILE%".
+    REM 一時ファイルを使用して SECRET_KEY を取得 (for /f は長い文字列や特殊文字の扱いに問題があるため)
+    set "SECRET_KEY_TEMP_FILE=%TEMP%\django_secret_key_%RANDOM%.txt"
+    REM Python で SECRET_KEY を生成し、一時ファイルに出力します。エラー出力は抑制します。
+    python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())" > "%SECRET_KEY_TEMP_FILE%" 2>NUL
+    REM 一時ファイルから SECRET_KEY を読み込みます。
+    set /p "GENERATED_SECRET_KEY=" < "%SECRET_KEY_TEMP_FILE%"
+    REM 一時ファイルが定義かつ存在する場合のみ静かに削除
+    if defined SECRET_KEY_TEMP_FILE (
+        if exist "%SECRET_KEY_TEMP_FILE%" (
+            del /Q "%SECRET_KEY_TEMP_FILE%" 2>NUL
+        )
+    )
+    
+    if "%GENERATED_SECRET_KEY%"=="" (
+        echo [!] 警告: SECRET_KEY の自動生成に失敗しました。Django がまだインストールされていないか、エラーが発生した可能性があります。
+        echo            プレースホルダーキーが使用されます。"%ENV_FILE%" で手動で変更する必要があります。
         set "GENERATED_SECRET_KEY=your_very_secret_and_unique_django_key_here_please_change_me_manually_!!!"
     ) else (
-        echo     SECRET_KEY generated successfully.
+        echo     SECRET_KEY が正常に生成されました。
     )
-    echo.
+    echo(
 
     (
-        echo REM Please fill in your actual secret key and database details.
         echo SECRET_KEY=%GENERATED_SECRET_KEY%
-        echo.
         echo DEBUG=True
-        echo.
         echo ALLOWED_HOSTS=*
-        echo REM For local development, you might restrict this, e.g., ALLOWED_HOSTS=localhost,127.0.0.1
-        echo.
         echo CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
-        echo REM Add other origins if needed, e.g. CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000,https://yourdomain.com
-        echo.
-        echo REM --- Database Configuration (Default: SQLite) ---
         echo DB_ENGINE=django.db.backends.sqlite3
         echo DB_NAME=db.sqlite3
-        echo REM The SQLite database file (e.g., db.sqlite3) will typically be created in the directory
-        echo REM containing manage.py, or as configured in your Django settings (BASE_DIR).
-        echo.
-        echo REM --- Optional: PostgreSQL Configuration (if you switch from SQLite) ---
-        echo REM To use PostgreSQL, uncomment these lines and fill in your details.
-        echo REM Ensure 'psycopg2' or 'psycopg2-binary' is in your requirements.txt.
-        echo REM DB_ENGINE=django.db.backends.postgresql
-        echo REM DB_NAME=open_mes
-        echo REM DB_USER=django
-        echo REM DB_PASSWORD=django
-        echo REM DB_HOST=localhost
-        echo REM DB_PORT=5432
     ) > "%ENV_FILE%"
-    echo     Default .env file (configured for SQLite) created at "%ENV_FILE%".
-    echo.
-    echo     ========================= IMPORTANT ACTION REQUIRED =========================
-    echo     1. Review the newly created "%ENV_FILE%". A unique SECRET_KEY has been
-    echo        automatically generated. If generation failed, you MUST set it manually.
-    echo     2. Confirm other settings like ALLOWED_HOSTS and database configuration.
-    echo     3. The default database is SQLite (pre-configured in "%ENV_FILE%").
-    echo        The SQLite database file (e.g., db.sqlite3 as per default .env) will be
-    echo        created automatically by Django during migrations if it doesn't exist.
-    echo     4. If you wish to use PostgreSQL instead, you must edit "%ENV_FILE%"
-    echo        with your PostgreSQL server details and ensure it's running.
+    echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されました。
+    echo(
+    echo     ========================= 重要: 対応が必要です =========================
+    echo     1. 新しく作成された "%ENV_FILE%" を確認してください。一意の SECRET_KEY が
+    echo        自動的に生成されました。生成に失敗した場合は、手動で設定する必要があります。
+    echo     2. ALLOWED_HOSTS やデータベース設定など、他の設定を確認してください。
+    echo     3. デフォルトのデータベースは SQLite です ^("%ENV_FILE%" で事前設定済み^)。
+    echo        SQLite データベースファイル ^(例: デフォルトの .env に従い db.sqlite3^) は、
+    echo        存在しない場合、マイグレーション中に Django によって自動的に作成されます。
+    echo     4. 代わりに PostgreSQL を使用する場合は、"%ENV_FILE%" を編集し、
+    echo        PostgreSQL サーバーの詳細を入力し、実行されていることを確認する必要があります。
     echo     ===========================================================================
-    echo.
+    echo(
     pause
 ) else (
-    echo     "%ENV_FILE%" found. Please ensure it is correctly configured.
-    echo     For SQLite (default): DB_ENGINE=django.db.backends.sqlite3, DB_NAME=db.sqlite3
-    echo     And ensure it has a unique SECRET_KEY.
-    echo     If using PostgreSQL, ensure connection details are correct.
+    echo     %ENV_FILE% が見つかりました。正しく設定されていることを確認してください。
+    echo     SQLite ^(デフォルト^) の場合: DB_ENGINE=django.db.backends.sqlite3, DB_NAME=db.sqlite3
+    echo     そして、一意の SECRET_KEY が設定されていることを確認してください。
+    echo     PostgreSQL を使用する場合は、接続詳細が正しいことを確認してください。
 )
-echo.
+echo(
 
 REM --- Database Setup Reminder (during initial setup) ---
 echo =====================================
-echo  DATABASE SETUP
+echo  データベース設定
 echo =====================================
-echo This project is configured to use SQLite by default.
-echo 1. Ensure your "%ENV_FILE%" has a unique SECRET_KEY.
-echo 2. The SQLite database (e.g., 'db.sqlite3' as per default .env) will be
-echo    created automatically by Django during migrations if it doesn't exist.
-echo    Ensure DB_ENGINE is 'django.db.backends.sqlite3' and DB_NAME is set in "%ENV_FILE%".
+echo このプロジェクトはデフォルトで SQLite を使用するように設定されています。
+echo 1. "%ENV_FILE%" に一意の SECRET_KEY が設定されていることを確認してください。
+echo 2. SQLite データベース (例: デフォルトの .env に従い 'db.sqlite3') は、
+echo    存在しない場合、マイグレーション中に Django によって自動的に作成されます。
+echo    DB_ENGINE が 'django.db.backends.sqlite3' であり、DB_NAME が "%ENV_FILE%" に設定されていることを確認してください。
 echo.
-echo If you have chosen to use PostgreSQL instead (by modifying "%ENV_FILE%"):
-echo 1. Ensure PostgreSQL server is installed and running.
-echo 2. You have created the database and user with necessary permissions.
-echo 3. Your "%ENV_FILE%" is updated with the correct PostgreSQL connection details
-echo    (DB_ENGINE, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT).
+echo 代わりに PostgreSQL を使用することを選択した場合 ("%ENV_FILE%" を変更した場合):
+echo 1. PostgreSQL サーバーがインストールされ、実行されていることを確認してください。
+echo 2. 必要な権限を持つデータベースとユーザーを作成済みであることを確認してください。
+echo 3. "%ENV_FILE%" が正しい PostgreSQL 接続詳細で更新されていることを確認してください
+echo    (DB_ENGINE, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT)。
 echo.
-echo The 'psycopg2' library for PostgreSQL support is included in the dependencies
-echo and should have been installed.
+echo PostgreSQL サポート用の 'psycopg2' ライブラリは依存関係に含まれており、
+echo インストールされているはずです。
 echo.
-echo Press any key to continue once you have confirmed the database and .env file are correctly set up...
+echo データベースと .env ファイルが正しく設定されていることを確認したら、何かキーを押して続行してください...
 pause
-echo.
+echo(
 
 REM --- Run Django Migrations (during initial setup) ---
-echo [+] Running Django migrations (initial setup)...
+echo [+] Django マイグレーションを実行しています (初期セットアップ)...
 python "%MANAGE_PY%" migrate
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Failed to run migrations during initial setup.
-    echo     Please check your database settings in "%ENV_FILE%".
-    echo     - For SQLite (default): Ensure DB_ENGINE='django.db.backends.sqlite3' and DB_NAME is specified.
-    echo       The script attempts to create the SQLite file if it doesn't exist.
-    echo       Check for write permissions in the project directory if it fails.
-    echo     - For PostgreSQL: Ensure the server is running, accessible, the database/user exist,
-    echo       and credentials in "%ENV_FILE%" are correct.
+    echo [!] エラー: 初期セットアップ中のマイグレーションの実行に失敗しました。
+    echo     "%ENV_FILE%" のデータベース設定を確認してください。
+    echo     - SQLite ^(デフォルト^) の場合: DB_ENGINE='django.db.backends.sqlite3' であり、DB_NAME が指定されていることを確認してください。
+    echo       スクリプトは、SQLite ファイルが存在しない場合に作成を試みます。
+    echo       失敗した場合は、プロジェクトディレクトリの書き込み権限を確認してください。
+    echo     - PostgreSQL の場合: サーバーが実行中でアクセス可能であり、データベース/ユーザーが存在し、
+    echo       "%ENV_FILE%" の認証情報が正しいことを確認してください。
     goto :deactivate_venv_after_setup_error
 )
-echo     Initial migrations completed successfully.
-echo.
+echo     初期マイグレーションが正常に完了しました。
+echo(
 
 REM --- Create Superuser (Optional but Recommended, during initial setup) ---
-echo [+] Creating superuser 'admin' with a predefined password...
+echo [+] 事前定義されたパスワードでスーパーユーザー 'admin' を作成しています...
 
 REM Set environment variables for non-interactive superuser creation
 set "DJANGO_SUPERUSER_USERNAME=admin"
@@ -227,81 +231,83 @@ set "DJANGO_SUPERUSER_PASSWORD=admin"
 
 python "%MANAGE_PY%" createsuperuser --noinput
 if %errorlevel% neq 0 (
-    echo [!] WARNING: Failed to create superuser 'admin' automatically.
-    echo     This might happen if the user already exists or another error occurred.
-    echo     You may need to create it manually using: python manage.py createsuperuser
+    echo [!] 警告: スーパーユーザー 'admin' の自動作成に失敗しました。
+    echo     これは、ユーザーが既に存在する場合や、別のエラーが発生した場合に起こる可能性があります。
+    echo     手動で作成する必要があるかもしれません: python manage.py createsuperuser
 ) else (
-    echo     Superuser 'admin' created successfully or already exists.
+    echo     スーパーユーザー 'admin' が正常に作成されたか、既に存在します。
 )
 set "DJANGO_SUPERUSER_USERNAME="
 set "DJANGO_SUPERUSER_PASSWORD="
-echo.
+echo(
 
 REM --- Mark setup as complete ---
-echo [+] Initial setup process complete.
-echo [+] Creating setup completion flag: "%SETUP_COMPLETE_FLAG_FILE%"
+echo [+] 初期セットアッププロセスが完了しました。
+echo [+] セットアップ完了フラグを作成しています: "%SETUP_COMPLETE_FLAG_FILE%"
 echo.> "%SETUP_COMPLETE_FLAG_FILE%"
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Failed to create setup completion flag.
-    echo     The application might run the initial setup again next time.
+    echo [!] エラー: セットアップ完了フラグの作成に失敗しました。
+    echo     次回、アプリケーションが再度初期セットアップを実行する可能性があります。
     goto :deactivate_venv_after_setup_error
 )
-echo     Setup completion flag created.
-echo.
-echo [+] Proceeding to start the application...
-echo.
+echo     セットアップ完了フラグが作成されました。
+echo(
+echo [+] アプリケーションの起動に進みます...
+echo(
 REM Fall through to :run_application
 
 :run_application
 REM This label is for subsequent runs or after initial setup completes.
 
 REM --- Activate Virtual Environment (for running application) ---
-echo [+] Activating virtual environment...
+echo [+] 仮想環境をアクティベートしています...
 call "%VENV_DIR%\Scripts\activate.bat"
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Failed to activate virtual environment.
+    echo [!] エラー: 仮想環境のアクティベートに失敗しました。
     goto :eof_final
 )
-echo     Virtual environment activated.
-echo.
+echo     仮想環境がアクティベートされました。
+echo(
 
 REM --- Run Django Migrations (always run before server start) ---
-echo [+] Running Django migrations...
+echo [+] Django マイグレーションを実行しています...
 python "%MANAGE_PY%" migrate
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Failed to run migrations.
-    echo     Please check your database settings in "%ENV_FILE%".
-    echo     - For SQLite (default): Ensure DB_ENGINE='django.db.backends.sqlite3' and DB_NAME is specified.
-    echo       The script attempts to create the SQLite file if it doesn't exist.
-    echo       Check for write permissions in the project directory if it fails.
-    echo     - For PostgreSQL: Ensure the server is running, accessible, the database/user exist,
-    echo       and credentials in "%ENV_FILE%" are correct.
+    echo [!] エラー: マイグレーションの実行に失敗しました。
+    echo     "%ENV_FILE%" のデータベース設定を確認してください。
+    echo     - SQLite ^(デフォルト^) の場合: DB_ENGINE='django.db.backends.sqlite3' であり、DB_NAME が指定されていることを確認してください。
+    echo       スクリプトは、SQLite ファイルが存在しない場合に作成を試みます。
+    echo       失敗した場合は、プロジェクトディレクトリの書き込み権限を確認してください。
+    echo     - PostgreSQL の場合: サーバーが実行中でアクセス可能であり、データベース/ユーザーが存在し、
+    echo       "%ENV_FILE%" の認証情報が正しいことを確認してください。
     goto :deactivate_venv_and_exit
 )
-echo     Migrations completed successfully.
-echo.
+echo     マイグレーションが正常に完了しました。
+echo(
 
 REM --- Start Development Server ---
-echo [+] Starting Django development server...
-echo     You should be able to access the application at: http://127.0.0.1:8000
-echo     Press Ctrl+C in this window to stop the server.
-echo.
+echo [+] Django 開発サーバーを起動しています...
+echo     アプリケーションには http://127.0.0.1:8000 でアクセスできるはずです。
+echo     サーバーを停止するには、このウィンドウで Ctrl+C を押してください。
+echo(
 python "%MANAGE_PY%" runserver 0.0.0.0:8000
 
-echo Server stopped.
+echo サーバーが停止しました。
 
 :deactivate_venv_and_exit
-echo [+] Deactivating virtual environment...
+echo [+] 仮想環境を非アクティブ化しています...
 call "%VENV_DIR%\Scripts\deactivate.bat" >nul 2>&1
 goto :eof_final
 
 :deactivate_venv_after_setup_error
-echo [+] Deactivating virtual environment after setup error...
+echo [+] セットアップエラー後、仮想環境を非アクティブ化しています...
 call "%VENV_DIR%\Scripts\deactivate.bat" >nul 2>&1
 goto :eof_final
 
 :eof_final
-echo.
-echo Setup script finished.
+echo(
+echo セットアップスクリプトが終了しました。
+REM pushd で変更したカレントディレクトリを元に戻す
+popd
 pause
 endlocal
