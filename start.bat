@@ -185,8 +185,7 @@ REM --- .env file does NOT exist ---
     echo DEBUG=True >> "%ENV_FILE%"
     echo ALLOWED_HOSTS=* >> "%ENV_FILE%"
     echo CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000 >> "%ENV_FILE%"
-    echo DB_ENGINE=django.db.backends.sqlite3 >> "%ENV_FILE%"
-    echo DB_NAME=db.sqlite3 >> "%ENV_FILE%"
+    echo DATABASE_URL=sqlite:///db.sqlite3 >> "%ENV_FILE%"
     echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されました。
     echo(
     echo     ========================= 重要: 対応が必要です =========================
@@ -195,9 +194,10 @@ REM --- .env file does NOT exist ---
     echo     2. ALLOWED_HOSTS やデータベース設定など、他の設定を確認してください。    
     echo     3. デフォルトのデータベースは SQLite です ^("%ENV_FILE%" で事前設定済み^)。
     echo        SQLite データベースファイル ^(例: デフォルトの .env に従い db.sqlite3^) は、
-    echo        存在しない場合、マイグレーション中に Django によって自動的に作成されます。
-    echo     4. 代わりに PostgreSQL を使用する場合は、"%ENV_FILE%" を編集し、
-    echo        PostgreSQL サーバーの詳細を入力し、実行されていることを確認する必要があります。
+    echo        存在しない場合、マイグレーション中に Django によって自動的に作成されます ^(DATABASE_URL の設定に基づきます^)。
+    echo     4. 代わりに PostgreSQL を使用する場合は、"%ENV_FILE%" の DATABASE_URL を編集し、
+    echo        PostgreSQL サーバーの接続文字列 ^(例: postgres://USER:PASSWORD@HOST:PORT/NAME^) を入力し、
+    echo        サーバーが実行されていることを確認する必要があります。
     echo     ===========================================================================
     echo(
     pause    
@@ -207,9 +207,9 @@ REM --- .env file does NOT exist ---
     REM This is the block for when .env DOES exist
     echo DEBUG: Point F - ENV_FILE exists.
     echo     %ENV_FILE% が見つかりました。正しく設定されていることを確認してください。
-    echo     SQLite ^(デフォルト^) の場合: DB_ENGINE=django.db.backends.sqlite3, DB_NAME=db.sqlite3
+    echo     SQLite ^(デフォルト^) の場合: DATABASE_URL=sqlite:///db.sqlite3 ^(または同様の SQLite パス^)
     echo     そして、一意の SECRET_KEY が設定されていることを確認してください。
-    echo     PostgreSQL を使用する場合は、接続詳細が正しいことを確認してください。
+    echo     PostgreSQL を使用する場合は、DATABASE_URL が正しく設定されていることを確認してください。
     GOTO :after_env_file_handling
 
 :after_env_file_handling
@@ -222,13 +222,13 @@ echo このプロジェクトはデフォルトで SQLite を使用するように設定されています。
 echo 1. "%ENV_FILE%" に一意の SECRET_KEY が設定されていることを確認してください。
 echo 2. SQLite データベース (例: デフォルトの .env に従い 'db.sqlite3') は、
 echo    存在しない場合、マイグレーション中に Django によって自動的に作成されます。
-echo    DB_ENGINE が 'django.db.backends.sqlite3' であり、DB_NAME が "%ENV_FILE%" に設定されていることを確認してください。
+echo    DATABASE_URL が 'sqlite:///db.sqlite3' ^(または同様の SQLite パス^) として "%ENV_FILE%" に設定されていることを確認してください。
 echo.
 echo 代わりに PostgreSQL を使用することを選択した場合 ("%ENV_FILE%" を変更した場合):
 echo 1. PostgreSQL サーバーがインストールされ、実行されていることを確認してください。
 echo 2. 必要な権限を持つデータベースとユーザーを作成済みであることを確認してください。
-echo 3. "%ENV_FILE%" が正しい PostgreSQL 接続詳細で更新されていることを確認してください
-echo    (DB_ENGINE, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT)。
+echo 3. "%ENV_FILE%" の DATABASE_URL が正しい PostgreSQL 接続文字列で更新されていることを確認してください
+echo    ^(例: postgres://USER:PASSWORD@HOST:PORT/NAME^)。
 echo.
 echo PostgreSQL サポート用の 'psycopg2' ライブラリは依存関係に含まれており、
 echo インストールされているはずです。
@@ -243,11 +243,11 @@ python "%MANAGE_PY%" migrate
 if %errorlevel% neq 0 (
     echo [!] エラー: 初期セットアップ中のマイグレーションの実行に失敗しました。
     echo     "%ENV_FILE%" のデータベース設定を確認してください。
-    echo     - SQLite ^(デフォルト^) の場合: DB_ENGINE='django.db.backends.sqlite3' であり、DB_NAME が指定されていることを確認してください。
+    echo     - SQLite ^(デフォルト^) の場合: DATABASE_URL が 'sqlite:///db.sqlite3' ^(または同様の SQLite パス^) に設定されていることを確認してください。
     echo       スクリプトは、SQLite ファイルが存在しない場合に作成を試みます。
     echo       失敗した場合は、プロジェクトディレクトリの書き込み権限を確認してください。
     echo     - PostgreSQL の場合: サーバーが実行中でアクセス可能であり、データベース/ユーザーが存在し、
-    echo       "%ENV_FILE%" の認証情報が正しいことを確認してください。
+    echo       "%ENV_FILE%" の DATABASE_URL が正しいことを確認してください。
     goto :deactivate_venv_after_setup_error
 )
 echo     初期マイグレーションが正常に完了しました。
@@ -306,11 +306,11 @@ python "%MANAGE_PY%" migrate
 if %errorlevel% neq 0 (
     echo [!] エラー: マイグレーションの実行に失敗しました。
     echo     "%ENV_FILE%" のデータベース設定を確認してください。
-    echo     - SQLite ^(デフォルト^) の場合: DB_ENGINE='django.db.backends.sqlite3' であり、DB_NAME が指定されていることを確認してください。
+    echo     - SQLite ^(デフォルト^) の場合: DATABASE_URL が 'sqlite:///db.sqlite3' ^(または同様の SQLite パス^) に設定されていることを確認してください。
     echo       スクリプトは、SQLite ファイルが存在しない場合に作成を試みます。
     echo       失敗した場合は、プロジェクトディレクトリの書き込み権限を確認してください。
     echo     - PostgreSQL の場合: サーバーが実行中でアクセス可能であり、データベース/ユーザーが存在し、
-    echo       "%ENV_FILE%" の認証情報が正しいことを確認してください。
+    echo       "%ENV_FILE%" の DATABASE_URL が正しいことを確認してください。
     goto :deactivate_venv_and_exit
 )
 echo     マイグレーションが正常に完了しました。
