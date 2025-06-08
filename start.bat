@@ -264,10 +264,27 @@ echo ƒf[ƒ^ƒx[ƒX‚Æ .env ƒtƒ@ƒCƒ‹‚ª³‚µ‚­İ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğŠm”F‚µ‚½‚çA‰½‚©ƒL
 pause
 echo(
 
+REM --- Create Django Migration Files (during initial setup) ---
+echo [+] Django ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“ƒtƒ@ƒCƒ‹‚ğì¬/Šm”F‚µ‚Ä‚¢‚Ü‚· (‰ŠúƒZƒbƒgƒAƒbƒv)...
+pushd "%SCR_DIR%"
+python manage.py makemigrations
+set "MAKEMIGRATIONS_ERRORLEVEL=%errorlevel%"
+popd
+if %MAKEMIGRATIONS_ERRORLEVEL% neq 0 (
+    echo [!] ƒGƒ‰[: 'makemigrations' ‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½Bƒ‚ƒfƒ‹’è‹`‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
+    goto :deactivate_venv_after_setup_error
+)
+
+echo     ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“ƒtƒ@ƒCƒ‹‚Ìì¬/Šm”F‚ªŠ®—¹‚µ‚Ü‚µ‚½B
+echo(
+
 REM --- Run Django Migrations (during initial setup) ---
-echo [+] Django ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğÀs‚µ‚Ä‚¢‚Ü‚· (‰ŠúƒZƒbƒgƒAƒbƒv)...
-python "%MANAGE_PY%" migrate
-if %errorlevel% neq 0 (
+echo [+] Django ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğƒf[ƒ^ƒx[ƒX‚É“K—p‚µ‚Ä‚¢‚Ü‚· (‰ŠúƒZƒbƒgƒAƒbƒv)...
+pushd "%SCR_DIR%"
+python manage.py migrate
+set "MIGRATE_ERRORLEVEL=%errorlevel%"
+popd
+if %MIGRATE_ERRORLEVEL% neq 0 (
     echo [!] ƒGƒ‰[: ‰ŠúƒZƒbƒgƒAƒbƒv’†‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½B
     echo     "%ENV_FILE%" ‚Ìƒf[ƒ^ƒx[ƒXİ’è‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
     echo     - SQLite ^(ƒfƒtƒHƒ‹ƒg^) ‚Ìê‡: DATABASE_URL ‚ª 'sqlite:///db.sqlite3' ^(‚Ü‚½‚Í“¯—l‚Ì SQLite ƒpƒX^) ‚Éİ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
@@ -284,27 +301,36 @@ REM --- Create Superuser (Optional but Recommended, during initial setup) ---
 echo [+] –‘O’è‹`‚³‚ê‚½ƒpƒXƒ[ƒh‚ÅƒX[ƒp[ƒ†[ƒU[ 'admin' ‚ğì¬‚µ‚Ä‚¢‚Ü‚·...
 
 REM Set environment variables for non-interactive superuser creation
-set "DJANGO_SUPERUSER_USERNAME=admin"
+REM Based on the error "CommandError: You must use --custom_id with --noinput.",
+REM it's assumed that the USERNAME_FIELD in your CustomUser model is 'custom_id'.
+REM If it's different, adjust DJANGO_SUPERUSER_CUSTOM_ID accordingly.
+set "DJANGO_SUPERUSER_CUSTOM_ID=admin"
 set "DJANGO_SUPERUSER_PASSWORD=admin"
 
-python "%MANAGE_PY%" createsuperuser --noinput
-if %errorlevel% neq 0 (
+pushd "%SCR_DIR%"
+python manage.py createsuperuser --noinput
+set "CREATESUPERUSER_ERRORLEVEL=%errorlevel%"
+popd
+if %CREATESUPERUSER_ERRORLEVEL% neq 0 (
     echo [!] Œx: ƒX[ƒp[ƒ†[ƒU[ 'admin' ‚Ì©“®ì¬‚É¸”s‚µ‚Ü‚µ‚½B
-    echo     ‚±‚ê‚ÍAƒ†[ƒU[‚ªŠù‚É‘¶İ‚·‚éê‡‚âA•Ê‚ÌƒGƒ‰[‚ª”­¶‚µ‚½ê‡‚É‹N‚±‚é‰Â”\«‚ª‚ ‚è‚Ü‚·B
-    echo     è“®‚Åì¬‚·‚é•K—v‚ª‚ ‚é‚©‚à‚µ‚ê‚Ü‚¹‚ñ: python manage.py createsuperuser
+    echo     ƒGƒ‰[ƒR[ƒh: %errorlevel%. ‚±‚ê‚ÍAƒ†[ƒU[‚ªŠù‚É‘¶İ‚·‚éê‡‚âAUSERNAME_FIELD ‚Ìİ’èƒ~ƒXA
+    echo     ‚Ü‚½‚Í‚»‚Ì‘¼‚Ì Django İ’è‚Ì–â‘è‚ªŒ´ˆö‚Å‚ ‚é‰Â”\«‚ª‚ ‚è‚Ü‚·B
+    echo     (—á: ƒJƒXƒ^ƒ€ƒ†[ƒU[ƒ‚ƒfƒ‹‚Ì USERNAME_FIELD ‚ª 'custom_id' ‚Å‚Í‚È‚¢ê‡‚È‚Ç)
+    echo     è“®‚Åì¬‚·‚é•K—v‚ª‚ ‚é‚©‚à‚µ‚ê‚Ü‚¹‚ñ: python %MANAGE_PY% createsuperuser
 ) else (
     echo     ƒX[ƒp[ƒ†[ƒU[ 'admin' ‚ª³í‚Éì¬‚³‚ê‚½‚©AŠù‚É‘¶İ‚µ‚Ü‚·B
 )
-set "DJANGO_SUPERUSER_USERNAME="
+set "DJANGO_SUPERUSER_CUSTOM_ID="
 set "DJANGO_SUPERUSER_PASSWORD="
 echo(
 
 REM --- Mark setup as complete ---
 echo [+] ‰ŠúƒZƒbƒgƒAƒbƒvƒvƒƒZƒX‚ªŠ®—¹‚µ‚Ü‚µ‚½B
 echo [+] ƒZƒbƒgƒAƒbƒvŠ®—¹ƒtƒ‰ƒO‚ğì¬‚µ‚Ä‚¢‚Ü‚·: "%SETUP_COMPLETE_FLAG_FILE%"
-echo.> "%SETUP_COMPLETE_FLAG_FILE%"
+type NUL > "%SETUP_COMPLETE_FLAG_FILE%"
 if %errorlevel% neq 0 (
-    echo [!] ƒGƒ‰[: ƒZƒbƒgƒAƒbƒvŠ®—¹ƒtƒ‰ƒO‚Ìì¬‚É¸”s‚µ‚Ü‚µ‚½B
+    echo [!] ƒGƒ‰[: ƒZƒbƒgƒAƒbƒvŠ®—¹ƒtƒ‰ƒO "%SETUP_COMPLETE_FLAG_FILE%" ‚Ìì¬‚É¸”s‚µ‚Ü‚µ‚½B
+    echo     ƒGƒ‰[ƒR[ƒh: %errorlevel%. ƒfƒBƒŒƒNƒgƒŠ "%VENV_DIR%" ‚Ö‚Ì‘‚«‚İŒ ŒÀ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
     echo     Ÿ‰ñAƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ªÄ“x‰ŠúƒZƒbƒgƒAƒbƒv‚ğÀs‚·‚é‰Â”\«‚ª‚ ‚è‚Ü‚·B
     goto :deactivate_venv_after_setup_error
 )
@@ -327,10 +353,39 @@ if %errorlevel% neq 0 (
 echo     ‰¼‘zŠÂ‹«‚ªƒAƒNƒeƒBƒx[ƒg‚³‚ê‚Ü‚µ‚½B
 echo(
 
+REM --- Verify .env file before running Django commands ---
+echo [+] .env ƒtƒ@ƒCƒ‹‚Ìó‘Ô‚ğŠm”F‚µ‚Ä‚¢‚Ü‚· (%ENV_FILE%)...
+if not exist "%ENV_FILE%" (
+    echo [!] d‘åƒGƒ‰[: ŠÂ‹«ƒtƒ@ƒCƒ‹ "%ENV_FILE%" ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB
+    echo     ‚±‚Ìƒtƒ@ƒCƒ‹‚É‚Í SECRET_KEY ‚â‚»‚Ì‘¼‚Ìİ’è‚ªŠÜ‚Ü‚ê‚Ä‚¢‚é•K—v‚ª‚ ‚è‚Ü‚·B
+    echo     ‰ŠúƒZƒbƒgƒAƒbƒvŒã‚Éíœ‚³‚ê‚½‰Â”\«‚ª‚ ‚è‚Ü‚·B
+    echo     ƒZƒbƒgƒAƒbƒvƒtƒ‰ƒOƒtƒ@ƒCƒ‹ %SETUP_COMPLETE_FLAG_FILE% ‚ğíœ‚µA
+    echo     ‚±‚ÌƒXƒNƒŠƒvƒg‚ğÄÀs‚µ‚Ä‰ŠúƒZƒbƒgƒAƒbƒv‚ğÄ“xs‚Á‚Ä‚­‚¾‚³‚¢B
+    pause
+    goto :deactivate_venv_and_exit
+)
+findstr /B /L /C:"SECRET_KEY=" "%ENV_FILE%" >nul
+if errorlevel 1 (
+    echo [!] d‘åƒGƒ‰[: "SECRET_KEY=" ‚ª "%ENV_FILE%" ‚ÉŒ©‚Â‚©‚è‚Ü‚¹‚ñB
+    echo     .env ƒtƒ@ƒCƒ‹‚Í‘¶İ‚µ‚Ü‚·‚ªASECRET_KEY ‚ªİ’è‚³‚ê‚Ä‚¢‚È‚¢‚æ‚¤‚Å‚·B
+    echo     "%ENV_FILE%" ‚Ì“à—e:
+    type "%ENV_FILE%"
+    echo     ‚±‚Ìƒtƒ@ƒCƒ‹‚É SECRET_KEY ‚ª³‚µ‚­İ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
+    echo     ‚Ü‚½‚ÍAƒZƒbƒgƒAƒbƒvƒtƒ‰ƒOƒtƒ@ƒCƒ‹ %SETUP_COMPLETE_FLAG_FILE% ‚ğíœ‚µA
+    echo     ‚±‚ÌƒXƒNƒŠƒvƒg‚ğÄÀs‚µ‚Ä‰ŠúƒZƒbƒgƒAƒbƒv‚ğÄ“xs‚Á‚Ä‚­‚¾‚³‚¢B
+    pause
+    goto :deactivate_venv_and_exit
+)
+echo     .env ƒtƒ@ƒCƒ‹‚Í‘¶İ‚µASECRET_KEY ƒGƒ“ƒgƒŠ‚ªŠÜ‚Ü‚ê‚Ä‚¢‚é‚æ‚¤‚Å‚·B
+echo(
+
 REM --- Run Django Migrations (always run before server start) ---
 echo [+] Django ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğÀs‚µ‚Ä‚¢‚Ü‚·...
-python "%MANAGE_PY%" migrate
-if %errorlevel% neq 0 (
+pushd "%SCR_DIR%"
+python manage.py migrate
+set "MIGRATE_RUN_ERRORLEVEL=%errorlevel%"
+popd
+if %MIGRATE_RUN_ERRORLEVEL% neq 0 (
     echo [!] ƒGƒ‰[: ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½B
     echo     "%ENV_FILE%" ‚Ìƒf[ƒ^ƒx[ƒXİ’è‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
     echo     - SQLite ^(ƒfƒtƒHƒ‹ƒg^) ‚Ìê‡: DATABASE_URL ‚ª 'sqlite:///db.sqlite3' ^(‚Ü‚½‚Í“¯—l‚Ì SQLite ƒpƒX^) ‚Éİ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
@@ -348,8 +403,10 @@ echo [+] Django ŠJ”­ƒT[ƒo[‚ğ‹N“®‚µ‚Ä‚¢‚Ü‚·...
 echo     ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚É‚Í http://127.0.0.1:8000 ‚ÅƒAƒNƒZƒX‚Å‚«‚é‚Í‚¸‚Å‚·B
 echo     ƒT[ƒo[‚ğ’â~‚·‚é‚É‚ÍA‚±‚ÌƒEƒBƒ“ƒhƒE‚Å Ctrl+C ‚ğ‰Ÿ‚µ‚Ä‚­‚¾‚³‚¢B
 echo(
-python "%MANAGE_PY%" runserver 0.0.0.0:8000
-
+pushd "%SCR_DIR%"
+python manage.py runserver 0.0.0.0:8000
+REM popd will execute after server stops
+popd
 echo ƒT[ƒo[‚ª’â~‚µ‚Ü‚µ‚½B
 
 :deactivate_venv_and_exit
