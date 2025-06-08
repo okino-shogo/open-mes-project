@@ -8,3 +8,4 @@ migrations/
 /venv/
 /script/data/
 *.ini
+*sqlite3

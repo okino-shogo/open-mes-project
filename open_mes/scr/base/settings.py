@@ -21,7 +21,10 @@ VERSION = '0.0.0'
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
-env.read_env('.env')
+# .env ファイルのパスを BASE_DIR (open_mes/scr/) から正しく指定します。
+# これにより、manage.py がどのディレクトリから実行されても .env ファイルを確実に見つけられます。
+dotenv_path = BASE_DIR / '.env'
+env.read_env(str(dotenv_path))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/

@@ -156,31 +156,46 @@ REM --- .env file does NOT exist ---
     set "line_not_empty="
     if %PY_ERRORLEVEL% equ 0 (
         if exist "%SECRET_KEY_TEMP_LINE_FILE%" (
-            REM Check if the temp file is not empty
-            for /F "usebackq" %%A in ("%SECRET_KEY_TEMP_LINE_FILE%") do set "line_not_empty=1"
+            REM Read the entire line from the temp file
+            for /F "usebackq tokens=*" %%A in ("%SECRET_KEY_TEMP_LINE_FILE%") do set "line_not_empty=%%A"
+            
             if defined line_not_empty (
-                echo     SECRET_KEY が正常に生成されました。
-                copy /Y "%SECRET_KEY_TEMP_LINE_FILE%" "%ENV_FILE%" > nul
-                GOTO :secret_key_written_to_env
+                echo     SECRET_KEY が正常に生成されました: "!line_not_empty!"
+                REM Write the SECRET_KEY to .env file (overwrite)
+                (echo !line_not_empty!) > "%ENV_FILE%"
+                if %errorlevel% neq 0 (
+                    echo [!] エラー: SECRET_KEY を "%ENV_FILE%" に書き込めませんでした。
+                    goto :handle_secret_key_generation_failure_critical
+                )
+                REM SECRET_KEY has been written, proceed to append other settings
+                goto :append_other_env_settings
             ) else (
                 echo     デバッグ: Pythonは成功しましたが、出力ファイル "%SECRET_KEY_TEMP_LINE_FILE%" が空です。
+                goto :handle_secret_key_generation_failure
             )
         ) else (
             echo     デバッグ: Pythonは成功しましたが、出力ファイル "%SECRET_KEY_TEMP_LINE_FILE%" が見つかりません。
+            goto :handle_secret_key_generation_failure
         )
-    )
+    ) else {
+        echo     デバッグ: Pythonコマンドが失敗しました (errorlevel: %PY_ERRORLEVEL%)。
+        goto :handle_secret_key_generation_failure
+    }
 
-    REM Fallthrough to here means SECRET_KEY generation failed
 :handle_secret_key_generation_failure
-        echo [!] 警告: SECRET_KEY の自動生成に失敗しました。
-        echo            Django がまだインストールされていないか、Python スクリプト実行中にエラーが発生した可能性があります。
-        echo            プレースホルダーキーが使用されます。"%ENV_FILE%" で手動で変更する必要があります。
-        (echo SECRET_KEY=your_very_secret_and_unique_django_key_here_please_change_me_manually_!!!) > "%ENV_FILE%"
+    echo [!] 警告: SECRET_KEY の自動生成に失敗しました。
+    echo            プレースホルダーキーが使用されます。"%ENV_FILE%" で手動で変更する必要があります。
+    (echo SECRET_KEY=your_very_secret_and_unique_django_key_here_please_change_me_manually_!!!) > "%ENV_FILE%"
+    if %errorlevel% neq 0 (
+        echo [!] エラー: プレースホルダー SECRET_KEY を "%ENV_FILE%" に書き込めませんでした。
+        goto :handle_secret_key_generation_failure_critical
+    )
+    REM Placeholder SECRET_KEY has been written, proceed to append other settings
+    goto :append_other_env_settings
 
-:secret_key_written_to_env
+:append_other_env_settings
     if exist "%SECRET_KEY_TEMP_LINE_FILE%" del "%SECRET_KEY_TEMP_LINE_FILE%"
     echo(
-
     REM Append other settings to .env file
     echo DEBUG=True >> "%ENV_FILE%"
     echo ALLOWED_HOSTS=* >> "%ENV_FILE%"
@@ -188,6 +203,18 @@ REM --- .env file does NOT exist ---
     echo DATABASE_URL=sqlite:///db.sqlite3 >> "%ENV_FILE%"
     echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されました。
     echo(
+    echo     デバッグ: .env ファイルの最終内容:
+    type "%ENV_FILE%"
+    echo(
+    goto :env_file_creation_done
+
+:handle_secret_key_generation_failure_critical
+    echo [!] 重大エラー: .env ファイルに SECRET_KEY を書き込めませんでした。
+    echo     スクリプトを続行できません。ディレクトリの書き込み権限などを確認してください。
+    pause
+    goto :deactivate_venv_after_setup_error
+
+:env_file_creation_done
     echo     ========================= 重要: 対応が必要です =========================
     echo     1. 新しく作成された "%ENV_FILE%" を確認してください。一意の SECRET_KEY が
     echo        自動的に生成されました。生成に失敗した場合は、手動で設定する必要があります。
