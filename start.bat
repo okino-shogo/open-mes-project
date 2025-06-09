@@ -5,18 +5,19 @@ REM SJISŠÂ‹«‚ÅÀs‚·‚éê‡AƒRƒ“ƒ\[ƒ‹‚ÌƒR[ƒhƒy[ƒW‚ÍƒfƒtƒHƒ‹ƒg (932) ‚Ì‚Ü‚Ü‚Æ‚
 
 setlocal EnableDelayedExpansion
 REM ƒXƒNƒŠƒvƒg‚Ì‚ ‚éƒfƒBƒŒƒNƒgƒŠ‚ğƒJƒŒƒ“ƒgƒfƒBƒŒƒNƒgƒŠ‚É‚·‚é
-pushd "%~dp0"
+set "SCRIPT_DIR=%~dp0"
+pushd "%SCRIPT_DIR%"
+
 REM --- Configuration ---
-REM PROJECT_DIR ‚Í pushd ‚É‚æ‚èƒJƒŒƒ“ƒgƒfƒBƒŒƒNƒgƒŠ‚ªƒvƒƒWƒFƒNƒgƒ‹[ƒg‚É‚È‚é‚½‚ßA‚±‚±‚Å‚ÌƒpƒX’è‹`‚É‚Í•s—v
-set "VENV_DIR=venv"
-set "SCR_DIR=open_mes\scr"
-set "IMAGE_DIR=open_mes\image"
-set "REQUIREMENTS_FILE=requirements.txt"
+REM •Ï”‚ğƒXƒNƒŠƒvƒgƒfƒBƒŒƒNƒgƒŠ‚©‚ç‚Ìâ‘ÎƒpƒX‚Å’è‹`‚·‚é‚±‚Æ‚ÅAƒJƒŒƒ“ƒgƒfƒBƒŒƒNƒgƒŠ‚Ìó‘Ô‚Ö‚ÌˆË‘¶‚ğŒ¸‚ç‚µ‚Ü‚·B
+set "VENV_DIR=%SCRIPT_DIR%venv"
+set "SCR_DIR=%SCRIPT_DIR%open_mes\scr"
+set "IMAGE_DIR=%SCRIPT_DIR%open_mes\image"
+set "REQUIREMENTS_FILE=%SCRIPT_DIR%requirements.txt"
 set "MANAGE_PY=%SCR_DIR%\manage.py"
 set "ENV_FILE=%SCR_DIR%\.env"
 set "ENV_EXAMPLE_FILE=%SCR_DIR%\.env.example"
 set "SETUP_COMPLETE_FLAG_FILE=%VENV_DIR%\.setup_complete"
-
 REM --- Title ---
 title Open MES Project Windows ƒZƒbƒgƒAƒbƒv
 
@@ -197,10 +198,10 @@ REM --- .env file does NOT exist ---
     if exist "%SECRET_KEY_TEMP_LINE_FILE%" del "%SECRET_KEY_TEMP_LINE_FILE%"
     echo(
     REM Append other settings to .env file
-    echo DEBUG=True >> "%ENV_FILE%"
-    echo ALLOWED_HOSTS=* >> "%ENV_FILE%"
-    echo CSRF_TRUSTED_ORIGINS=* >> "%ENV_FILE%"
-    echo DATABASE_URL=sqlite:///db.sqlite3 >> "%ENV_FILE%"
+    echo DEBUG=True>> "%ENV_FILE%"
+    echo ALLOWED_HOSTS=*>> "%ENV_FILE%"
+    echo CSRF_TRUSTED_ORIGINS=*>> "%ENV_FILE%"
+    echo DATABASE_URL=sqlite:///db.sqlite3>> "%ENV_FILE%"
     echo     ƒfƒtƒHƒ‹ƒg‚Ì .env ƒtƒ@ƒCƒ‹ ^(SQLite —p‚Éİ’èÏ‚İ^) ‚ª "%ENV_FILE%" ‚Éì¬‚³‚ê‚Ü‚µ‚½B
     echo(
     echo     ƒfƒoƒbƒO: .env ƒtƒ@ƒCƒ‹‚ÌÅI“à—e:
@@ -264,18 +265,79 @@ echo ƒf[ƒ^ƒx[ƒX‚Æ .env ƒtƒ@ƒCƒ‹‚ª³‚µ‚­İ’è‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğŠm”F‚µ‚½‚çA‰½‚©ƒL
 pause
 echo(
 
-REM --- Create Django Migration Files (during initial setup) ---
-echo [+] Django ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“ƒtƒ@ƒCƒ‹‚ğì¬/Šm”F‚µ‚Ä‚¢‚Ü‚· (‰ŠúƒZƒbƒgƒAƒbƒv)...
+REM --- Create Django Migration Files for specific apps (during initial setup) ---
+echo [+] w’è‚³‚ê‚½ƒAƒvƒŠ‚Ì Django ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“ƒtƒ@ƒCƒ‹‚ğì¬/Šm”F‚µ‚Ä‚¢‚Ü‚· (‰ŠúƒZƒbƒgƒAƒbƒv)...
 pushd "%SCR_DIR%"
-python manage.py makemigrations
-set "MAKEMIGRATIONS_ERRORLEVEL=%errorlevel%"
-popd
-if %MAKEMIGRATIONS_ERRORLEVEL% neq 0 (
-    echo [!] ƒGƒ‰[: 'makemigrations' ‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½Bƒ‚ƒfƒ‹’è‹`‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
-    goto :deactivate_venv_after_setup_error
+
+set "MAKEMIGRATIONS_COMMAND_FAILED=0"
+set "FAILED_APP_NAME="
+
+echo   [^>] inventory ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğì¬/Šm”F’†...
+python manage.py makemigrations inventory
+if %errorlevel% neq 0 (
+    echo   [!] ƒGƒ‰[: 'makemigrations inventory' ‚É¸”s‚µ‚Ü‚µ‚½B
+    set "MAKEMIGRATIONS_COMMAND_FAILED=1"
+    set "FAILED_APP_NAME=inventory"
+    goto :handle_specific_makemigration_failure_initial_setup
 )
 
-echo     ƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“ƒtƒ@ƒCƒ‹‚Ìì¬/Šm”F‚ªŠ®—¹‚µ‚Ü‚µ‚½B
+echo   [^>] machine ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğì¬/Šm”F’†...
+python manage.py makemigrations machine
+if %errorlevel% neq 0 (
+    echo   [!] ƒGƒ‰[: 'makemigrations machine' ‚É¸”s‚µ‚Ü‚µ‚½B
+    set "MAKEMIGRATIONS_COMMAND_FAILED=1"
+    set "FAILED_APP_NAME=machine"
+    goto :handle_specific_makemigration_failure_initial_setup
+)
+
+echo   [^>] master ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğì¬/Šm”F’†...
+python manage.py makemigrations master
+if %errorlevel% neq 0 (
+    echo   [!] ƒGƒ‰[: 'makemigrations master' ‚É¸”s‚µ‚Ü‚µ‚½B
+    set "MAKEMIGRATIONS_COMMAND_FAILED=1"
+    set "FAILED_APP_NAME=master"
+    goto :handle_specific_makemigration_failure_initial_setup
+)
+
+echo   [^>] production ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğì¬/Šm”F’†...
+python manage.py makemigrations production
+if %errorlevel% neq 0 (
+    echo   [!] ƒGƒ‰[: 'makemigrations production' ‚É¸”s‚µ‚Ü‚µ‚½B
+    set "MAKEMIGRATIONS_COMMAND_FAILED=1"
+    set "FAILED_APP_NAME=production"
+    goto :handle_specific_makemigration_failure_initial_setup
+)
+
+echo   [^>] quality ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğì¬/Šm”F’†...
+python manage.py makemigrations quality
+if %errorlevel% neq 0 (
+    echo   [!] ƒGƒ‰[: 'makemigrations quality' ‚É¸”s‚µ‚Ü‚µ‚½B
+    set "MAKEMIGRATIONS_COMMAND_FAILED=1"
+    set "FAILED_APP_NAME=quality"
+    goto :handle_specific_makemigration_failure_initial_setup
+)
+
+echo   [^>] users ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“‚ğì¬/Šm”F’†...
+python manage.py makemigrations users
+if %errorlevel% neq 0 (
+    echo   [!] ƒGƒ‰[: 'makemigrations users' ‚É¸”s‚µ‚Ü‚µ‚½B
+    set "MAKEMIGRATIONS_COMMAND_FAILED=1"
+    set "FAILED_APP_NAME=users"
+    goto :handle_specific_makemigration_failure_initial_setup
+)
+
+:handle_specific_makemigration_failure_initial_setup
+popd
+if %MAKEMIGRATIONS_COMMAND_FAILED% neq 0 (
+    if defined FAILED_APP_NAME (
+        echo [!] ƒGƒ‰[: ƒAƒvƒŠ '%FAILED_APP_NAME%' ‚Ì 'makemigrations' ƒRƒ}ƒ“ƒh‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½B
+    ) else (
+        echo [!] ƒGƒ‰[: 1‚ÂˆÈã‚Ì 'makemigrations' ƒRƒ}ƒ“ƒh‚ÌÀs‚É¸”s‚µ‚Ü‚µ‚½B
+    )
+    echo     ƒ‚ƒfƒ‹’è‹`‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢B
+    goto :deactivate_venv_after_setup_error
+)
+echo     w’è‚³‚ê‚½ƒAƒvƒŠ‚Ìƒ}ƒCƒOƒŒ[ƒVƒ‡ƒ“ƒtƒ@ƒCƒ‹‚Ìì¬/Šm”F‚ªŠ®—¹‚µ‚Ü‚µ‚½B
 echo(
 
 REM --- Run Django Migrations (during initial setup) ---
