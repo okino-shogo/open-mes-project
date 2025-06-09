@@ -141,11 +141,7 @@ DEBUG=True
 ALLOWED_HOSTS=*
 CSRF_TRUSTED_ORIGINS=*
 
-DB_ENGINE=django.db.backends.postgresql
-DB_NAME=open_mes
-DB_USER=django
-DB_PASSWORD=django
-DB_HOST=postgres
-DB_PORT=5432
+DATABASE_URL=postgres://django:django@postgres:5432/open_mes
+
 
 ```
