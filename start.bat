@@ -199,7 +199,7 @@ REM --- .env file does NOT exist ---
     REM Append other settings to .env file
     echo DEBUG=True >> "%ENV_FILE%"
     echo ALLOWED_HOSTS=* >> "%ENV_FILE%"
-    echo CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000 >> "%ENV_FILE%"
+    echo CSRF_TRUSTED_ORIGINS=* >> "%ENV_FILE%"
     echo DATABASE_URL=sqlite:///db.sqlite3 >> "%ENV_FILE%"
     echo     デフォルトの .env ファイル ^(SQLite 用に設定済み^) が "%ENV_FILE%" に作成されました。
     echo(
