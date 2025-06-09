@@ -154,8 +154,8 @@ def process_purchase_receipt_api(request):
     purchase_order_id = request.data.get('purchase_order_id')
     order_number = request.data.get('order_number')
     received_quantity = request.data.get('received_quantity')
-    requested_warehouse = request.data.get('warehouse') # 新しくリクエストから倉庫情報も取得
-    location = request.data.get('location') # 場所情報
+    requested_warehouse = request.data.get('warehouse')
+    location_str = request.data.get('location', '') # Normalize None to empty string
 
     if (not purchase_order_id and not order_number) or received_quantity is None:
         return Response(
@@ -244,15 +244,16 @@ def process_purchase_receipt_api(request):
             inventory_item, created = Inventory.objects.get_or_create(
                 part_number=purchase_order.part_number, # PurchaseOrder の part_number を使用
                 warehouse=target_warehouse, # 実際に入庫する倉庫を使用
-                defaults={'quantity': 0, 'location': location} # 新規作成時のデフォルト値を設定 (quantity:0 はモデル定義にもあるが明示)
-            ) # location はリクエストから取得
+                location=location_str,      # Use normalized location as part of the key
+                defaults={'quantity': 0}    # Location is now part of the query criteria
+            )
             inventory_item.quantity += actual_received_quantity
  
             # 既存レコードの場合で、かつリクエストに location が指定されていれば更新
             # また、もしget_or_createで取得したInventoryのwarehouseがtarget_warehouseと異なる場合(通常はありえないが)、更新する
             inventory_item.warehouse = target_warehouse # 念のため、取得/作成された在庫の倉庫をターゲットに合わせる
-            if not created and location is not None:
-                inventory_item.location = location
+            # Location is part of the key, so it's already correct for the fetched/created item.
+            # If location_str was different from item's original location, a new record would be made or a different one fetched.
             inventory_item.save()
 
             # 5. StockMovement レコードを作成 (入庫履歴)
@@ -261,7 +262,7 @@ def process_purchase_receipt_api(request):
                 warehouse=target_warehouse, # 実際に入庫した倉庫
                 movement_type='incoming',
                 quantity=actual_received_quantity,
-                description=f"PO {purchase_order.order_number} による入庫 (倉庫: {target_warehouse}" + (f", 場所: {location})" if location else ")"),
+                description=f"PO {purchase_order.order_number} による入庫 (倉庫: {target_warehouse}" + (f", 場所: {location_str})" if location_str else ")"),
                 operator=request.user if request.user.is_authenticated else None,
             )
 
@@ -578,52 +579,240 @@ def update_inventory_api(request):
     Request Body (JSON):
     {
       "inventory_id": "uuid_of_inventory_item",
-      "quantity": 100
+      "quantity": 100,
+      "warehouse": "new_warehouse_name", // Optional, if not provided or empty, current warehouse is used
+      "location": "new_location_name"    // Optional, if not provided, current location is used. Empty string clears location.
     }
     """
     try:
         inventory_id = request.data.get('inventory_id')
         new_quantity_str = request.data.get('quantity')
+        
+        # New fields for warehouse and location
+        requested_warehouse_str = request.data.get('warehouse') 
+        requested_location_str = request.data.get('location', '')   # Normalize None to empty string for consistency
 
-        if not inventory_id or new_quantity_str is None:
+        if not inventory_id or new_quantity_str is None: # Quantity is still mandatory
             return Response({'success': False, 'error': 'inventory_id と quantity は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            new_quantity = int(new_quantity_str)
-            if new_quantity < 0: # 在庫数がマイナスになることは通常許可しない
+            new_target_quantity = int(new_quantity_str)
+            if new_target_quantity < 0:
                 return Response({'success': False, 'error': '数量は0以上である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError:
             return Response({'success': False, 'error': '数量は有効な数値である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            inventory_item = get_object_or_404(Inventory.objects.select_for_update(), id=inventory_id)
+            source_inventory = get_object_or_404(Inventory.objects.select_for_update(), id=inventory_id)
             
-            old_quantity = inventory_item.quantity
-            quantity_diff = new_quantity - old_quantity
+            original_part_number = source_inventory.part_number
+            original_warehouse = source_inventory.warehouse
+            original_location = source_inventory.location
+            original_quantity = source_inventory.quantity
 
-            if quantity_diff == 0:
-                return Response({'success': True, 'message': '在庫数量に変更はありませんでした。', 'data': InventorySerializer(inventory_item).data}, status=status.HTTP_200_OK)
+            # Determine target warehouse: if not provided or empty, use original.
+            target_warehouse = requested_warehouse_str if requested_warehouse_str is not None and requested_warehouse_str.strip() != "" else original_warehouse
+            # Determine target location: if 'location' key was present in request.data, use its value (even if empty string).
+            # Otherwise (key not present), use original_location.
+            target_location = requested_location_str if request.data.get('location') is not None else original_location
+            
+            final_report_item = source_inventory # Default for serializer response
+            message_parts = []
 
-            inventory_item.quantity = new_quantity
-            inventory_item.save()
+            # Scenario 1: Warehouse AND Location are NOT changing from the source_inventory's perspective
+            # This means we are updating the quantity of the existing inventory record.
+            if target_warehouse == original_warehouse and target_location == original_location:
+                location_changed = (target_location != original_location)
+                quantity_changed = (new_target_quantity != original_quantity)
 
-            # Create StockMovement record for the adjustment
-            StockMovement.objects.create(
-                part_number=inventory_item.part_number,
-                warehouse=inventory_item.warehouse,
-                movement_type='adjustment', # New movement type
-                quantity=abs(quantity_diff), # Movement quantity is always positive
-                description=f"在庫修正: {old_quantity} -> {new_quantity} (差分: {quantity_diff})",
-                operator=request.user if request.user.is_authenticated else None
-            )
+                if not quantity_changed: # Only quantity can change here, location is same
+                    return Response({'success': True, 'message': '在庫情報に変更はありませんでした。', 'data': InventorySerializer(source_inventory).data}, status=status.HTTP_200_OK)
 
-            return Response({'success': True, 'message': '在庫数量を更新しました。', 'data': InventorySerializer(inventory_item).data}, status=status.HTTP_200_OK)
+                if location_changed:
+                    message_parts.append(f"棚番: '{original_location or '-'}'->'{target_location or '-'}'")
+                if quantity_changed:
+                    message_parts.append(f"数量: {original_quantity}->{new_target_quantity}")
+                
+                source_inventory.location = target_location # No change, but set for clarity
+                source_inventory.quantity = new_target_quantity # Update quantity
+                source_inventory.save()
+
+                if quantity_changed and abs(new_target_quantity - original_quantity) > 0 : # Log StockMovement if quantity changed
+                    StockMovement.objects.create(
+                        part_number=original_part_number,
+                        warehouse=original_warehouse,
+                        movement_type='adjustment',
+                        quantity=abs(new_target_quantity - original_quantity),
+                        description=f"在庫修正 ({original_warehouse}): {', '.join(message_parts)}",
+                        operator=request.user if request.user.is_authenticated else None
+                    )
+                final_report_item = source_inventory
+                message = f"在庫情報を更新しました: {', '.join(message_parts)}"
+
+            else: # Scenario 2: Warehouse OR Location (or both) ARE changing
+                # This is treated as a move of the *entire* original_quantity from the source_inventory's
+                # (part_number, original_warehouse, original_location) slot to a new slot defined by
+                # (part_number, target_warehouse, target_location).
+                # Then, the quantity at the new slot is adjusted to new_target_quantity.
+
+                message_parts.append(f"移動: {original_part_number} [{original_warehouse}/{original_location or '-'}] -> [{target_warehouse}/{target_location or '-'}]")
+                message_parts.append(f"旧数量: {original_quantity}, 新最終数量: {new_target_quantity}")
+
+                # Step A: Outgoing from source_inventory (original slot)
+                if original_quantity > 0: # Only create movement if there was stock
+                    StockMovement.objects.create(
+                        part_number=original_part_number,
+                        warehouse=original_warehouse,
+                        movement_type='outgoing', 
+                        quantity=original_quantity,
+                        description=f"在庫修正(移動出庫): {original_quantity}個 @ {original_warehouse}/{original_location or '-'} to {target_warehouse}/{target_location or '-'}",
+                        operator=request.user if request.user.is_authenticated else None
+                    )
+                
+                source_inventory.quantity = 0 
+                source_inventory.save() # Save the source with 0 quantity
+
+                # Step B: Incoming to target_inventory_item (new slot)
+                target_inventory_item, created = Inventory.objects.get_or_create(
+                    part_number=original_part_number,
+                    warehouse=target_warehouse,
+                    location=target_location, # target_location is part of the key
+                    defaults={'quantity': 0} 
+                )
+                
+                quantity_at_target_before_this_move = target_inventory_item.quantity
+                target_inventory_item.quantity += original_quantity # Add the moved quantity
+
+                if original_quantity > 0: # Log incoming movement if quantity was moved
+                    StockMovement.objects.create(
+                        part_number=original_part_number,
+                        warehouse=target_warehouse,
+                        movement_type='incoming', 
+                        quantity=original_quantity,
+                        description=f"在庫修正(移動入庫): {original_quantity}個 @ {target_warehouse}/{target_location or '-'} from {original_warehouse}/{original_location or '-'}",
+                        operator=request.user if request.user.is_authenticated else None
+                    )
+                
+                # Step C: Adjust quantity at target_inventory_item to new_target_quantity
+                # Current quantity at target is (quantity_at_target_before_this_move + original_quantity)
+                # We want it to be new_target_quantity.
+                # So, the adjustment needed is new_target_quantity - (quantity_at_target_before_this_move + original_quantity)
+                
+                current_total_at_target = target_inventory_item.quantity # This is after adding original_quantity
+                adjustment_diff = new_target_quantity - current_total_at_target
+
+                target_inventory_item.quantity = new_target_quantity # Set to final desired quantity
+                # target_inventory_item.location is already set correctly by get_or_create
+                target_inventory_item.save()
+
+                if adjustment_diff != 0: # Log adjustment if needed
+                     StockMovement.objects.create(
+                        part_number=original_part_number,
+                        warehouse=target_warehouse,
+                        movement_type='adjustment',
+                        quantity=abs(adjustment_diff),
+                        description=f"在庫修正(移動後調整)@{target_warehouse}/{target_location or '-'}: {current_total_at_target} -> {new_target_quantity} (差分 {adjustment_diff})",
+                        operator=request.user if request.user.is_authenticated else None
+                    )
+                final_report_item = target_inventory_item
+                message = f"在庫情報を更新しました: {', '.join(message_parts)}"
+            
+            return Response({'success': True, 'message': message, 'data': InventorySerializer(final_report_item).data}, status=status.HTTP_200_OK)
 
     except Inventory.DoesNotExist:
         return Response({'success': False, 'error': f"在庫ID {inventory_id} が見つかりません。"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         print(f"Error updating inventory: {e}") # Log for server-side debugging
+        import traceback
+        traceback.print_exc()
         return Response({'success': False, 'error': f"在庫更新中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def move_inventory_api(request):
+    """
+    Moves a specified quantity of an inventory item from a source to a target warehouse/location.
+
+    Request Body (JSON):
+    {
+      "source_inventory_id": "uuid_of_source_inventory_item",
+      "quantity_to_move": 50,
+      "target_warehouse": "target_warehouse_name",
+      "target_location": "target_location_name" // Optional
+    }
+    """
+    try:
+        source_inventory_id = request.data.get('source_inventory_id')
+        quantity_to_move_str = request.data.get('quantity_to_move')
+        target_warehouse_str = request.data.get('target_warehouse')
+        target_location_str = request.data.get('target_location', '') # Default to empty string if not provided
+
+        if not all([source_inventory_id, quantity_to_move_str, target_warehouse_str]):
+            return Response({'success': False, 'error': 'source_inventory_id, quantity_to_move, target_warehouse は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            quantity_to_move = int(quantity_to_move_str)
+            if quantity_to_move <= 0:
+                return Response({'success': False, 'error': '移動数量は0より大きい正の整数である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({'success': False, 'error': '移動数量は有効な数値である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            source_inventory = get_object_or_404(Inventory.objects.select_for_update(), id=source_inventory_id)
+
+            if source_inventory.warehouse == target_warehouse_str and source_inventory.location == target_location_str:
+                return Response({'success': False, 'error': '移動元と移動先が同じです。倉庫または棚番を変更してください。'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if source_inventory.quantity < quantity_to_move:
+                return Response({'success': False, 'error': f"移動元の在庫数量 ({source_inventory.quantity}) が不足しています。移動しようとしている数量: {quantity_to_move}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            original_part_number = source_inventory.part_number
+            original_source_warehouse = source_inventory.warehouse
+            original_source_location = source_inventory.location
+
+            # Decrease quantity from source
+            source_inventory.quantity -= quantity_to_move
+            source_inventory.save()
+
+            StockMovement.objects.create(
+                part_number=original_part_number,
+                warehouse=original_source_warehouse,
+                movement_type='outgoing',
+                quantity=quantity_to_move,
+                description=f"在庫移動(出庫): {quantity_to_move}個を {original_source_warehouse}/{original_source_location or '-'} から {target_warehouse_str}/{target_location_str or '-'} へ",
+                operator=request.user if request.user.is_authenticated else None
+            )
+
+            # Get or create target inventory and update it
+            target_inventory, created = Inventory.objects.get_or_create(
+                part_number=original_part_number,
+                warehouse=target_warehouse_str,
+                location=target_location_str, # Add location to the query criteria
+                defaults={'quantity': 0}      # Location is now part of the key
+            )
+            target_inventory.quantity += quantity_to_move
+            # target_inventory.location is already correct due to get_or_create
+            target_inventory.save()
+
+            StockMovement.objects.create(
+                part_number=original_part_number,
+                warehouse=target_warehouse_str,
+                movement_type='incoming',
+                quantity=quantity_to_move,
+                description=f"在庫移動(入庫): {quantity_to_move}個を {target_warehouse_str}/{target_location_str or '-'} へ (元: {original_source_warehouse}/{original_source_location or '-'})",
+                operator=request.user if request.user.is_authenticated else None
+            )
+
+            return Response({'success': True, 'message': f"{original_part_number} を {quantity_to_move} 個、{original_source_warehouse} から {target_warehouse_str} へ移動しました。"}, status=status.HTTP_200_OK)
+
+    except Inventory.DoesNotExist:
+        return Response({'success': False, 'error': f"移動元の在庫ID {source_inventory_id} が見つかりません。"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        print(f"Error moving inventory: {e}")
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'error': f"在庫移動中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])

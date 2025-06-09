@@ -56,11 +56,11 @@
                     </tr>
                     <tr>
                         <td><label class="mb-0">倉庫:</label></td>
-                        <td><p id="modal_warehouse_display" class="mb-0"></p></td>
+                        <td><input type="text" id="modal_warehouse_input" name="warehouse" class="form-control form-control-sm"></td>
                     </tr>
                     <tr>
                         <td><label class="mb-0">場所:</label></td>
-                        <td><p id="modal_location_display" class="mb-0"></p></td>
+                        <td><input type="text" id="modal_location_input" name="location" class="form-control form-control-sm"></td>
                     </tr>
                     <tr>
                         <td><label for="modal_quantity_input" class="mb-0">在庫数:</label></td>
@@ -82,6 +82,40 @@
             <div class="mt-3 text-end">
                 <button type="submit" class="btn btn-primary btn-sm">保存</button>
                 <button type="button" class="btn btn-secondary btn-sm close-modal-button">キャンセル</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Move Inventory Modal -->
+<div id="moveInventoryModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-move-button">&times;</span>
+        <h2>在庫移動</h2>
+        <form id="moveInventoryForm">
+            <input type="hidden" id="move_source_inventory_id" name="source_inventory_id">
+            <p><strong>品番:</strong> <span id="move_part_number_display"></span></p>
+            <p><strong>移動元倉庫:</strong> <span id="move_current_warehouse_display"></span></p>
+            <p><strong>移動元棚番:</strong> <span id="move_current_location_display"></span></p>
+            <p><strong>現在数量:</strong> <span id="move_current_quantity_display"></span></p>
+            <hr>
+            <div class="mb-3">
+                <label for="move_quantity_input" class="form-label">移動数量:</label>
+                <input type="number" id="move_quantity_input" name="quantity_to_move" class="form-control form-control-sm" required min="1">
+            </div>
+            <div class="mb-3">
+                <label for="move_target_warehouse_input" class="form-label">移動先倉庫:</label>
+                <input type="text" id="move_target_warehouse_input" name="target_warehouse" class="form-control form-control-sm" required placeholder="例: 第二倉庫">
+            </div>
+            <div class="mb-3">
+                <label for="move_target_location_input" class="form-label">移動先棚番:</label>
+                <input type="text" id="move_target_location_input" name="target_location" class="form-control form-control-sm" placeholder="例: B-02-01">
+            </div>
+            <div id="move_modal_error_message" class="message-area" style="color: red; display: none;"></div>
+            <div id="move_modal_success_message" class="message-area" style="color: green; display: none;"></div>
+            <div class="mt-3 text-end">
+                <button type="submit" class="btn btn-success btn-sm">移動実行</button>
+                <button type="button" class="btn btn-secondary btn-sm close-move-button">キャンセル</button>
             </div>
         </form>
     </div>
@@ -128,13 +162,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const modifyModalCancelButtons = modifyModal.querySelectorAll('.close-modal-button');
     const modalInventoryIdInput = document.getElementById('modal_inventory_id');
     const modalPartNumberDisplay = document.getElementById('modal_part_number_display');
-    const modalWarehouseDisplay = document.getElementById('modal_warehouse_display');
-    const modalLocationDisplay = document.getElementById('modal_location_display');
+    const modalWarehouseInput = document.getElementById('modal_warehouse_input'); // Changed
+    const modalLocationInput = document.getElementById('modal_location_input');   // Changed
     const modalQuantityInput = document.getElementById('modal_quantity_input');
     const modalReservedQuantityDisplay = document.getElementById('modal_reserved_quantity_display');
     const modalAvailableQuantityDisplay = document.getElementById('modal_available_quantity_display');
     const modifyModalErrorMessage = document.getElementById('modify_modal_error_message');
     const modifyModalSuccessMessage = document.getElementById('modify_modal_success_message');
+
+    // Move Modal Elements
+    const moveModal = document.getElementById('moveInventoryModal');
+    const moveModalForm = document.getElementById('moveInventoryForm');
+    const moveModalCloseButtons = moveModal.querySelectorAll('.close-move-button');
+    const moveSourceInventoryIdInput = document.getElementById('move_source_inventory_id');
+    const movePartNumberDisplay = document.getElementById('move_part_number_display');
+    const moveCurrentWarehouseDisplay = document.getElementById('move_current_warehouse_display');
+    const moveCurrentLocationDisplay = document.getElementById('move_current_location_display');
+    const moveCurrentQuantityDisplay = document.getElementById('move_current_quantity_display');
+    const moveQuantityInput = document.getElementById('move_quantity_input');
+    const moveTargetWarehouseInput = document.getElementById('move_target_warehouse_input');
+    const moveTargetLocationInput = document.getElementById('move_target_location_input');
+    const moveModalErrorMessage = document.getElementById('move_modal_error_message');
+    const moveModalSuccessMessage = document.getElementById('move_modal_success_message');
 
     // Helper function to get CSRF token
     function getCookie(name) {
@@ -155,8 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function openModifyModal(inventoryData) {
         modalInventoryIdInput.value = inventoryData.id;
         modalPartNumberDisplay.textContent = inventoryData.part_number;
-        modalWarehouseDisplay.textContent = inventoryData.warehouse;
-        modalLocationDisplay.textContent = inventoryData.location;
+        modalWarehouseInput.value = inventoryData.warehouse; // Use input field
+        modalLocationInput.value = inventoryData.location === '-' ? '' : inventoryData.location; // Use input field, handle '-'
         modalQuantityInput.value = inventoryData.quantity;
         modalReservedQuantityDisplay.textContent = inventoryData.reserved;
         modalAvailableQuantityDisplay.textContent = inventoryData.available_quantity;
@@ -172,6 +221,35 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.remove('modal-open-no-scroll'); // Optional: re-enable body scroll
     }
 
+    function openMoveModal(inventoryData) {
+        moveSourceInventoryIdInput.value = inventoryData.id;
+        movePartNumberDisplay.textContent = inventoryData.part_number;
+        moveCurrentWarehouseDisplay.textContent = inventoryData.warehouse;
+        moveCurrentLocationDisplay.textContent = inventoryData.location === '-' ? '' : inventoryData.location;
+        moveCurrentQuantityDisplay.textContent = inventoryData.quantity;
+
+        moveQuantityInput.value = inventoryData.quantity; // Default to moving all
+        moveQuantityInput.max = inventoryData.quantity;   // Max is current quantity
+        moveTargetWarehouseInput.value = '';
+        moveTargetLocationInput.value = '';
+
+        moveModalErrorMessage.style.display = 'none';
+        moveModalErrorMessage.textContent = '';
+        moveModalSuccessMessage.style.display = 'none';
+        moveModalSuccessMessage.textContent = '';
+        moveModal.style.display = 'block';
+        document.body.classList.add('modal-open-no-scroll');
+    }
+
+    function closeMoveModal() {
+        moveModal.style.display = 'none';
+        document.body.classList.remove('modal-open-no-scroll');
+        // Clear form fields for next time
+        moveModalForm.reset();
+        moveModalErrorMessage.style.display = 'none';
+        moveModalSuccessMessage.style.display = 'none';
+    }
+
     function handleModifyInventory(event) {
         const button = event.target;
         const inventoryData = {
@@ -185,6 +263,20 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         openModifyModal(inventoryData);
     }
+
+    function handleMoveInventory(event) {
+        const button = event.target;
+        const inventoryData = {
+            id: button.dataset.inventoryId,
+            part_number: button.dataset.partNumber,
+            warehouse: button.dataset.warehouse,
+            location: button.dataset.location,
+            quantity: parseInt(button.dataset.quantity, 10) // Ensure quantity is a number
+        };
+        openMoveModal(inventoryData);
+    }
+
+
 
     function renderTableAndPagination(apiResponse) {
         tbody.innerHTML = ''; // Clear existing rows or message
@@ -210,8 +302,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add action button cell
                 const actionCell = row.insertCell();
                 actionCell.classList.add('text-center'); // 中央寄せクラスを追加
+
+                // Add Move button
+                const moveButton = document.createElement('button');
+                moveButton.classList.add('btn', 'btn-sm', 'btn-info', 'move-inventory-btn', 'ms-1');
+                moveButton.textContent = '移動';
+                moveButton.dataset.inventoryId = inventory.id;
+                moveButton.dataset.partNumber = inventory.part_number || 'N/A';
+                moveButton.dataset.warehouse = inventory.warehouse || 'N/A';
+                moveButton.dataset.location = locationDisplay;
+                moveButton.dataset.quantity = inventory.quantity;
+                moveButton.addEventListener('click', handleMoveInventory);
+                actionCell.appendChild(moveButton);
+
                 const modifyButton = document.createElement('button');
-                modifyButton.classList.add('btn', 'btn-sm', 'btn-warning', 'modify-inventory-btn');
+                modifyButton.classList.add('btn', 'btn-sm', 'btn-warning', 'modify-inventory-btn', 'ms-1');
                 modifyButton.textContent = '修正';
                 modifyButton.dataset.inventoryId = inventory.id;
                 modifyButton.dataset.partNumber = inventory.part_number || 'N/A';
@@ -304,6 +409,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Move Modal Event Listeners
+    moveModalCloseButtons.forEach(btn => btn.addEventListener('click', closeMoveModal));
+    window.addEventListener('click', function(event) {
+        if (event.target === moveModal) {
+            closeMoveModal();
+        }
+    });
+
     modifyModalForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         modifyModalErrorMessage.style.display = 'none';
@@ -311,6 +424,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const inventoryId = modalInventoryIdInput.value;
         const newQuantity = modalQuantityInput.value;
+        const newWarehouse = modalWarehouseInput.value.trim();
+        const newLocation = modalLocationInput.value.trim();
         const csrftoken = getCookie('csrftoken');
 
         const requestHeaders = {
@@ -325,10 +440,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     inventory_id: inventoryId,
                     quantity: newQuantity,
-                    // 認証トークンが不要になったため、関連する送信データも調整が必要な場合があります。
-                    // 例えば、サーバー側でユーザーを特定する方法が他にあるか、
-                    // もしくはこの操作が認証不要になったかによります。
-                    // ここでは、リクエストボディからトークン関連の情報を削除する例を示唆するに留めます。
+                    warehouse: newWarehouse, // Send new warehouse
+                    location: newLocation    // Send new location
                 })
             });
 
@@ -356,6 +469,64 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error submitting inventory update:', error);
             modifyModalErrorMessage.textContent = '在庫更新中に通信エラーが発生しました。';
             modifyModalErrorMessage.style.display = 'block';
+        }
+    });
+
+    moveModalForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        moveModalErrorMessage.style.display = 'none';
+        moveModalSuccessMessage.style.display = 'none';
+
+        const sourceInventoryId = moveSourceInventoryIdInput.value;
+        const quantityToMove = parseInt(moveQuantityInput.value, 10);
+        const targetWarehouse = moveTargetWarehouseInput.value.trim();
+        const targetLocation = moveTargetLocationInput.value.trim();
+        const csrftoken = getCookie('csrftoken');
+
+        if (quantityToMove <= 0) {
+            moveModalErrorMessage.textContent = '移動数量は1以上である必要があります。';
+            moveModalErrorMessage.style.display = 'block';
+            return;
+        }
+        if (!targetWarehouse) {
+            moveModalErrorMessage.textContent = '移動先倉庫は必須です。';
+            moveModalErrorMessage.style.display = 'block';
+            return;
+        }
+
+        const requestHeaders = {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        };
+
+        try {
+            const response = await fetch("{% url 'inventory_api:api_move_inventory' %}", { // New URL
+                method: 'POST',
+                headers: requestHeaders,
+                body: JSON.stringify({
+                    source_inventory_id: sourceInventoryId,
+                    quantity_to_move: quantityToMove,
+                    target_warehouse: targetWarehouse,
+                    target_location: targetLocation
+                })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                moveModalSuccessMessage.textContent = result.message || '在庫を移動しました。';
+                moveModalSuccessMessage.style.display = 'block';
+                setTimeout(() => {
+                    closeMoveModal();
+                    performSearch(); // Refresh the inventory list
+                }, 1500);
+            } else {
+                moveModalErrorMessage.textContent = result.error || '在庫の移動に失敗しました。';
+                moveModalErrorMessage.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error submitting inventory move:', error);
+            moveModalErrorMessage.textContent = '在庫移動中に通信エラーが発生しました。';
+            moveModalErrorMessage.style.display = 'block';
         }
     });
 
