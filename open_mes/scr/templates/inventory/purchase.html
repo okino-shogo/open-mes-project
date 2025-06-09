@@ -36,7 +36,7 @@
                 <label for="search-status" style="display: block; margin-bottom: 2px;">ステータス:</label>
                 <select id="search-status" name="search_status" class="search-input">
                     <option value="">すべて</option>
-                    <option value="pending">未入庫 (Pending)</option>
+                    <option value="pending" selected>未入庫 (Pending)</option>
                     <option value="received">入庫済み (Received)</option>
                     <option value="canceled">キャンセル (Canceled)</option>
                 </select>
@@ -180,7 +180,7 @@
     $(document).ready(function() {
         let currentPage = 1;
         const pageSize = 100; // 1ページあたりの表示件数
-        let currentSearchParams = {}; // Store current search parameters as an object
+        let currentSearchParams = { 'search_status': 'pending' }; // Default status to pending
         
         // テーブルを描画する関数
         function renderTable(itemsToDisplay) {
@@ -357,10 +357,24 @@
                 return;
             }
 
-            // Calculate default quantity for receiving
-            let defaultReceiveQty = parseInt(item.quantity) - parseInt(item.received_quantity);
-            if (isNaN(defaultReceiveQty) || defaultReceiveQty <= 0) {
-                defaultReceiveQty = 1; // Default to 1 if calculation is invalid or non-positive
+            // Calculate default quantity for receiving based on new logic
+            const orderedQty = parseInt(item.quantity);
+            const receivedQtySoFar = parseInt(item.received_quantity);
+            let defaultReceiveQty;
+
+            if (isNaN(orderedQty) || isNaN(receivedQtySoFar)) {
+                // If quantity data is invalid, default to 1 to encourage user input/correction
+                defaultReceiveQty = 1;
+            } else if (orderedQty === receivedQtySoFar) {
+                // If ordered quantity equals currently received quantity, default to 0
+                defaultReceiveQty = 0;
+            } else {
+                // Otherwise, calculate remaining quantity
+                defaultReceiveQty = orderedQty - receivedQtySoFar;
+                // If calculated remaining is not positive (e.g., over-received, or error), default to 1
+                if (defaultReceiveQty <= 0) {
+                    defaultReceiveQty = 1;
+                }
             }
 
             const modalHtml = `
@@ -373,6 +387,10 @@
                         <p><strong>発注数量:</strong> ${item.quantity}</p>
                         <p><strong>現在入庫済数量:</strong> ${item.received_quantity}</p>
                         <hr>
+                        <label for="modalWarehouse">入庫先倉庫:</label>
+                        <input type="text" id="modalWarehouse" value="${item.warehouse || ''}" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+                        <label for="modalLocation">入庫先棚番:</label>
+                        <input type="text" id="modalLocation" value="" placeholder="例: A-01-02" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
                         <div>
                             <div id="modalDynamicContent">
                                 <label for="modalReceivedQuantity">今回入庫数量:</label>
@@ -389,6 +407,8 @@
             `;
             $('body').append(modalHtml);
             $('#receiveModalOverlay').data('defaultReceiveQty', defaultReceiveQty); // Store for reset
+            $('#receiveModalOverlay').data('defaultWarehouse', item.warehouse || ''); // Store default warehouse
+            // Location is new input, so no default from item needed here for reset, but could store empty string if desired.
             $('#receiveModalOverlay').data('itemOrderNumber', item.order_number); // Store order number
 
             function resetToInitialInputState() {
@@ -397,6 +417,10 @@
                     <label for="modalReceivedQuantity">今回入庫数量:</label>
                     <input type="number" id="modalReceivedQuantity" min="1" value="${storedDefaultQty}">
                 `);
+                // Restore warehouse and clear location
+                $('#modalWarehouse').val($('#receiveModalOverlay').data('defaultWarehouse'));
+                $('#modalLocation').val('');
+
                 $('#modalValidationMessage').empty();
                 $('#modalPrimaryButton').text('実行').prop('disabled', false).show();
                 $('#modalSecondaryButton').text('キャンセル').prop('disabled', false).show();
@@ -411,20 +435,32 @@
                 if (buttonText === '実行') {
                     var receivedQtyStr = $('#modalReceivedQuantity').val();
                     var receivedQty = parseInt(receivedQtyStr);
+                    var warehouse = $('#modalWarehouse').val().trim();
+                    var location = $('#modalLocation').val().trim();
 
                     if (isNaN(receivedQty) || receivedQty <= 0) {
                         $modalValidationMsg.text("有効な数量を入力してください。");
                         return;
                     }
-                    $('#receiveModalOverlay').data('receivedQty', receivedQty); // Store for confirmation
+                    if (!warehouse) {
+                        $modalValidationMsg.text("入庫先倉庫を入力してください。");
+                        return;
+                    }
+                    // Location can be optional, so no validation here unless required
 
-                    $('#modalDynamicContent').html(`<p>入庫数量: <strong>${receivedQty}</strong> で処理を実行しますか？</p>`);
+                    $('#receiveModalOverlay').data('receivedQty', receivedQty); // Store for confirmation
+                    $('#receiveModalOverlay').data('warehouse', warehouse);
+                    $('#receiveModalOverlay').data('location', location);
+
+                    $('#modalDynamicContent').html(`<p>以下の内容で入庫処理を実行しますか？<br><strong>数量:</strong> ${receivedQty}<br><strong>倉庫:</strong> ${warehouse}<br><strong>棚番:</strong> ${location || '(指定なし)'}</p>`);
                     $('#modalTitle').text('確認');
                     $(this).text('はい');
                     $('#modalSecondaryButton').text('いいえ');
 
                 } else if (buttonText === 'はい') {
                     const confirmedQty = $('#receiveModalOverlay').data('receivedQty');
+                    const confirmedWarehouse = $('#receiveModalOverlay').data('warehouse');
+                    const confirmedLocation = $('#receiveModalOverlay').data('location');
                     const orderNumber = $('#receiveModalOverlay').data('itemOrderNumber');
 
                     $('#modalDynamicContent').html('<p>処理中...</p>');
@@ -439,6 +475,8 @@
                         data: {
                             order_number: orderNumber,
                             received_quantity: confirmedQty,
+                            warehouse: confirmedWarehouse, // Add warehouse
+                            location: confirmedLocation,   // Add location (was already supported by API but now explicitly sent)
                             csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
                         },
                         success: function(data) {
@@ -539,8 +577,9 @@
 
         $('#reset-search-button').click(function() {
             $('#search-criteria-area input[type="text"], #search-criteria-area input[type="number"], #search-criteria-area input[type="date"], #search-criteria-area select').val('');
-            currentSearchParams = {};
-            loadPurchaseData(1, {});
+            $('#search-status').val('pending'); // Reset status to pending
+            currentSearchParams = { 'search_status': 'pending' }; // Set search params to default
+            loadPurchaseData(1, currentSearchParams);
         });
 
         // Function to format date as YYYY-MM-DD
@@ -561,7 +600,12 @@
         $('#search-expected-arrival-from').val(formatDate(new Date(new Date().setMonth(today.getMonth() - 1))));
         $('#search-expected-arrival-to').val(formatDate(new Date(new Date().setMonth(today.getMonth() + 1))));
 
-        loadPurchaseData(currentPage, currentSearchParams); // Initial load
+        // Initial load: collect current search parameters which will include the default status
+        // If other fields have default values set by JS (like dates), collectSearchParams will pick them up.
+        // Otherwise, it starts with the default { 'search_status': 'pending' }
+        const initialParams = collectSearchParams();
+        loadPurchaseData(currentPage, initialParams);
+
     });
 </script>
 

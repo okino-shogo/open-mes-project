@@ -154,7 +154,8 @@ def process_purchase_receipt_api(request):
     purchase_order_id = request.data.get('purchase_order_id')
     order_number = request.data.get('order_number')
     received_quantity = request.data.get('received_quantity')
-    location = request.data.get('location') # オプションの場所情報
+    requested_warehouse = request.data.get('warehouse') # 新しくリクエストから倉庫情報も取得
+    location = request.data.get('location') # 場所情報
 
     if (not purchase_order_id and not order_number) or received_quantity is None:
         return Response(
@@ -230,16 +231,26 @@ def process_purchase_receipt_api(request):
             # Warehouse オブジェクトの検索は、Inventory が文字列を格納するようになり、
             # StockMovement が倉庫情報を持たないため、不要になりました。
 
+            # 実際に入庫する倉庫を決定 (リクエストで指定があればそれを優先、なければPOの倉庫)
+            target_warehouse = requested_warehouse if requested_warehouse is not None else purchase_order.warehouse
+            if not target_warehouse: # POにも設定がなく、リクエストからも来なかった場合
+                return Response(
+                    {"error": "入庫先の倉庫情報が不明です。発注情報に倉庫を設定するか、処理時に指定してください。"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             # 4. 対応する Inventory レコードを検索または新規作成し、数量を更新
             #    Inventory の item と warehouse は PurchaseOrder からの文字列を直接使用
             inventory_item, created = Inventory.objects.get_or_create(
                 part_number=purchase_order.part_number, # PurchaseOrder の part_number を使用
-                warehouse=purchase_order.warehouse, # PurchaseOrder の warehouse 文字列
+                warehouse=target_warehouse, # 実際に入庫する倉庫を使用
                 defaults={'quantity': 0, 'location': location} # 新規作成時のデフォルト値を設定 (quantity:0 はモデル定義にもあるが明示)
             ) # location はリクエストから取得
             inventory_item.quantity += actual_received_quantity
  
             # 既存レコードの場合で、かつリクエストに location が指定されていれば更新
+            # また、もしget_or_createで取得したInventoryのwarehouseがtarget_warehouseと異なる場合(通常はありえないが)、更新する
+            inventory_item.warehouse = target_warehouse # 念のため、取得/作成された在庫の倉庫をターゲットに合わせる
             if not created and location is not None:
                 inventory_item.location = location
             inventory_item.save()
@@ -247,9 +258,10 @@ def process_purchase_receipt_api(request):
             # 5. StockMovement レコードを作成 (入庫履歴)
             StockMovement.objects.create(
                 part_number=purchase_order.part_number, # PurchaseOrder の part_number を使用
+                warehouse=target_warehouse, # 実際に入庫した倉庫
                 movement_type='incoming',
                 quantity=actual_received_quantity,
-                description=f"PO {purchase_order.order_number} による入庫" + (f" (場所: {location})" if location else ""),
+                description=f"PO {purchase_order.order_number} による入庫 (倉庫: {target_warehouse}" + (f", 場所: {location})" if location else ")"),
                 operator=request.user if request.user.is_authenticated else None,
             )
 
