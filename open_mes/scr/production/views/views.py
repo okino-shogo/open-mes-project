@@ -79,8 +79,10 @@ class PartsUsedDeleteAjaxView(LoginRequiredMixin, View):
 # --- CSV Template and Import Views (Stubs) ---
 class ProductionPlanCSVTemplateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        # TODO: Implement actual CSV template generation
-        response = HttpResponse("計画名,製品コード,計画数量,計画開始日時(YYYY-MM-DD HH:MM),計画終了日時(YYYY-MM-DD HH:MM),備考,親計画ID(任意)\n計画A,PROD-001,100,2023-01-01 09:00,2023-01-01 17:00,特記事項, (空白または親計画のID)", content_type='text/csv')
+        csv_content_str = "計画名,製品コード,計画数量,計画開始日時(YYYY-MM-DD HH:MM),計画終了日時(YYYY-MM-DD HH:MM),備考,親計画ID(任意)\n計画A,PROD-001,100,2023-01-01 09:00,2023-01-01 17:00,特記事項, (空白または親計画のID)"
+        # Encode to UTF-8 with BOM
+        csv_content_bytes = csv_content_str.encode('utf-8-sig')
+        response = HttpResponse(csv_content_bytes, content_type='text/csv; charset=utf-8-sig')
         response['Content-Disposition'] = 'attachment; filename="production_plan_template.csv"'
         return response
 
@@ -91,8 +93,10 @@ class ProductionPlanImportCSVView(LoginRequiredMixin, View):
 
 class PartsUsedCSVTemplateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        # TODO: Implement actual CSV template generation
-        response = HttpResponse("生産計画ID,部品コード,倉庫番号,使用数量,使用日時(YYYY-MM-DD HH:MM)\n1,PART-001,WH-001,10,2023-01-01 10:00", content_type='text/csv')
+        csv_content_str = "生産計画ID,部品コード,倉庫番号,使用数量,使用日時(YYYY-MM-DD HH:MM)\n1,PART-001,WH-001,10,2023-01-01 10:00"
+        # Encode to UTF-8 with BOM
+        csv_content_bytes = csv_content_str.encode('utf-8-sig')
+        response = HttpResponse(csv_content_bytes, content_type='text/csv; charset=utf-8-sig')
         response['Content-Disposition'] = 'attachment; filename="parts_used_template.csv"'
         return response
 

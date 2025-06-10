@@ -208,29 +208,39 @@ class WarehouseDeleteAjaxView(LoginRequiredMixin, View):
 # --- CSV Template and Import Views (Stubs) ---
 class ItemCSVTemplateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        # TODO: Implement actual CSV template generation
-        response = HttpResponse("品番コード,品番名,品目タイプ,単位,説明,デフォルト入庫倉庫,デフォルト入庫棚番,支給種別\nITEM-001,製品X,product,個,これはサンプルです,中央倉庫,A-01-01,paid", content_type='text/csv')
+        csv_content_str = "品番コード,品番名,品目タイプ,単位,説明,デフォルト入庫倉庫,デフォルト入庫棚番,支給種別\nITEM-001,製品X,product,個,これはサンプルです,中央倉庫,A-01-01,paid"
+        # Encode to UTF-8 with BOM
+        csv_content_bytes = csv_content_str.encode('utf-8-sig')
+        response = HttpResponse(csv_content_bytes, content_type='text/csv; charset=utf-8-sig')
         response['Content-Disposition'] = 'attachment; filename="item_template.csv"'
         return response
 
 class ItemImportCSVView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         # TODO: Implement actual CSV import logic
-        return JsonResponse({'status': 'success', 'message': '品番マスターCSVがインポートされました (スタブ)。'})
+        # For now, returning a stub response
+        if request.FILES.get('csv_file'):
+            # Here you would process the file
+            return JsonResponse({'status': 'success', 'message': '品番マスターCSVがアップロードされました (処理はスタブ)。'})
+        return JsonResponse({'status': 'error', 'message': 'CSVファイルが見つかりません。'}, status=400)
 
 class SupplierCSVTemplateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        response = HttpResponse("サプライヤー名,担当者名,電話番号,メールアドレス,住所\n株式会社サンプル,山田太郎,03-xxxx-xxxx,yamada@example.com,東京都...", content_type='text/csv')
+        csv_content_str = "サプライヤー名,担当者名,電話番号,メールアドレス,住所\n株式会社サンプル,山田太郎,03-xxxx-xxxx,yamada@example.com,東京都..."
+        csv_content_bytes = csv_content_str.encode('utf-8-sig')
+        response = HttpResponse(csv_content_bytes, content_type='text/csv; charset=utf-8-sig')
         response['Content-Disposition'] = 'attachment; filename="supplier_template.csv"'
         return response
 
 class SupplierImportCSVView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
-        return JsonResponse({'status': 'success', 'message': 'サプライヤーマスターCSVがインポートされました (スタブ)。'})
+        return JsonResponse({'status': 'success', 'message': 'サプライヤーマスターCSVがアップロードされました (処理はスタブ)。'})
 
 class WarehouseCSVTemplateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        response = HttpResponse("倉庫番号,倉庫名,所在地\nWH-001,本社倉庫,東京都...", content_type='text/csv')
+        csv_content_str = "倉庫番号,倉庫名,所在地\nWH-001,本社倉庫,東京都..."
+        csv_content_bytes = csv_content_str.encode('utf-8-sig')
+        response = HttpResponse(csv_content_bytes, content_type='text/csv; charset=utf-8-sig')
         response['Content-Disposition'] = 'attachment; filename="warehouse_template.csv"'
         return response
 
