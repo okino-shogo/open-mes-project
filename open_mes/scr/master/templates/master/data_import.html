@@ -487,8 +487,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     let idKey = 'id'; // レコードの主キー
 
                     if (masterType === 'item') {
-                        headers = ['コード', '品番名', '品目タイプ', '単位', '説明', '操作'];
-                        rowKeys = ['code', 'name', 'item_type', 'unit', 'description'];
+                        headers = ['コード', '品番名', '品目タイプ', '単位', 'デフォルト倉庫', 'デフォルト棚番', '支給種別', '説明', '操作'];
+                        rowKeys = ['code', 'name', 'item_type', 'unit', 'default_warehouse', 'default_location', 'provision_type', 'description'];
                     } else if (masterType === 'supplier') {
                         headers = ['サプライヤー名', '担当者名', '電話番号', 'メールアドレス', '住所', '操作'];
                         rowKeys = ['name', 'contact_person', 'phone', 'email', 'address'];

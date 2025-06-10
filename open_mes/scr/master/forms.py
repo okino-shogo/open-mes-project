@@ -4,13 +4,16 @@ from .models import Item, Supplier, Warehouse
 class ItemForm(forms.ModelForm):
     class Meta:
         model = Item
-        fields = ['name', 'code', 'item_type', 'description', 'unit']
+        fields = ['name', 'code', 'item_type', 'description', 'unit', 'default_warehouse', 'default_location', 'provision_type']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: 製品A'}),
             'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: ITEM-001'}),
             'item_type': forms.Select(attrs={'class': 'form-select'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '製品の説明や特記事項など'}),
             'unit': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: kg, 個, m'}),
+            'default_warehouse': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: 中央倉庫'}),
+            'default_location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: A-01-02'}),
+            'provision_type': forms.Select(attrs={'class': 'form-select'}),
         }
         labels = {
             'name': '品番名',
@@ -18,6 +21,9 @@ class ItemForm(forms.ModelForm):
             'item_type': '品目タイプ',
             'description': '説明',
             'unit': '単位',
+            'default_warehouse': 'デフォルト入庫倉庫',
+            'default_location': 'デフォルト入庫棚番',
+            'provision_type': '支給種別',
         }
 
 class SupplierForm(forms.ModelForm):

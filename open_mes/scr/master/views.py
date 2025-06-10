@@ -96,7 +96,10 @@ class ItemListAjaxView(LoginRequiredMixin, View):
             'name': item.name,
             'item_type': item.get_item_type_display(),
             'unit': item.unit,
-            'description': item.description if item.description else ""
+            'description': item.description if item.description else "",
+            'default_warehouse': item.default_warehouse if item.default_warehouse else "",
+            'default_location': item.default_location if item.default_location else "",
+            'provision_type': item.get_provision_type_display() if item.provision_type else ""
         } for item in items]
         return JsonResponse({'data': data})
 
@@ -132,9 +135,11 @@ class ItemDetailAjaxView(LoginRequiredMixin, View):
         try:
             item = Item.objects.get(pk=pk)
             data = {
-                'id': item.id, 'name': item.name, 'code': item.code, 
+                'id': item.id, 'name': item.name, 'code': item.code,
                 'item_type': item.item_type, # フォームで選択肢として使うため、表示名ではなく値
-                'description': item.description, 'unit': item.unit
+                'description': item.description, 'unit': item.unit,
+                'default_warehouse': item.default_warehouse, 'default_location': item.default_location,
+                'provision_type': item.provision_type
             }
             return JsonResponse({'status': 'success', 'data': data})
         except Item.DoesNotExist:
@@ -204,7 +209,7 @@ class WarehouseDeleteAjaxView(LoginRequiredMixin, View):
 class ItemCSVTemplateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         # TODO: Implement actual CSV template generation
-        response = HttpResponse("品番コード,品番名,品目タイプ,単位,説明\nITEM-001,製品X,product,個,これはサンプルです", content_type='text/csv')
+        response = HttpResponse("品番コード,品番名,品目タイプ,単位,説明,デフォルト入庫倉庫,デフォルト入庫棚番,支給種別\nITEM-001,製品X,product,個,これはサンプルです,中央倉庫,A-01-01,paid", content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="item_template.csv"'
         return response
 
