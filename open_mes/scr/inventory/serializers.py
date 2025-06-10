@@ -16,6 +16,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     supplier = serializers.CharField(max_length=255, allow_null=True, required=False)
     item = serializers.CharField(max_length=255, allow_null=True, required=False)
     warehouse = serializers.CharField(max_length=255, allow_null=True, required=False)
+    location = serializers.CharField(max_length=255, allow_null=True, required=False, help_text="入庫棚番 (文字列、省略可能)")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -23,6 +24,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         self.fields['supplier'].help_text = "仕入先名 (文字列、省略可能)"
         self.fields['item'].help_text = "品目名または品目コード (文字列、省略可能)"
         self.fields['warehouse'].help_text = "入庫倉庫名 (文字列、省略可能)"
+        # self.fields['location'].help_text is set above
         # フィールド定義で required=False が指定されているため、ここでの再設定は不要です。
 
 
@@ -53,7 +55,8 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'received_quantity',    # 入庫済数量 (デフォルト0、読み取り専用)
             'order_date',           # 発注日 (自動設定、読み取り専用)
             'expected_arrival',     # 入荷予定日 (任意)
-            'warehouse',            # 入庫倉庫 (入力はID、出力はID)
+            'warehouse',            # 入庫倉庫
+            'location',             # 入庫棚番 (任意)
             'status'                # ステータス (デフォルト'pending'、読み取り専用)
         ]
         read_only_fields = ['id', 'received_quantity', 'order_date', 'status'] # is_first_time はデフォルト値があるので読み取り専用には含めません

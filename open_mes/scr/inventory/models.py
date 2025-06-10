@@ -87,13 +87,13 @@ class PurchaseOrder(models.Model):
     received_quantity = models.PositiveIntegerField(default=0) # 実際に入庫した数量を保持
     order_date = models.DateTimeField(auto_now_add=True)  # 発注日
     expected_arrival = models.DateTimeField(blank=True, null=True)  # 到着予定日
-    warehouse = models.CharField(max_length=255,  null=True) # どの倉庫に入庫するかを追加
+    warehouse = models.CharField(max_length=255, blank=True, null=True, verbose_name="入庫倉庫") # どの倉庫に入庫するかを追加
+    location = models.CharField(max_length=255, blank=True, null=True, verbose_name="入庫棚番") # どの棚番に入庫するかを追加
     status = models.CharField(max_length=20, choices=[
         ('pending', '未入庫'),
         ('received', '入庫済み'),
         ('canceled', 'キャンセル')
     ], default='pending')
-
     def __str__(self):
         item_display = self.item if self.item else "N/A"
         return f"PO {self.order_number} - {item_display} ({self.status})"

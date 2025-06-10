@@ -31,6 +31,7 @@ class PurchaseOrderEntryForm(forms.ModelForm):
             'quantity',
             'expected_arrival',
             'warehouse',
+            'location', # Add new location field
             'parent_part_number',
             'instruction_document',
             'shipment_number',
@@ -50,6 +51,7 @@ class PurchaseOrderEntryForm(forms.ModelForm):
             'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
             'expected_arrival': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
             'warehouse': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: 中央倉庫'}),
+            'location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: A-01-02'}), # Add widget for location
             'parent_part_number': forms.TextInput(attrs={'class': 'form-control'}),
             'instruction_document': forms.TextInput(attrs={'class': 'form-control'}),
             'shipment_number': forms.TextInput(attrs={'class': 'form-control'}),

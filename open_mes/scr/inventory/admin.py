@@ -7,7 +7,7 @@ from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder
 class PurchaseOrderAdmin(admin.ModelAdmin):
     list_display = (
         'order_number', 'product_name', 'item', 'supplier', 'quantity',
-        'received_quantity', 'expected_arrival', 'warehouse', 'status'
+        'received_quantity', 'expected_arrival', 'warehouse', 'location', 'status'
     )
     list_filter = ('status', 'supplier', 'warehouse', 'expected_arrival', 'order_date')
     search_fields = ('order_number', 'item', 'product_name', 'supplier')

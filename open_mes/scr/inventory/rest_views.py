@@ -154,12 +154,13 @@ def process_purchase_receipt_api(request):
     purchase_order_id = request.data.get('purchase_order_id')
     order_number = request.data.get('order_number')
     received_quantity = request.data.get('received_quantity')
-    requested_warehouse = request.data.get('warehouse')
-    location_str = request.data.get('location', '') # Normalize None to empty string
+    requested_warehouse_str = request.data.get('warehouse') # Warehouse from request
+    requested_location_str = request.data.get('location')   # Location from request, can be None or empty string
 
     if (not purchase_order_id and not order_number) or received_quantity is None:
         return Response(
             {"error": "purchase_order_id または order_number のいずれかと、received_quantity は必須です。"},
+            # {"error": "Either purchase_order_id or order_number, and received_quantity are required."},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -232,19 +233,27 @@ def process_purchase_receipt_api(request):
             # StockMovement が倉庫情報を持たないため、不要になりました。
 
             # 実際に入庫する倉庫を決定 (リクエストで指定があればそれを優先、なければPOの倉庫)
-            target_warehouse = requested_warehouse if requested_warehouse is not None else purchase_order.warehouse
+            # If requested_warehouse_str is provided (not None and not empty string), use it. Otherwise, use PO's warehouse.
+            target_warehouse = requested_warehouse_str if requested_warehouse_str is not None and requested_warehouse_str.strip() != "" else purchase_order.warehouse
             if not target_warehouse: # POにも設定がなく、リクエストからも来なかった場合
                 return Response(
                     {"error": "入庫先の倉庫情報が不明です。発注情報に倉庫を設定するか、処理時に指定してください。"},
+                    # {"error": "Warehouse information for receipt is unknown. Set it in the PO or specify during processing."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # 実際に入庫する棚番を決定
+            # If requested_location_str is provided (not None), use it. Otherwise, use PO's location (which can be None or empty).
+            # An empty string from request means "clear location" or "no specific location".
+            target_location = requested_location_str if requested_location_str is not None else purchase_order.location
+            target_location_str = target_location if target_location is not None else '' # Normalize for get_or_create
 
             # 4. 対応する Inventory レコードを検索または新規作成し、数量を更新
             #    Inventory の item と warehouse は PurchaseOrder からの文字列を直接使用
             inventory_item, created = Inventory.objects.get_or_create(
                 part_number=purchase_order.part_number, # PurchaseOrder の part_number を使用
                 warehouse=target_warehouse, # 実際に入庫する倉庫を使用
-                location=location_str,      # Use normalized location as part of the key
+                location=target_location_str, # Use determined target location
                 defaults={'quantity': 0}    # Location is now part of the query criteria
             )
             inventory_item.quantity += actual_received_quantity
@@ -252,6 +261,7 @@ def process_purchase_receipt_api(request):
             # 既存レコードの場合で、かつリクエストに location が指定されていれば更新
             # また、もしget_or_createで取得したInventoryのwarehouseがtarget_warehouseと異なる場合(通常はありえないが)、更新する
             inventory_item.warehouse = target_warehouse # 念のため、取得/作成された在庫の倉庫をターゲットに合わせる
+            # inventory_item.location is already set by get_or_create
             # Location is part of the key, so it's already correct for the fetched/created item.
             # If location_str was different from item's original location, a new record would be made or a different one fetched.
             inventory_item.save()
@@ -262,7 +272,7 @@ def process_purchase_receipt_api(request):
                 warehouse=target_warehouse, # 実際に入庫した倉庫
                 movement_type='incoming',
                 quantity=actual_received_quantity,
-                description=f"PO {purchase_order.order_number} による入庫 (倉庫: {target_warehouse}" + (f", 場所: {location_str})" if location_str else ")"),
+                description=f"PO {purchase_order.order_number} による入庫 (倉庫: {target_warehouse}" + (f", 場所: {target_location_str})" if target_location_str else ")"),
                 operator=request.user if request.user.is_authenticated else None,
             )
 
@@ -953,6 +963,7 @@ class PurchaseOrderDetailAjaxView(View):
                 'quantity': order.quantity,
                 'expected_arrival': order.expected_arrival.isoformat() if order.expected_arrival else None,
                 'warehouse': order.warehouse,
+                'location': order.location, # Add location
                 'parent_part_number': order.parent_part_number,
                 'instruction_document': order.instruction_document,
                 'shipment_number': order.shipment_number,
