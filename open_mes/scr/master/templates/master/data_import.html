@@ -348,6 +348,13 @@ document.addEventListener('DOMContentLoaded', function () {
             // title, form content, populating data, and setting the action URL.
         });
 
+        dataImportModal.addEventListener('hide.bs.modal', function () {
+            // モーダルが閉じられる直前に、現在フォーカスされている要素からフォーカスを外す
+            if (dataImportModal.contains(document.activeElement) && document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+            }
+        });
+
         dataImportModal.addEventListener('shown.bs.modal', function () {
             // モーダルが完全に表示された後、フォーム内の最初のフォーカス可能な要素にフォーカスを当てる
             // (data-bs-dismiss属性を持つボタンは除外しても良いが、現状のフォーム内には無いためシンプルに)
@@ -357,13 +364,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        dataImportModal.addEventListener('hide.bs.modal', function () {
-            // モーダルが閉じるときに属性を元に戻すか削除
-            dataImportModal.removeAttribute('data-bs-backdrop');
-            dataImportModal.removeAttribute('data-bs-keyboard');
-            // フォーム内のIDフィールドもクリア
-            clearHiddenIdFieldsInModal();
-        });
     }
 
     function clearHiddenIdFieldsInModal() {
@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function () {
             dataListModalBody.innerHTML = '<p class="text-center">データを読み込んでいます...</p>';
 
             try {
-                const response = await fetch(listUrl);
+                const response = await fetch(listUrl, { credentials: 'include' });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({})); // Try to parse error, default to empty obj
                     throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.message || response.statusText}`);
@@ -490,16 +490,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         headers = ['コード', '品番名', '品目タイプ', '単位', 'デフォルト倉庫', 'デフォルト棚番', '支給種別', '説明', '操作'];
                         rowKeys = ['code', 'name', 'item_type', 'unit', 'default_warehouse', 'default_location', 'provision_type', 'description'];
                     } else if (masterType === 'supplier') {
-                        headers = ['サプライヤー名', '担当者名', '電話番号', 'メールアドレス', '住所', '操作'];
-                        rowKeys = ['name', 'contact_person', 'phone', 'email', 'address'];
+                        headers = ['サプライヤー番号', 'サプライヤー名', '担当者名', '電話番号', 'メールアドレス', '住所', '操作'];
+                        rowKeys = ['supplier_number', 'name', 'contact_person', 'phone', 'email', 'address'];
                     } else if (masterType === 'warehouse') {
                         headers = ['倉庫番号', '倉庫名', '所在地', '操作']; // 3 data columns + 操作
                         rowKeys = ['warehouse_number', 'name', 'location'];
                     } else if (masterType === 'inventory-purchase-entry') {
                         // 8 data columns + 操作 (Corrected rowKeys below)
                         headers = ['発注番号', '便番号', '仕入れ先', '品番', '品名', '数量', '入荷予定日', 'ステータス', '操作'];
-                        // Fix: Added 'delivery_number' to match '便番号' header and reordered keys
-                        rowKeys = ['order_number', 'delivery_number', 'supplier', 'part_number', 'product_name', 'quantity', 'expected_arrival', 'status'];
+                        // Corrected rowKeys to use 'shipment_number' for '便番号'
+                        rowKeys = ['order_number', 'shipment_number', 'supplier', 'part_number', 'product_name', 'quantity', 'expected_arrival', 'status'];
                     } else if (masterType === 'production-plan-entry') {
                         headers = ['計画名', '製品コード', '品名', '計画数量', '計画開始日時', 'ステータス', '操作']; // 6 data columns + 操作
                         // Note: 'product_name' is used here, ensure it's available in the API response for production plans
@@ -544,6 +544,14 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
+        dataListModal.addEventListener('hide.bs.modal', function () {
+            // モーダルが閉じられる直前に、現在フォーカスされている要素からフォーカスを外す
+            // これにより、aria-hiddenが設定される要素の子孫がフォーカスを保持する問題を回避する
+            if (dataListModal.contains(document.activeElement) && document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+            }
+        });
+
         // オプション: モーダルが閉じられたときに内容をクリアする
         dataListModal.addEventListener('hidden.bs.modal', function () {
             dataListModalBody.innerHTML = '<p class="text-center">データを読み込んでいます...</p>'; // 次回表示時のため
@@ -571,7 +579,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 try {
-                    const response = await fetch(detailUrl);
+                    const response = await fetch(detailUrl, { credentials: 'include' });
                     if (!response.ok) {
                         throw new Error(`Error fetching record details: ${response.statusText}`);
                     }
@@ -654,6 +662,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         const executeDeleteButton = document.getElementById('executeDeleteButton');
+        const deleteConfirmModalElement = document.getElementById('deleteConfirmModal'); // Get the element
+
+        if (deleteConfirmModalElement) { // Add event listener for deleteConfirmModal
+            deleteConfirmModalElement.addEventListener('hide.bs.modal', function () {
+                if (deleteConfirmModalElement.contains(document.activeElement) && document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
+            });
+        }
         if (executeDeleteButton) {
             executeDeleteButton.addEventListener('click', async function() {
                 const recordId = this.dataset.recordId;
@@ -672,6 +689,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             'X-CSRFToken': getCsrfToken(), // Helper function to get CSRF token
                             'Content-Type': 'application/json' // Or 'application/x-www-form-urlencoded' if not sending JSON body
                         },
+                        credentials: 'include', // Ensure cookies are sent
                         // body: JSON.stringify({ id: recordId }) // Optional: send ID in body
                     });
                     const result = await response.json();
@@ -721,7 +739,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (masterType === 'warehouse') return `/master/warehouse/${recordId}/delete/ajax/`; // Assuming this URL exists for UUID PK
         if (masterType === 'inventory-purchase-entry') return `/api/inventory/purchase-order/${recordId}/delete/ajax/`; // Assuming this URL exists
         if (masterType === 'production-plan-entry') return `/production/ajax/plan/${recordId}/delete/`;
-        if (masterType === 'parts_used_entry') return `/production/ajax/parts-used/${recordId}/delete/`;
+        if (masterType === 'parts-used-entry') return `/production/ajax/parts-used/${recordId}/delete/`;
         return null;
     }
     function getCsrfToken() {

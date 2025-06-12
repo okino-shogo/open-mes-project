@@ -33,7 +33,8 @@ class Item(models.Model):
         return f"{self.name} ({self.get_item_type_display()})"
 # サプライヤーマスター
 class Supplier(models.Model):
-    name = models.CharField(max_length=255, unique=True)  # サプライヤー名
+    supplier_number = models.CharField(max_length=50, unique=True, verbose_name="サプライヤー番号") # 新規追加
+    name = models.CharField(max_length=255, verbose_name="サプライヤー名")  # unique=True を削除 (サプライヤー番号を主キーとするため)
     contact_person = models.CharField(max_length=255, blank=True, null=True)  # 担当者名
     phone = models.CharField(max_length=50, blank=True, null=True)  # 電話番号
     email = models.EmailField(blank=True, null=True)  # メールアドレス
@@ -41,7 +42,7 @@ class Supplier(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)  # 登録日時
 
     def __str__(self):
-        return self.name
+        return f"{self.supplier_number} - {self.name}"
     
 # 倉庫マスター
 class Warehouse(models.Model):

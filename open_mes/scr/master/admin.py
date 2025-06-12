@@ -11,7 +11,7 @@ class ItemAdmin(admin.ModelAdmin):
 
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ('name', 'contact_person', 'phone', 'email', 'created_at')
-    search_fields = ('name', 'contact_person', 'email')
+    list_display = ('supplier_number', 'name', 'contact_person', 'phone', 'email', 'created_at')
+    search_fields = ('supplier_number', 'name', 'contact_person', 'email')
 
 admin.site.register(Warehouse)

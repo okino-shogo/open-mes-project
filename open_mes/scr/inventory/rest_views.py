@@ -1,18 +1,16 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated # 必要に応じて認証を追加
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination # PageNumberPagination は StandardResultsSetPagination で使用
+from rest_framework.views import APIView # Import APIView
 from .serializers import PurchaseOrderSerializer, InventorySerializer, StockMovementSerializer, AllocateInventoryForSalesOrderRequestSerializer # StockMovementSerializer をインポート
 from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # SalesOrderモデルをインポート
 from django.http import JsonResponse # JsonResponse をインポート
 from django.db import transaction # トランザクションのためにインポート # Qオブジェクトをインポートして複雑なクエリを構築
 from django.db.models import Q, F # Fオブジェクトをインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
-from master.models import Item, Warehouse # masterアプリケーションからItem, Warehouseをインポート (現在は文字列として使用)
-from django.contrib.auth.decorators import login_required # 認証が必要な場合 (関数ビュー用)
-from django.views import View # クラスベースビュー用
-from django.utils.decorators import method_decorator # クラスベースビューでデコレータ使用
+from django.db.models import ProtectedError # Import ProtectedError
 from .forms import PurchaseOrderEntryForm # 新しいフォームをインポート
 
 @permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
@@ -893,10 +891,11 @@ def get_purchase_orders_api(request):
     return paginator.get_paginated_response(serializer.data)
 
 
-@method_decorator(login_required, name='dispatch')
-class PurchaseOrderCreateAjaxView(View):
+class PurchaseOrderCreateAjaxAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, *args, **kwargs):
-        instance_id = request.POST.get('id')
+        instance_id = request.data.get('id')
         instance = None
         message_verb = "登録" # Default for new
 
@@ -905,10 +904,10 @@ class PurchaseOrderCreateAjaxView(View):
                 instance = PurchaseOrder.objects.get(pk=instance_id)
                 message_verb = "更新"
             except PurchaseOrder.DoesNotExist:
-                return JsonResponse({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=404)
+                return Response({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=status.HTTP_404_NOT_FOUND)
         
         # Initialize form with instance if updating, otherwise instance is None for new
-        form = PurchaseOrderEntryForm(request.POST, instance=instance) 
+        form = PurchaseOrderEntryForm(request.data, instance=instance) 
 
         if form.is_valid():
             try:
@@ -917,16 +916,18 @@ class PurchaseOrderCreateAjaxView(View):
                     'status': 'success', 
                     'message': f'入庫予定を{message_verb}しました。', 
                     'purchase_order_id': purchase_order.id
-                })
+                }, status=status.HTTP_200_OK) # Use JsonResponse for direct compatibility if needed, or DRF Response
             except Exception as e:
                 # Log the error e for server-side debugging
                 print(f"Error saving PurchaseOrder: {str(e)}") 
-                return JsonResponse({'status': 'error', 'message': f'保存中にエラーが発生しました: {str(e)}'}, status=500)
+                return Response({'status': 'error', 'message': f'保存中にエラーが発生しました: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
-            return JsonResponse({'status': 'error', 'errors': form.errors, 'message': '入力内容にエラーがあります。'}, status=400)
+            return Response({'status': 'error', 'errors': form.errors, 'message': '入力内容にエラーがあります。'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PurchaseOrderListAjaxView(View): # No LoginRequiredMixin as it's in rest_views, adjust if needed
+class PurchaseOrderListAjaxAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, *args, **kwargs):
         # Using existing get_purchase_orders_api logic might be complex due to pagination differences.
         # For simplicity, a direct query similar to master list views.
@@ -946,9 +947,11 @@ class PurchaseOrderListAjaxView(View): # No LoginRequiredMixin as it's in rest_v
             'expected_arrival': order.expected_arrival.strftime('%Y-%m-%d %H:%M') if order.expected_arrival else '',
             'status': order.get_status_display(),
         } for order in orders]
-        return JsonResponse({'data': data})
+        return Response({'data': data})
 
-class PurchaseOrderDetailAjaxView(View):
+class PurchaseOrderDetailAjaxAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, pk, *args, **kwargs):
         try:
             order = PurchaseOrder.objects.get(pk=pk)
@@ -961,7 +964,7 @@ class PurchaseOrderDetailAjaxView(View):
                 'part_number': order.part_number,
                 'product_name': order.product_name,
                 'quantity': order.quantity,
-                'expected_arrival': order.expected_arrival.isoformat() if order.expected_arrival else None,
+                'expected_arrival': order.expected_arrival.strftime('%Y-%m-%dT%H:%M') if order.expected_arrival else None,
                 'warehouse': order.warehouse,
                 'location': order.location, # Add location
                 'parent_part_number': order.parent_part_number,
@@ -974,18 +977,20 @@ class PurchaseOrderDetailAjaxView(View):
                 'delivery_source': order.delivery_source,
                 'remarks1': order.remarks1,
             }
-            return JsonResponse({'status': 'success', 'data': data})
+            return Response({'status': 'success', 'data': data})
         except PurchaseOrder.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Purchase Order not found'}, status=404)
+            return Response({'status': 'error', 'message': 'Purchase Order not found'}, status=status.HTTP_404_NOT_FOUND)
 
-class PurchaseOrderDeleteAjaxView(View):
+class PurchaseOrderDeleteAjaxAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, pk, *args, **kwargs):
         try:
             order = PurchaseOrder.objects.get(pk=pk)
             order_number = order.order_number
             order.delete()
-            return JsonResponse({'status': 'success', 'message': f'入庫予定「{order_number}」を削除しました。'})
+            return Response({'status': 'success', 'message': f'入庫予定「{order_number}」を削除しました。'})
         except PurchaseOrder.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=404)
+            return Response({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=status.HTTP_404_NOT_FOUND)
         except ProtectedError: # If PurchaseOrder is protected by other models
-            return JsonResponse({'status': 'error', 'message': 'この入庫予定は他で使用されているため削除できません。'}, status=400)
+            return Response({'status': 'error', 'message': 'この入庫予定は他で使用されているため削除できません。'}, status=status.HTTP_400_BAD_REQUEST)

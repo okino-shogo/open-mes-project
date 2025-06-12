@@ -29,8 +29,9 @@ class ItemForm(forms.ModelForm):
 class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier
-        fields = ['name', 'contact_person', 'phone', 'email', 'address']
+        fields = ['supplier_number', 'name', 'contact_person', 'phone', 'email', 'address']
         widgets = {
+            'supplier_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: SUP-001'}),
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: 株式会社〇〇'}),
             'contact_person': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: 山田 太郎'}),
             'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '例: 03-1234-5678'}),
@@ -38,7 +39,8 @@ class SupplierForm(forms.ModelForm):
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': '例: 東京都千代田区...'})
         }
         labels = {
-            'name': 'サプライヤー名',
+            'supplier_number': 'サプライヤー番号',
+            'name': 'サプライヤー名', # 既存
             'contact_person': '担当者名',
             'phone': '電話番号',
             'email': 'メールアドレス',

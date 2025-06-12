@@ -38,7 +38,8 @@ DEBUG = env.bool('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
 DEBUG_TOOLBAR_CONFIG = {
-    "SHOW_TOOLBAR_CALLBACK" : lambda request: env.bool('DEBUG'),  # Trueを返すlambda関数を設定
+    "SHOW_TOOLBAR_CALLBACK" : lambda request: env.bool('DEBUG'),
+    "FETCH_INSTRUMENTATION_ENABLED": False,
 }
 
 if env.list('CSRF_TRUSTED_ORIGINS') != ['*']:
@@ -150,6 +151,7 @@ STATIC_URL = '/static/'
 # Django REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication', # 追加
         'rest_framework.authentication.TokenAuthentication',
     ]
 }
