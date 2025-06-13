@@ -1,0 +1,19 @@
+{% extends 'mobile/mobile_base.html' %}
+{% load static %}
+
+{% block title %}ようこそ - モバイルページ{% endblock %}
+
+{% block extra_head %}
+    {# このページ固有のCSSファイルへのリンクなどを追加できます #}
+    {# <link rel="stylesheet" href="{% static 'mobile/css/index_style.css' %}"> #}
+{% endblock %}
+
+{% block content %}
+    <h1>ようこそ！</h1>
+    <p>これはモバイル向けのページです。</p>
+{% endblock %}
+
+{% block extra_scripts %}
+    {# このページ固有のJavaScriptファイルへのリンクなどを追加できます #}
+    {# <script src="{% static 'mobile/js/index_script.js' %}"></script> #}
+{% endblock %}

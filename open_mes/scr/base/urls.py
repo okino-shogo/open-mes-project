@@ -48,6 +48,9 @@ urlpatterns = [
     path('quality/', include('quality.urls', namespace='quality')),
     path('master/', include('master.urls', namespace='master')), # master アプリケーションのURLをインクルード
 
+    # Mobile App URLs
+    path('mobile/', include('mobile.urls', namespace='mobile')),
+
     path('users/login/', login.CustomLoginView.as_view(), name='users_login'),  # 追記：ログインURL
     path('users/logout/', logout.CustomLogoutView.as_view(), name='users_logout'),  # 追記：ログアウトURL
     path('users/', include('users.urls', namespace='users')), # users アプリケーションのURLをインクルード

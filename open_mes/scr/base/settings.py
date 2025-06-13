@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'machine.apps.MachineConfig',
     'quality.apps.QualityConfig',
     'master.apps.MasterConfig',
+    'mobile.apps.MobileConfig',
     'debug_toolbar',
     'rest_framework',
     'rest_framework.authtoken',
@@ -72,6 +73,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'mobile.middleware.AutoMobileRedirectMiddleware', # Automatically redirect mobile users
     'django.contrib.messages.middleware.MessageMiddleware',
     'users.middleware.PasswordExpirationMiddleware', # パスワード有効期限
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

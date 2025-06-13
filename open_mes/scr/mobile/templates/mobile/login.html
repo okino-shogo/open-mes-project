@@ -1,0 +1,32 @@
+{% extends 'mobile/mobile_base.html' %}
+{% load static %}
+
+{% block title %}モバイルログイン{% endblock %}
+
+{% block header_title %}ログイン{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h2>モバイルログイン</h2>
+    {% if form.errors %}
+        <p style="color: red;">ユーザー名またはパスワードが正しくありません。</p>
+    {% endif %}
+
+    <form method="post" action="{% url 'mobile:login' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        
+        <div>
+            <label for="{{ form.username.id_for_label }}">ユーザー名:</label>
+            {{ form.username }}
+        </div>
+        <div style="margin-top: 10px;">
+            <label for="{{ form.password.id_for_label }}">パスワード:</label>
+            {{ form.password }}
+        </div>
+        <div style="margin-top: 20px;">
+            <button type="submit">ログイン</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
