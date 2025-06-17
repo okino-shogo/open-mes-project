@@ -12,6 +12,7 @@
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.6;
+            padding-bottom: 50px; /* Height of the fixed bottom bar */
         }
         body.mobile-nav-open {
             overflow: hidden; /* Prevent scrolling when nav is open */
@@ -25,9 +26,11 @@
             padding: 10px 15px;
             background-color: #333; /* Dark background for the header */
             color: white;
-            position: sticky; /* Make header sticky */
-            top: 0;
-            z-index: 1001; /* Above nav panel */
+            position: fixed; /* Changed from sticky to fixed */
+            bottom: 0;       /* Positioned at the bottom */
+            left: 0;         /* Full width */
+            right: 0;        /* Full width */
+            z-index: 1001;   /* Above nav panel */
         }
 
         .mobile-header-title {
@@ -73,22 +76,34 @@
         /* Navigation Links Panel */
         .mobile-navigation-panel {
             position: fixed;
-            top: 50px; /* Header bar height (10px padding + 30px button + 10px padding) */
-            left: -100%; /* Start off-screen */
-            width: 75%; /* Or your desired width */
-            max-width: 300px;
-            height: calc(100vh - 50px); /* Full height minus header bar height */
+            top: 0;    /* Align to the top of the viewport */
+            right: 0;   /* Anchor to the right of the viewport */
+            width: 75%; /* Panel width, adjust as needed */
+            max-width: 300px; /* Maximum panel width */
+            bottom: 50px; /* Position panel above the 50px bottom header bar */
             background-color: #444; /* Slightly lighter than header */
             color: white;
-            padding-top: 20px; /* Internal padding from the top of the panel */
-            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
-            transition: left 0.3s ease-in-out;
-            z-index: 1000; /* Below sticky header, above main content */
+            /* padding-top: 20px; */ /* Removed for bottom alignment */
+            display: flex; /* Enable flexbox */
+            flex-direction: column; /* Stack items vertically */
+            justify-content: flex-end; /* Align items to the bottom */
+            padding-bottom: 20px; /* Spacing between last item and panel bottom edge */
+            box-shadow: -2px 0 10px rgba(0,0,0,0.3); /* Shadow on the left side */
+            z-index: 1000; /* Below header bar (1001), above main content */
             overflow-y: auto;
-        }
 
+            /* Initial state: hidden off-screen to the right */
+            transform: translateX(100%);
+            visibility: hidden;
+            transition-property: transform, visibility;
+            transition-duration: 0.3s, 0s; /* duration for visibility is 0s */
+            transition-timing-function: ease-in-out, linear;
+            transition-delay: 0s, 0.3s; /* visibility delayed by 0.3s when hiding */
+        }
         .mobile-navigation-panel[aria-hidden="false"] {
-            left: 0; /* Slide in */
+            transform: translateX(0); /* Slide in from right */
+            visibility: visible;
+            transition-delay: 0s, 0s; /* visibility delay 0s when showing */
         }
 
         .mobile-navigation-panel ul {
@@ -167,9 +182,10 @@
                 {% else %}
                     <li><a href="{% url 'users_login' %}?next={{ request.path|urlencode }}">ログイン</a></li>
                 {% endif %}
-                {# --- 他のナビゲーションリンクをここに追加 --- #}
-                {# 例: #}
-                {# <li><a href="#">別のページ</a></li> #}
+                {# --- 他のナビゲーションリンク --- #}
+                <li><a href="{% url 'mobile:goods_receipt' %}">入庫処理</a></li>
+                <li><a href="{% url 'mobile:goods_issue' %}">出庫処理</a></li>
+                <li><a href="{% url 'mobile:location_transfer' %}">棚番移動</a></li>
             </ul>
         </nav>
     </header>

@@ -16,3 +16,12 @@ class MobileLoginView(auth_views.LoginView):
         # なければ mobile:index へ
         url = self.get_redirect_url()
         return url or reverse_lazy('mobile:index')
+
+class MobileGoodsReceiptView(generic.TemplateView):
+    template_name = 'mobile/goods_receipt.html'
+
+class MobileGoodsIssueView(generic.TemplateView):
+    template_name = 'mobile/goods_issue.html'
+
+class MobileLocationTransferView(generic.TemplateView):
+    template_name = 'mobile/location_transfer.html'
