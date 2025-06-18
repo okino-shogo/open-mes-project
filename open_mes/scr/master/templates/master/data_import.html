@@ -267,6 +267,24 @@
             </div>
         </div>
     </div>
+
+    <!-- CSV Upload Result Modal -->
+    <div class="modal fade" id="csvUploadResultModal" tabindex="-1" aria-labelledby="csvUploadResultModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="csvUploadResultModalLabel">CSVアップロード結果</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="csvUploadResultModalBody">
+                    <!-- Result message will be injected here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock content %}
 
@@ -755,6 +773,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const dragDropArea = document.getElementById('dragDropArea');
     const fileNameDisplay = document.getElementById('fileNameDisplay');
 
+    const csvResultModalElement = document.getElementById('csvUploadResultModal');
+    const csvResultModalBody = document.getElementById('csvUploadResultModalBody');
+    const csvResultModalInstance = csvResultModalElement ? new bootstrap.Modal(csvResultModalElement) : null;
     function updateUploadButtonState() {
         const dataTypeSelected = csvDataTypeSelect.value !== "";
         const fileSelected = csvFileInput.files && csvFileInput.files.length > 0;
@@ -769,21 +790,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function getDataTypeFromFilename(filename) {
         if (!filename) return null;
-        const nameLower = filename.toLowerCase();
-        // e.g., "item_master_2023.csv" -> "item"
-        const parts = nameLower.split('_');
-        if (parts.length > 0) {
-            const prefix = parts[0];
-            for (let i = 0; i < csvDataTypeSelect.options.length; i++) {
-                const optionValue = csvDataTypeSelect.options[i].value;
-                if (optionValue && prefix === optionValue) {
+        const nameLower = filename.toLowerCase(); // e.g., "production_plan_template.csv" or "production_plan.csv"
+
+        // optionValueが長い順にソートしてチェックすると、部分一致による誤判定を防ぎやすい
+        const options = Array.from(csvDataTypeSelect.options)
+            .map(opt => opt.value)
+            .filter(val => val) // 空のvalueを除外
+            .sort((a, b) => b.length - a.length); // 長い順にソート
+
+        for (const optionValue of options) {
+            // 1. "optionValue.csv" (例: "production_plan.csv")
+            // 2. "optionValue_anything.csv" (例: "production_plan_template.csv")
+            if (nameLower.startsWith(optionValue)) {
+                const charAfterOptionValue = nameLower.charAt(optionValue.length);
+                // optionValue の直後が '.' (例: item.csv) または '_' (例: item_template.csv) であることを確認
+                // かつ、ファイルが ".csv" で終わることを確認
+                if ((charAfterOptionValue === '.' || charAfterOptionValue === '_') && nameLower.endsWith(".csv")) {
                     return optionValue;
                 }
             }
         }
         return null;
     }
-
     function handleFileSelect(file) {
         if (file && file.name.toLowerCase().endsWith('.csv')) {
             csvFileInput.files = new FileListItems([file]); // Set the file to the hidden input
@@ -791,23 +819,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const dataType = getDataTypeFromFilename(file.name);
             if (dataType) {
-                csvDataTypeSelect.value = dataType;
-            } else {
-                csvDataTypeSelect.value = ""; // Reset if type not found
+                // ファイル名からデータ種類を特定できた場合、それを設定
+                if (csvDataTypeSelect.value !== dataType) {
+                    csvDataTypeSelect.value = dataType;
+                }
+            } else if (!csvDataTypeSelect.value) {
+                // ファイル名から特定できず、かつユーザーもデータ種類を選択していない場合のみアラート
                 alert('ファイル名からデータ種類を自動判別できませんでした。データ種類を選択してください。');
             }
             // Trigger change on select to update URLs and button state
+            // これにより、選択されたデータ種類 (ファイル名から特定/ユーザーが事前選択) と
+            // ファイルの選択状態に基づいて、フォームのactionやテンプレートリンク、アップロードボタンの状態が更新される。
             csvDataTypeSelect.dispatchEvent(new Event('change'));
         } else {
             alert('CSVファイルを選択してください。');
             csvFileInput.value = ''; // Clear the input
             fileNameDisplay.textContent = '';
-            csvDataTypeSelect.value = "";
-            csvDataTypeSelect.dispatchEvent(new Event('change'));
+            if (csvDataTypeSelect.value !== "") { // データ種類が選択されていたらクリア
+                csvDataTypeSelect.value = "";
+                csvDataTypeSelect.dispatchEvent(new Event('change'));
+            } else {
+                // データ種類がもともと空なら、changeイベントをトリガーしてボタン状態などを更新
+                updateUploadButtonState(); // 直接呼ぶか、dispatchEventでも良い
+            }
         }
-        updateUploadButtonState();
+        // updateUploadButtonState(); // csvDataTypeSelect.dispatchEvent(new Event('change')) の中で呼ばれるので通常は不要
     }
-
     // Helper for FileList (since input.files is read-only)
     function FileListItems (files) {
       let b = new ClipboardEvent("").clipboardData || new DataTransfer()
@@ -815,7 +852,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return b.files
     }
 
-    if (csvDataTypeSelect && csvFileInput && uploadCsvButton && csvTemplateDownloadLink && csvUploadForm && dragDropArea && fileNameDisplay) {
+    if (csvDataTypeSelect && csvFileInput && uploadCsvButton && csvTemplateDownloadLink && csvUploadForm && dragDropArea && fileNameDisplay && csvResultModalInstance) {
         csvDataTypeSelect.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             let templateUrl = null;
@@ -885,6 +922,77 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Initial state update
         updateUploadButtonState();
+
+        csvUploadForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const url = form.action;
+            const method = form.method;
+
+            if (!url || url === window.location.href + '#' || url === '') {
+                csvResultModalBody.innerHTML = `<p class="text-danger">データ種類を選択し、有効なアップロード先が設定されていることを確認してください。</p>`;
+                csvResultModalInstance.show();
+                return;
+            }
+
+            uploadCsvButton.disabled = true;
+
+            fetch(url, {
+                method: method.toUpperCase(),
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                },
+                credentials: 'include'
+            })
+            .then(response => {
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    return response.json().then(data => ({ httpStatus: response.status, ok: response.ok, body: data }));
+                } else {
+                    return response.text().then(text => ({ httpStatus: response.status, ok: response.ok, body: { message: `サーバーから予期しない応答形式（JSON以外）を受け取りました。 Status: ${response.status}. Response: ${text.substring(0,200)}...` , status: 'error'} }));
+                }
+            })
+            .then(res => {
+                let message = '';
+                let messageClass = 'text-danger';
+
+                if (res.ok && res.body && res.body.status === 'success') {
+                    message = res.body.message || 'アップロードに成功しました。';
+                    messageClass = 'text-success';
+                    
+                    form.reset(); // Reset file input and other fields
+                    fileNameDisplay.textContent = ''; // Clear file name display
+                    csvDataTypeSelect.value = ""; // Reset select to default/empty
+                    csvDataTypeSelect.dispatchEvent(new Event('change')); // Trigger change to update UI (template link, form action, button state)
+
+                } else if (res.body && res.body.message) {
+                    message = res.body.message;
+                    if (res.body.errors) { // Assuming errors is an object {field: [msgs]}
+                        message += '<br>詳細:<ul>';
+                        for (const field in res.body.errors) {
+                            message += `<li>${field}: ${res.body.errors[field].join(', ')}</li>`;
+                        }
+                        message += '</ul>';
+                    }
+                } else {
+                    message = `アップロードに失敗しました。サーバーからの応答を確認してください。 HTTP Status: ${res.httpStatus}`;
+                }
+                csvResultModalBody.innerHTML = `<div class="${messageClass}">${message}</div>`;
+                csvResultModalInstance.show();
+            })
+            .catch(error => {
+                console.error('CSV Upload error:', error);
+                csvResultModalBody.innerHTML = `<p class="text-danger">アップロード中に通信エラーが発生しました: ${error.message}</p>`;
+                csvResultModalInstance.show();
+            })
+            .finally(() => {
+                // updateUploadButtonState is called by csvDataTypeSelect change event on success.
+                // If not success, or if change event doesn't run, ensure it's updated.
+                updateUploadButtonState();
+            });
+        });
     }
 });
 </script>

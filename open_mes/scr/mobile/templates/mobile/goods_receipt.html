@@ -6,10 +6,136 @@
 {% block header_title %}入庫処理{% endblock %}
 
 {% block content %}
-<div class="container">
+<style>
+/* バーコード入力欄をさらに大きくするためのカスタムスタイル */
+#barcode_input.form-control-lg {
+    font-size: 1.75rem; /* 例: Bootstrapのlgサイズ(1.25rem)よりさらに大きく */
+    padding-top: 0.75rem;    /* 上下のパディングを調整 */
+    padding-bottom: 0.75rem; /* 上下のパディングを調整 */
+    /* 必要に応じて左右のパディングも調整できます: padding-left: 1.25rem; padding-right: 1.25rem; */
+}
+
+/* 読み込みボタンをさらに大きくするためのカスタムスタイル */
+#scan_button.btn-lg { /* btn-lgクラスが付与されていることを前提 */
+    font-size: 1.75rem;    /* バーコード入力欄のフォントサイズに合わせる */
+    padding-top: 0.75rem;  /* 上下のパディングをバーコード入力欄に合わせる */
+    padding-bottom: 0.75rem;/* 上下のパディングをバーコード入力欄に合わせる */
+    padding-left: 2.5rem;  /* 左右のパディングをさらに増やす */
+    padding-right: 2.5rem; /* 左右のパディングをさらに増やす */
+    background-color: #28a745 !important; /* 少し明るい緑色に変更 */
+    border-color: #28a745 !important; /* 枠線の色も合わせる */
+    color: white !important; /* 文字色を白に */
+}
+</style>
+<div class="container mt-3">
     <h1>入庫処理</h1>
-    <p>ここに入庫処理のフォームや情報を表示します。</p>
-    {# 例: バーコードスキャン入力、数量入力など #}
-    <p>（開発中）</p>
+
+    <div class="d-flex justify-content-center">
+        <div class="mb-3 w-75">
+            <input type="text" class="form-control form-control-lg" id="barcode_input" name="barcode" placeholder="バーコードをスキャンまたは入力">
+            <button class="btn btn-success btn-lg w-100 mt-2" type="button" id="scan_button">読込</button>
+        </div>
+    </div>
+
+    <hr>
+
+    <h2>読み取りデータ</h2>
+    <div id="data_display_area" class="card mb-3">
+        <div class="card-body">
+            <p class="card-text" id="item_info_placeholder">ここにスキャンした商品の詳細が表示されます。</p>
+            {# データ表示の例（JavaScriptで動的に内容を更新することを想定） #}
+            {#
+            <p><strong>商品名:</strong> <span id="display_item_name">---</span></p>
+            <p><strong>品番:</strong> <span id="display_item_code">---</span></p>
+            <p><strong>現在の在庫数:</strong> <span id="display_current_stock">---</span></p>
+            #}
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="mb-3">
+        <label for="quantity_input" class="form-label">入庫数量</label>
+        <input type="number" class="form-control" id="quantity_input" name="quantity" value="1" min="1">
+    </div>
+
+    <button type="button" class="btn btn-success w-100" id="confirm_receipt_button">入庫実行</button>
+
 </div>
+
+{#
+<script>
+// このスクリプトは機能実装の参考例です。
+// 実際の動作には、バックエンドとの連携や詳細なDOM操作処理が必要になります。
+document.addEventListener('DOMContentLoaded', function() {
+    const scanButton = document.getElementById('scan_button');
+    const barcodeInput = document.getElementById('barcode_input');
+    const dataDisplayCardBody = document.getElementById('data_display_area').querySelector('.card-body');
+    const itemInfoPlaceholder = document.getElementById('item_info_placeholder');
+    const quantityInput = document.getElementById('quantity_input');
+    const confirmReceiptButton = document.getElementById('confirm_receipt_button');
+
+    if (scanButton) {
+        scanButton.addEventListener('click', function() {
+            const barcodeValue = barcodeInput.value.trim();
+            if (barcodeValue) {
+                // ここでバックエンドにバーコード情報を送信し、商品情報を取得する処理を実装します。
+                // 以下はダミーデータの表示例です。
+                console.log('Barcode submitted:', barcodeValue);
+                // itemInfoPlaceholder.style.display = 'none'; // Hide placeholder
+
+                // Simulate API call
+                setTimeout(() => {
+                    // ダミーデータ
+                    const itemData = {
+                        name: 'サンプル商品名',
+                        code: 'ITEM-00123',
+                        stock: 50
+                    };
+                    dataDisplayCardBody.innerHTML = `
+                        <p><strong>商品名:</strong> <span id="display_item_name">${itemData.name}</span></p>
+                        <p><strong>品番:</strong> <span id="display_item_code">${itemData.code}</span></p>
+                        <p><strong>現在の在庫数:</strong> <span id="display_current_stock">${itemData.stock}</span></p>
+                    `;
+                }, 500);
+
+            } else {
+                alert('バーコードを入力してください。');
+                itemInfoPlaceholder.style.display = 'block'; // Show placeholder
+                dataDisplayCardBody.innerHTML = ''; // Clear previous data
+                dataDisplayCardBody.appendChild(itemInfoPlaceholder);
+
+            }
+        });
+    }
+
+    if (confirmReceiptButton) {
+        confirmReceiptButton.addEventListener('click', function() {
+            const barcodeValue = barcodeInput.value.trim();
+            const quantity = quantityInput.value;
+
+            if (!barcodeValue) {
+                alert('バーコードをスキャンまたは入力してください。');
+                return;
+            }
+            if (parseInt(quantity) < 1 || isNaN(parseInt(quantity))) {
+                alert('正しい数量を入力してください。');
+                return;
+            }
+
+            // ここでバックエンドに入庫処理を依頼する処理を実装します。
+            console.log('Confirming receipt:', { barcode: barcodeValue, quantity: quantity });
+            alert(`商品コード: ${barcodeValue}\n数量: ${quantity}\n上記の内容で入庫処理を実行します。(仮)`);
+
+            // 処理後、フォームをリセットするなどの処理
+            // barcodeInput.value = '';
+            // itemInfoPlaceholder.style.display = 'block';
+            // dataDisplayCardBody.innerHTML = '';
+            // dataDisplayCardBody.appendChild(itemInfoPlaceholder);
+            // quantityInput.value = '1';
+        });
+    }
+});
+</script>
+#}
 {% endblock %}
