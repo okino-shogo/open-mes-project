@@ -24,6 +24,7 @@ class Item(models.Model):
     provision_type = models.CharField(
         max_length=10,
         choices=PROVISION_TYPE_CHOICES,
+        default='none',  # デフォルト値を「支給なし」に設定
         blank=True, null=True,
         verbose_name="支給種別"
     ) # 有償支給、無償支給等

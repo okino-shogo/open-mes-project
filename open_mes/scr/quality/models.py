@@ -135,6 +135,7 @@ class InspectionResult(models.Model):
     judgment = models.CharField(
         max_length=20,
         choices=JUDGMENT_CHOICES,
+        default='pending', # 検査記録作成時のデフォルト判定を「保留」に設定
         verbose_name="判定結果"
     )
     remarks = models.TextField(blank=True, null=True, verbose_name="備考")
