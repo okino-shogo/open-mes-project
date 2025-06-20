@@ -28,112 +28,315 @@
 }
 </style>
 <div class="container mt-3">
-    <h1>入庫処理</h1>
+    <h1 class="text-center">入庫処理</h1>
 
     <div class="d-flex justify-content-center">
         <div class="mb-3 w-75 d-flex flex-column"> {# このdivが全ての関連要素を囲むように変更 #}
             <input type="text" class="form-control form-control-lg" id="barcode_input" name="barcode" placeholder="バーコードをスキャンまたは入力">
             <button class="btn btn-success btn-lg w-100 mt-2" type="button" id="scan_button">読込</button>
 
-            <hr class="w-100 my-3"> <!-- 水平線もflexアイテムになるため、幅とマージンを調整 -->
-
-            <h2 class="align-self-start">読み取りデータ</h2> <!-- 見出しを左揃えにする -->
-            <div id="data_display_area" class="card mb-3 w-100"> <!-- データ表示エリアも幅100%に -->
-                <div class="card-body">
-                    <p class="card-text" id="item_info_placeholder">ここにスキャンした商品の詳細が表示されます。</p>
-                    {# データ表示の例（JavaScriptで動的に内容を更新することを想定） #}
-                    {#
-                    <p><strong>商品名:</strong> <span id="display_item_name">---</span></p>
-                    <p><strong>品番:</strong> <span id="display_item_code">---</span></p>
-                    <p><strong>現在の在庫数:</strong> <span id="display_current_stock">---</span></p>
-                    #}
+            <hr class="w-100 my-3">
+            <h2 class="align-self-start">読み取りデータ (入庫予定リスト)</h2>
+            <div id="data_display_area" class="card mb-3 w-100" style="max-height: 500px; overflow-y: auto;">
+                <div class="list-group list-group-flush" id="po_list_container">
+                    <!-- Purchase Order items will be appended here by JavaScript -->
                 </div>
+                <p id="loading_indicator" class="list-group-item text-center" style="display: none;">読み込み中...</p>
             </div>
 
-            <hr class="w-100 my-3"> <!-- 水平線 -->
-
-            <div class="mb-3 w-100 text-start"> <!-- 数量入力部分も幅100%にし、ラベルを左揃えにする -->
-                <label for="quantity_input" class="form-label">入庫数量</label>
-                <input type="number" class="form-control" id="quantity_input" name="quantity" value="1" min="1">
-            </div>
-            <button type="button" class="btn btn-success w-100 mt-2" id="confirm_receipt_button">入庫実行</button> <!-- 入庫実行ボタンに上マージンを追加 -->
         </div>
     </div>
 </div>
 
-{#
+<!-- Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="receiptModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="receiptModalLabel">入庫予定詳細・実行</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>品番:</strong> <span id="modal_item_code">---</span></p>
+        <p><strong>品名:</strong> <span id="modal_item_name">---</span></p>
+        <p><strong>PO番号:</strong> <span id="modal_order_number">---</span></p>
+        <p><strong>仕入先:</strong> <span id="modal_supplier_name">---</span></p>
+        <p><strong>入庫予定数量:</strong> <span id="modal_expected_quantity">---</span></p>
+        <p><strong>予定日:</strong> <span id="modal_expected_arrival">---</span></p>
+        <p><strong>倉庫:</strong> <span id="modal_warehouse">---</span></p>
+        <hr>
+        <div class="mb-3">
+          <label for="modal_quantity_input" class="form-label fw-bold">入庫数量</label>
+          <input type="number" class="form-control form-control-lg text-end" id="modal_quantity_input" value="1" min="1">
+        </div>
+      </div>
+      <div class="modal-footer justify-content-center gap-2">
+        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">キャンセル</button>
+        <button type="button" class="btn btn-primary btn-lg" id="modal_confirm_receipt_button">入庫実行</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-// このスクリプトは機能実装の参考例です。
-// 実際の動作には、バックエンドとの連携や詳細なDOM操作処理が必要になります。
 document.addEventListener('DOMContentLoaded', function() {
     const scanButton = document.getElementById('scan_button');
     const barcodeInput = document.getElementById('barcode_input');
-    const dataDisplayCardBody = document.getElementById('data_display_area').querySelector('.card-body');
-    const itemInfoPlaceholder = document.getElementById('item_info_placeholder');
-    const quantityInput = document.getElementById('quantity_input');
-    const confirmReceiptButton = document.getElementById('confirm_receipt_button');
+    const poListContainer = document.getElementById('po_list_container');
+    const dataDisplayArea = document.getElementById('data_display_area');
+    const loadingIndicator = document.getElementById('loading_indicator');
+    // const quantityInput = document.getElementById('quantity_input'); // Removed from main page
+    // const confirmReceiptButton = document.getElementById('confirm_receipt_button'); // Removed from main page
 
-    if (scanButton) {
-        scanButton.addEventListener('click', function() {
-            const barcodeValue = barcodeInput.value.trim();
-            if (barcodeValue) {
-                // ここでバックエンドにバーコード情報を送信し、商品情報を取得する処理を実装します。
-                // 以下はダミーデータの表示例です。
-                console.log('Barcode submitted:', barcodeValue);
-                // itemInfoPlaceholder.style.display = 'none'; // Hide placeholder
+    // Modal elements
+    const receiptModalElement = document.getElementById('receiptModal');
+    const receiptModal = new bootstrap.Modal(receiptModalElement);
+    const modalItemCode = document.getElementById('modal_item_code');
+    const modalItemName = document.getElementById('modal_item_name');
+    const modalOrderNumber = document.getElementById('modal_order_number');
+    const modalSupplierName = document.getElementById('modal_supplier_name');
+    const modalExpectedQuantity = document.getElementById('modal_expected_quantity');
+    const modalExpectedArrival = document.getElementById('modal_expected_arrival');
+    const modalWarehouse = document.getElementById('modal_warehouse');
+    const modalQuantityInput = document.getElementById('modal_quantity_input');
+    const modalConfirmReceiptButton = document.getElementById('modal_confirm_receipt_button');
 
-                // Simulate API call
-                setTimeout(() => {
-                    // ダミーデータ
-                    const itemData = {
-                        name: 'サンプル商品名',
-                        code: 'ITEM-00123',
-                        stock: 50
-                    };
-                    dataDisplayCardBody.innerHTML = `
-                        <p><strong>商品名:</strong> <span id="display_item_name">${itemData.name}</span></p>
-                        <p><strong>品番:</strong> <span id="display_item_code">${itemData.code}</span></p>
-                        <p><strong>現在の在庫数:</strong> <span id="display_current_stock">${itemData.stock}</span></p>
-                    `;
-                }, 500);
+    let currentPage = 1;
+    const itemsPerPage = 20;
+    let isLoading = false;
+    let allMockPOs = [];
+    let selectedPO = null; // To store data of the selected PO
+    // --- Mock Data Generation ---
+    function generateMockPOs(count) {
+        const pos = [];
+        for (let i = 1; i <= count; i++) {
+            const poNumberSuffix = String(1000 + i).slice(1);
+            const itemSuffix = String(Math.floor(Math.random() * 899) + 100);
+            const dayOffset = Math.floor(Math.random() * 30) + 1;
+            const arrivalDate = new Date();
+            arrivalDate.setDate(arrivalDate.getDate() + dayOffset);
 
-            } else {
-                alert('バーコードを入力してください。');
-                itemInfoPlaceholder.style.display = 'block'; // Show placeholder
-                dataDisplayCardBody.innerHTML = ''; // Clear previous data
-                dataDisplayCardBody.appendChild(itemInfoPlaceholder);
+            pos.push({
+                id: `po-uuid-${i}`,
+                orderNumber: `PO-2024-${poNumberSuffix}`,
+                itemCode: `ITEM-${itemSuffix}`,
+                itemName: `商品 ${itemSuffix}`,
+                supplierName: `仕入先 ${String.fromCharCode(65 + (i % 26))}`,
+                expectedQuantity: Math.floor(Math.random() * 200) + 10,
+                expectedArrival: arrivalDate.toISOString().split('T')[0],
+                warehouse: `倉庫 ${i % 3 === 0 ? 'A' : (i % 3 === 1 ? 'B' : 'C')}`
+            });
+        }
+        return pos;
+    }
+    allMockPOs = generateMockPOs(100); // Generate 100 mock POs for testing
 
+    // --- Fetch Purchase Orders (Simulated) ---
+    async function fetchPOs(page) {
+        if (isLoading) return;
+        isLoading = true;
+        if(loadingIndicator) loadingIndicator.style.display = 'block';
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                const start = (page - 1) * itemsPerPage;
+                const end = start + itemsPerPage;
+                const newPOs = allMockPOs.slice(start, end);
+                isLoading = false;
+                if(loadingIndicator) loadingIndicator.style.display = 'none';
+                resolve(newPOs);
+            }, 1000); // Simulate network delay
+        });
+    }
+
+    // --- Render Purchase Orders ---
+    function renderPOs(pos) {
+        if (!poListContainer) return;
+        if (pos.length === 0 && currentPage === 1) {
+            poListContainer.innerHTML = '<p class="list-group-item">入庫予定データがありません。</p>';
+            return;
+        }
+
+        pos.forEach(po => {
+            const poItem = document.createElement('a');
+            poItem.href = '#';
+            poItem.classList.add('list-group-item', 'list-group-item-action', 'flex-column', 'align-items-start');
+            poItem.innerHTML = `
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">${po.itemCode} - ${po.itemName}</h5>
+                    <small>予定日: ${po.expectedArrival}</small>
+                </div>
+                <p class="mb-1">PO: ${po.orderNumber} | 数量: ${po.expectedQuantity} | 仕入先: ${po.supplierName}</p>
+                <small>倉庫: ${po.warehouse}</small>
+            `;
+            poItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                handlePOSelection(po, poItem);
+            });
+            poListContainer.appendChild(poItem);
+        });
+    }
+
+    // --- Handle PO Selection ---
+    function handlePOSelection(po, selectedElement) {
+        selectedPO = po; 
+
+        // Populate modal with PO data
+        if (modalItemCode) modalItemCode.textContent = po.itemCode;
+        if (modalItemName) modalItemName.textContent = po.itemName;
+        if (modalOrderNumber) modalOrderNumber.textContent = po.orderNumber;
+        if (modalSupplierName) modalSupplierName.textContent = po.supplierName;
+        if (modalExpectedQuantity) modalExpectedQuantity.textContent = po.expectedQuantity;
+        if (modalExpectedArrival) modalExpectedArrival.textContent = po.expectedArrival;
+        if (modalWarehouse) modalWarehouse.textContent = po.warehouse;
+        if (modalQuantityInput) modalQuantityInput.value = po.expectedQuantity;
+
+        receiptModal.show();
+        // Remove active class from previously selected item
+        const currentlyActive = poListContainer.querySelector('.active');
+        if (currentlyActive) {
+            currentlyActive.classList.remove('active');
+        }
+        // Add active class to the new selected item
+        if (selectedElement) {
+            selectedElement.classList.add('active');
+        }
+        console.log('Selected PO:', po);
+    }
+
+    // --- Infinite Scroll ---
+    if (dataDisplayArea) {
+        dataDisplayArea.addEventListener('scroll', () => {
+            if (isLoading) return;
+            // Check if scrolled to near the bottom
+            if (dataDisplayArea.scrollTop + dataDisplayArea.clientHeight >= dataDisplayArea.scrollHeight - 100) {
+                currentPage++;
+                fetchPOs(currentPage).then(newPOs => {
+                    if (newPOs.length > 0) {
+                        renderPOs(newPOs);
+                    } else {
+                        // No more data to load
+                        if(loadingIndicator) loadingIndicator.style.display = 'none';
+                        console.log("これ以上読み込むデータがありません。");
+                        // Optionally display a "no more items" message
+                        // To prevent further calls, you might set a flag like `hasMoreData = false`
+                    }
+                });
             }
         });
     }
 
+    // --- Initial Load ---
+    fetchPOs(currentPage).then(renderPOs);
+
+    // --- Scan Button Logic (Example: Find PO by barcode or general item lookup) ---
+    if (scanButton && barcodeInput) {
+        scanButton.addEventListener('click', function() {
+            const barcodeValue = barcodeInput.value.trim();
+            if (!barcodeValue) {
+                alert('バーコードを入力またはスキャンしてください。');
+                return;
+            }
+            // Option 1: Try to find and select the PO from the loaded list
+            const foundPO = allMockPOs.find(po => po.itemCode.toLowerCase() === barcodeValue.toLowerCase());
+            if (foundPO) {
+                // Attempt to find the DOM element if it's rendered to highlight it
+                const poElement = Array.from(poListContainer.children).find(child => child.querySelector('h5').textContent.startsWith(foundPO.itemCode));
+                handlePOSelection(foundPO, poElement || null);
+                // You might want to scroll to it if it's rendered or load it.
+            } else {
+                // Option 2: Perform a general item lookup via API (if PO not found or for non-PO items)
+                alert(`品番 ${barcodeValue} の入庫予定は見つかりませんでした。別途APIで商品情報を検索します。(仮)`);
+                // Placeholder for API call to get item details
+                // For now, clear selection if barcode doesn't match a known PO
+                selectedPO = null;
+                const currentlyActive = poListContainer.querySelector('.active');
+                if (currentlyActive) currentlyActive.classList.remove('active');
+                // if (quantityInput) quantityInput.value = '1'; // Main page quantity input removed
+            }
+        });
+    }
+
+    // --- Main Page Confirm Receipt Button (for manual/non-PO entries) ---
     if (confirmReceiptButton) {
         confirmReceiptButton.addEventListener('click', function() {
-            const barcodeValue = barcodeInput.value.trim();
-            const quantity = quantityInput.value;
+            // const barcodeVal = barcodeInput.value.trim(); // Logic for this button is removed
+            // const qty = quantityInput.value;
 
-            if (!barcodeValue) {
-                alert('バーコードをスキャンまたは入力してください。');
+            // if (!barcodeVal) { 
+            //     alert('バーコードをスキャンまたは入力してください。');
+            //     return;
+            // }
+            // if (parseInt(qty) < 1 || isNaN(parseInt(qty))) {
+            //     alert('正しい数量を入力してください。');
+            //     return;
+            // }
+
+            // // This button is for entries not tied to a PO selection from the list
+            // console.log('メインページからの入庫実行:', {
+            //     itemCode: barcodeVal,
+            //     quantity: qty,
+            //     purchaseOrder: null 
+            // });
+            // alert(`品番: ${barcodeVal}\n数量: ${qty}\n上記の内容で入庫処理を実行します。(手動入力分・仮)`);
+
+            // // After successful receipt:
+            // if(barcodeInput) barcodeInput.value = '';
+            // if(quantityInput) quantityInput.value = '1';
+            
+            // // If a PO was somehow selected in the list, clear its visual state,
+            // // as this action is independent of that selection.
+            // if (selectedPO) {
+            //     const currentlyActive = poListContainer.querySelector('.active');
+            //     if (currentlyActive) currentlyActive.classList.remove('active');
+            //     selectedPO = null;
+            // }
+        });
+    }
+
+    // --- Modal Confirm Receipt Button ---
+    if (modalConfirmReceiptButton) {
+        modalConfirmReceiptButton.addEventListener('click', function() {
+            if (!selectedPO) {
+                alert('対象の入庫予定が選択されていません。');
+                receiptModal.hide();
                 return;
             }
-            if (parseInt(quantity) < 1 || isNaN(parseInt(quantity))) {
-                alert('正しい数量を入力してください。');
+            const quantityToReceive = modalQuantityInput.value;
+            if (parseInt(quantityToReceive) < 1 || isNaN(parseInt(quantityToReceive))) {
+                alert('正しい入庫数量を入力してください。');
                 return;
             }
 
-            // ここでバックエンドに入庫処理を依頼する処理を実装します。
-            console.log('Confirming receipt:', { barcode: barcodeValue, quantity: quantity });
-            alert(`商品コード: ${barcodeValue}\n数量: ${quantity}\n上記の内容で入庫処理を実行します。(仮)`);
+            console.log('モーダルからの入庫実行:', {
+                itemCode: selectedPO.itemCode,
+                quantity: quantityToReceive,
+                purchaseOrder: selectedPO.orderNumber,
+                poDetails: selectedPO
+            });
+            alert(`品番: ${selectedPO.itemCode}\n数量: ${quantityToReceive}\nPO: ${selectedPO.orderNumber}\n上記の内容で入庫処理を実行します。(仮)`);
+            
+            receiptModal.hide();
+            // Resetting and cleanup will be handled by 'hidden.bs.modal' event
+        });
+    }
 
-            // 処理後、フォームをリセットするなどの処理
-            // barcodeInput.value = '';
-            // itemInfoPlaceholder.style.display = 'block';
-            // dataDisplayCardBody.innerHTML = '';
-            // dataDisplayCardBody.appendChild(itemInfoPlaceholder);
-            // quantityInput.value = '1';
+    // --- Modal Hidden Event ---
+    if (receiptModalElement) {
+        receiptModalElement.addEventListener('hidden.bs.modal', function () {
+            // Clear selection state when modal is closed
+            if (barcodeInput) barcodeInput.value = ''; // Clear main barcode input
+            // if (quantityInput) quantityInput.value = '1'; // Main page quantity input removed
+            selectedPO = null;
+            const currentlyActive = poListContainer.querySelector('.active');
+            if (currentlyActive) currentlyActive.classList.remove('active');
+
+            // Optionally, refresh the PO list here if a receipt was confirmed
+            // poListContainer.innerHTML = ''; // Clear list
+            // currentPage = 1;
+            // fetchPOs(currentPage).then(renderPOs); // Reload
         });
     }
 });
 </script>
-#}
 {% endblock %}
