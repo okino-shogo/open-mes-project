@@ -1,4 +1,5 @@
 {% load static %}
+{% load md5url %} {# md5urlタグをロード #}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -6,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}モバイルアプリ{% endblock %}</title> {# ブラウザのタブタイトル #}
     {% block page_specific_meta %}{% endblock %}
+    {# Bootstrap CSSの読み込み #}
+    <link rel="stylesheet" href="{% md5url 'bootstrap-5.3.0-dist/css/bootstrap.min.css' %}">
     <style>
         /* Basic Reset & Body */
         body {
@@ -13,7 +16,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.6;
             padding-bottom: 50px; /* Height of the fixed bottom bar */
-        }
+        } /* Consider using Bootstrap classes for padding/margins */
         body.mobile-nav-open {
             overflow: hidden; /* Prevent scrolling when nav is open */
         }
@@ -21,7 +24,7 @@
         /* Header Bar */
         .mobile-header-bar {
             display: flex;
-            justify-content: space-between;
+            justify-content: space-between; /* Consider using Bootstrap flex classes like justify-content-between */
             align-items: center;
             padding: 10px 15px;
             background-color: #333; /* Dark background for the header */
@@ -33,11 +36,11 @@
             z-index: 1001;   /* Above nav panel */
         }
 
-        .mobile-header-title {
+        .mobile-header-title { /* Consider using Bootstrap heading classes like h5 or h6 */
             font-size: 1.1em; /* Adjust as needed */
             font-weight: bold;
         }
-
+        /* Consider replacing custom button styles with Bootstrap btn classes */
         /* Hamburger Menu Button */
         .hamburger-button {
             background: none;
@@ -45,7 +48,7 @@
             cursor: pointer;
             padding: 8px; /* Padding around the bars */
             display: flex;
-            flex-direction: column;
+            flex-direction: column; /* Consider using Bootstrap flex classes */
             justify-content: space-around; /* This will space out the bars */
             width: 36px;  /* Width of the clickable area */
             height: 30px; /* Height of the clickable area */
@@ -54,7 +57,7 @@
         }
 
         .hamburger-button .hamburger-icon-bar {
-            display: block;
+            display: block; /* Consider using Bootstrap display classes */
             width: 20px; /* Length of each bar */
             height: 3px;  /* Thickness of each bar */
             background-color: white;
@@ -86,7 +89,7 @@
             /* padding-top: 20px; */ /* Removed for bottom alignment */
             display: flex; /* Enable flexbox */
             flex-direction: column; /* Stack items vertically */
-            justify-content: flex-end; /* Align items to the bottom */
+            justify-content: flex-end; /* Consider using Bootstrap flex classes like justify-content-end */
             padding-bottom: 20px; /* Spacing between last item and panel bottom edge */
             box-shadow: -2px 0 10px rgba(0,0,0,0.3); /* Shadow on the left side */
             z-index: 1000; /* Below header bar (1001), above main content */
@@ -107,14 +110,14 @@
         }
 
         .mobile-navigation-panel ul {
-            list-style: none;
+            list-style: none; /* Consider using Bootstrap list-unstyled */
             padding: 0;
             margin: 0;
         }
 
         .mobile-navigation-panel ul li a {
             display: block;
-            padding: 15px 20px;
+            padding: 15px 20px; /* Consider using Bootstrap padding classes like py-3 px-4 */
             color: white;
             text-decoration: none;
             border-bottom: 1px solid #555;
@@ -128,14 +131,14 @@
         /* Style for form-based logout button to look like a nav link */
         .mobile-navigation-panel ul li form {
             margin: 0; /* Remove default form margin */
-        }
+        } /* Consider using Bootstrap margin classes */
         .mobile-navigation-panel ul li form button.nav-link-button {
             background: none;
             border: none;
             padding: 15px 20px; /* Match <a> tag padding */
             margin: 0;
             color: white;       /* Match <a> tag color */
-            text-decoration: none;
+            text-decoration: none; /* Consider using Bootstrap text-decoration-none */
             cursor: pointer;
             font-size: 1.1em;   /* Match <a> tag font-size */
             font-family: inherit;
@@ -149,7 +152,7 @@
             background-color: #555; /* Match <a> tag hover */
         }
         main {
-            padding: 15px; /* Add some padding to main content */
+            padding: 15px; /* Add some padding to main content */ /* Consider using Bootstrap padding classes like p-3 */
         }
     </style>
     {# ここに共通のCSSファイルへのリンクなどを追加できます #}
@@ -232,6 +235,8 @@
             }
         });
     </script>
+    {# Bootstrap JSの読み込み (通常はbodyの最後) #}
+    <script src="{% md5url 'bootstrap-5.3.0-dist/js/bootstrap.bundle.min.js' %}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

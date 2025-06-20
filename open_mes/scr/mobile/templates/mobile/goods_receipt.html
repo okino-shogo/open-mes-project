@@ -31,36 +31,34 @@
     <h1>入庫処理</h1>
 
     <div class="d-flex justify-content-center">
-        <div class="mb-3 w-75">
+        <div class="mb-3 w-75 d-flex flex-column"> {# このdivが全ての関連要素を囲むように変更 #}
             <input type="text" class="form-control form-control-lg" id="barcode_input" name="barcode" placeholder="バーコードをスキャンまたは入力">
             <button class="btn btn-success btn-lg w-100 mt-2" type="button" id="scan_button">読込</button>
+
+            <hr class="w-100 my-3"> <!-- 水平線もflexアイテムになるため、幅とマージンを調整 -->
+
+            <h2 class="align-self-start">読み取りデータ</h2> <!-- 見出しを左揃えにする -->
+            <div id="data_display_area" class="card mb-3 w-100"> <!-- データ表示エリアも幅100%に -->
+                <div class="card-body">
+                    <p class="card-text" id="item_info_placeholder">ここにスキャンした商品の詳細が表示されます。</p>
+                    {# データ表示の例（JavaScriptで動的に内容を更新することを想定） #}
+                    {#
+                    <p><strong>商品名:</strong> <span id="display_item_name">---</span></p>
+                    <p><strong>品番:</strong> <span id="display_item_code">---</span></p>
+                    <p><strong>現在の在庫数:</strong> <span id="display_current_stock">---</span></p>
+                    #}
+                </div>
+            </div>
+
+            <hr class="w-100 my-3"> <!-- 水平線 -->
+
+            <div class="mb-3 w-100 text-start"> <!-- 数量入力部分も幅100%にし、ラベルを左揃えにする -->
+                <label for="quantity_input" class="form-label">入庫数量</label>
+                <input type="number" class="form-control" id="quantity_input" name="quantity" value="1" min="1">
+            </div>
+            <button type="button" class="btn btn-success w-100 mt-2" id="confirm_receipt_button">入庫実行</button> <!-- 入庫実行ボタンに上マージンを追加 -->
         </div>
     </div>
-
-    <hr>
-
-    <h2>読み取りデータ</h2>
-    <div id="data_display_area" class="card mb-3">
-        <div class="card-body">
-            <p class="card-text" id="item_info_placeholder">ここにスキャンした商品の詳細が表示されます。</p>
-            {# データ表示の例（JavaScriptで動的に内容を更新することを想定） #}
-            {#
-            <p><strong>商品名:</strong> <span id="display_item_name">---</span></p>
-            <p><strong>品番:</strong> <span id="display_item_code">---</span></p>
-            <p><strong>現在の在庫数:</strong> <span id="display_current_stock">---</span></p>
-            #}
-        </div>
-    </div>
-
-    <hr>
-
-    <div class="mb-3">
-        <label for="quantity_input" class="form-label">入庫数量</label>
-        <input type="number" class="form-control" id="quantity_input" name="quantity" value="1" min="1">
-    </div>
-
-    <button type="button" class="btn btn-success w-100" id="confirm_receipt_button">入庫実行</button>
-
 </div>
 
 {#
