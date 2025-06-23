@@ -237,6 +237,8 @@
     </script>
     {# Bootstrap JSの読み込み (通常はbodyの最後) #}
     <script src="{% md5url 'bootstrap-5.3.0-dist/js/bootstrap.bundle.min.js' %}"></script>
+    {# QuaggaJS for barcode scanning #}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>
