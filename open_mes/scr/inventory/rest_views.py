@@ -822,6 +822,160 @@ def move_inventory_api(request):
         traceback.print_exc()
         return Response({'success': False, 'error': f"在庫移動中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def get_inventory_by_location_api(request):
+    """
+    Retrieves a list of inventory items at a specific warehouse and location.
+    Used by the mobile location transfer screen to find items to move.
+
+    Query Parameters:
+    - warehouse (string, required): The warehouse code.
+    - location (string, required): The location code. Can be an empty string.
+    """
+    warehouse = request.query_params.get('warehouse')
+    location = request.query_params.get('location') # location can be None if not provided
+
+    if not warehouse or location is None:
+        return Response(
+            {'success': False, 'error': '倉庫(warehouse)と棚番(location)は必須のクエリパラメータです。'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        # Find inventory items with quantity greater than 0 at the specified location
+        inventory_items = Inventory.objects.filter(
+            warehouse=warehouse,
+            location=location,
+            quantity__gt=0
+        ).order_by('part_number')
+
+        serializer = InventorySerializer(inventory_items, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        print(f"Error in get_inventory_by_location_api: {e}")
+        return Response(
+            {'success': False, 'error': f"在庫の検索中に予期せぬエラーが発生しました: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def get_inventory_by_location_api(request):
+    """
+    Retrieves a list of inventory items at a specific warehouse and location.
+    Used by the mobile location transfer screen to find items to move.
+
+    Query Parameters:
+    - warehouse (string, required): The warehouse code.
+    - location (string, required): The location code. Can be an empty string.
+    """
+    warehouse = request.query_params.get('warehouse')
+    location = request.query_params.get('location') # location can be None if not provided
+
+    if not warehouse or location is None:
+        return Response(
+            {'success': False, 'error': '倉庫(warehouse)と棚番(location)は必須のクエリパラメータです。'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        # Find inventory items with quantity greater than 0 at the specified location
+        inventory_items = Inventory.objects.filter(
+            warehouse=warehouse,
+            location=location,
+            quantity__gt=0
+        ).order_by('part_number')
+
+        serializer = InventorySerializer(inventory_items, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        print(f"Error in get_inventory_by_location_api: {e}")
+        return Response(
+            {'success': False, 'error': f"在庫の検索中に予期せぬエラーが発生しました: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+# @permission_classes([IsAuthenticated]) # Uncomment if authentication is required
+def location_transfer_api(request):
+    """
+    Moves a specified quantity of an inventory item from a source location to a target location
+    within the same warehouse. Designed for mobile/scanner-based workflows.
+
+    Request Body (JSON):
+    {
+      "part_number": "PART-001",
+      "quantity_to_move": 10,
+      "warehouse": "MAIN-WH",
+      "source_location": "A-01-01",
+      "target_location": "B-02-01"
+    }
+    """
+    try:
+        part_number = request.data.get('part_number')
+        quantity_to_move_str = request.data.get('quantity_to_move')
+        warehouse = request.data.get('warehouse')
+        source_location = request.data.get('source_location', '') # Default to empty string
+        target_location = request.data.get('target_location', '') # Default to empty string
+
+        if not all([part_number, quantity_to_move_str, warehouse]):
+            return Response({'success': False, 'error': '品番、移動数量、倉庫は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if source_location == target_location:
+            return Response({'success': False, 'error': '移動元と移動先の棚番が同じです。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            quantity_to_move = int(quantity_to_move_str)
+            if quantity_to_move <= 0:
+                return Response({'success': False, 'error': '移動数量は0より大きい正の整数である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({'success': False, 'error': '移動数量は有効な数値である必要があります。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            # Find source inventory
+            try:
+                source_inventory = Inventory.objects.select_for_update().get(
+                    part_number=part_number,
+                    warehouse=warehouse,
+                    location=source_location
+                )
+            except Inventory.DoesNotExist:
+                return Response({'success': False, 'error': f"移動元の在庫が見つかりません: 品番 {part_number}, 倉庫 {warehouse}, 棚番 '{source_location}'"}, status=status.HTTP_404_NOT_FOUND)
+
+            if source_inventory.quantity < quantity_to_move:
+                return Response({'success': False, 'error': f"移動元の在庫数量 ({source_inventory.quantity}) が不足しています。移動しようとしている数量: {quantity_to_move}"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Decrease quantity from source and create outgoing movement
+            source_inventory.quantity -= quantity_to_move
+            source_inventory.save()
+
+            StockMovement.objects.create(
+                part_number=part_number, warehouse=warehouse, movement_type='outgoing', quantity=quantity_to_move,
+                description=f"棚番移動(出庫): {quantity_to_move}個を {warehouse}/{source_location or '-'} から {warehouse}/{target_location or '-'} へ",
+                operator=request.user if request.user.is_authenticated else None
+            )
+
+            # Get or create target inventory, update quantity, and create incoming movement
+            target_inventory, _ = Inventory.objects.get_or_create(
+                part_number=part_number, warehouse=warehouse, location=target_location, defaults={'quantity': 0}
+            )
+            target_inventory.quantity += quantity_to_move
+            target_inventory.save()
+
+            StockMovement.objects.create(
+                part_number=part_number, warehouse=warehouse, movement_type='incoming', quantity=quantity_to_move,
+                description=f"棚番移動(入庫): {quantity_to_move}個を {warehouse}/{target_location or '-'} へ (元: {warehouse}/{source_location or '-'})",
+                operator=request.user if request.user.is_authenticated else None
+            )
+
+            return Response({'success': True, 'message': f"{part_number} を {quantity_to_move} 個、棚番 '{source_location or 'N/A'}' から '{target_location or 'N/A'}' へ移動しました。"}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        print(f"Error during location transfer: {e}")
+        return Response({'success': False, 'error': f"棚番移動中に予期せぬエラーが発生しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 # @permission_classes([IsAuthenticated]) # Uncomment if authentication is required

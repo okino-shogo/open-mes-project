@@ -87,9 +87,9 @@
         /* Slide-out Menu Bar Styles */
         #menu-bar {
             position: fixed;
-            top: 40px; /* Adjusted to be below the new slimmer header */
-            left: -240px; /* Initially hidden off-screen, adjusted for new width */
-            width: 210px; /* Further reduced menu width */
+            top: 40px;
+            left: -280px; /* Initially hidden off-screen, adjusted for new width */
+            width: 250px; /* Further reduced menu width */
             bottom: 0; /* Fill remaining height from new top position */
             background-color: #343a40; /* Dark Gray */
             padding: 20px 15px 20px; /* Adjusted top padding */
@@ -224,12 +224,10 @@
             .footer-info {
                 flex-direction: column; /* Stack on small screens if preferred, or keep row */
                 gap: 0.2rem; /* Adjust gap for stacked layout */
-            }
-            #menu-bar {
-                flex-direction: column;
-                /* align-items: center; */ /* Already flex-start from base style */
-                width: 180px; /* Further reduced menu width on smaller screens */
-                left: -210px; /* Adjust initial hidden position for new width */
+            }            
+            #menu-bar { /* Adjust for smaller screens */
+                width: 220px; /* Further reduced menu width on smaller screens */
+                left: -250px; /* Adjust initial hidden position for new width */
             }
             #title {
                 font-size: 1.5rem; /* Smaller title on mobile */
@@ -322,7 +320,10 @@
 
     <div class="menu-category-title">アカウント設定</div>
     <a href="{% url 'users:users_settings' %}" class="menu-subcategory-link">ユーザー設定</a>
-    <form id="logout-form" action="{% url 'users_logout' %}" method="post">
+    {% if user.is_staff or user.is_superuser %}
+    <a href="{% url 'users:admin_user_management' %}" class="menu-subcategory-link">ユーザー管理</a>
+    {% endif %}
+    <form id="logout-form" action="{% url 'users:logout' %}" method="post">
         {% csrf_token %}
         <button type="submit" class="menu-logout-button">ログアウト</button>
     </form>
@@ -343,7 +344,7 @@
     <div class="footer-info">
         <p id="credit">
             © Open MES Project. since 2025
-        </p>
+        </p>  
         <p id="version">
             ver.{{ VERSION }}
         </p>

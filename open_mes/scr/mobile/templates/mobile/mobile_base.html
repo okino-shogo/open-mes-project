@@ -176,14 +176,14 @@
                 <li><a href="{% url 'mobile:index' %}">ホーム</a></li>
                 {% if user.is_authenticated %}
                     <li>
-                        <form id="mobile-logout-form" method="post" action="{% url 'users_logout' %}">
+                        <form id="mobile-logout-form" method="post" action="{% url 'users:logout' %}">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{% url 'mobile:login' %}">
                             <button type="submit" class="nav-link-button">ログアウト</button>
                         </form>
                     </li>
                 {% else %}
-                    <li><a href="{% url 'users_login' %}?next={{ request.path|urlencode }}">ログイン</a></li>
+                    <li><a href="{% url 'users:login' %}?next={{ request.path|urlencode }}">ログイン</a></li>
                 {% endif %}
                 {# --- 他のナビゲーションリンク --- #}
                 <li><a href="{% url 'mobile:goods_receipt' %}">入庫処理</a></li>
@@ -238,7 +238,8 @@
     {# Bootstrap JSの読み込み (通常はbodyの最後) #}
     <script src="{% md5url 'bootstrap-5.3.0-dist/js/bootstrap.bundle.min.js' %}"></script>
     {# QuaggaJS for barcode scanning #}
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    {# ZXing-js for barcode scanning #}
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

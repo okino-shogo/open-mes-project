@@ -3,8 +3,9 @@ from django.views import generic
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.contrib.auth.mixins import UserPassesTestMixin  # 追加
 from rest_framework.authtoken.models import Token
-from users.forms import UserProfileForm, CustomPasswordChangeForm # 作成したフォームをインポート
+from users.forms import UserProfileForm, CustomPasswordChangeForm, AdminUserCreationForm, AdminUserChangeForm # 作成したフォームをインポート
 from django.contrib.auth import get_user_model, update_session_auth_hash # update_session_auth_hash をインポート
 
 CustomUser = get_user_model()
@@ -78,3 +79,71 @@ class UserSettingsView(LoginRequiredMixin, generic.View): # generic.View を継�
 
         # 不明なform_typeやPOST内容の場合は、単にリダイレクト
         return redirect('users:users_settings')
+
+class AdminUserManagementView(LoginRequiredMixin, UserPassesTestMixin, generic.TemplateView):
+    template_name = 'users/admin_user_management.html'
+
+    def test_func(self):
+        # 管理者権限を持つユーザーのみアクセスを許可
+        return self.request.user.is_staff or self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        messages.error(self.request, '管理者権限が必要です。')
+        return redirect('main') # 例: トップページへリダイレクト
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'ユーザー管理'
+        users = CustomUser.objects.all()  # すべてのユーザーを取得
+        context['users'] = users
+        return context
+
+    def post(self, request, *args, **kwargs):
+        return self.get(request, *args, **kwargs)
+
+class AdminUserCreateView(LoginRequiredMixin, UserPassesTestMixin, generic.CreateView):
+    model = CustomUser
+    form_class = AdminUserCreationForm
+    template_name = 'users/admin_user_create.html'
+    success_url = reverse_lazy('users:admin_user_management')
+
+    def test_func(self):
+        # 管理者権限を持つユーザーのみアクセスを許可
+        return self.request.user.is_staff or self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        messages.error(self.request, '管理者権限が必要です。')
+        return redirect('main')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = '新規ユーザー作成'
+        return context
+
+    def form_valid(self, form):
+        # フォームが有効な場合にメッセージを追加
+        messages.success(self.request, f'ユーザー "{form.cleaned_data["custom_id"]}" が正常に作成されました。')
+        return super().form_valid(form)
+
+class AdminUserUpdateView(LoginRequiredMixin, UserPassesTestMixin, generic.UpdateView):
+    model = CustomUser
+    form_class = AdminUserChangeForm
+    template_name = 'users/admin_user_edit.html'
+    success_url = reverse_lazy('users:admin_user_management')
+    pk_url_kwarg = 'pk' # URLからプライマリキーを取得するためのキーワード
+
+    def test_func(self):
+        return self.request.user.is_staff or self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        messages.error(self.request, '管理者権限が必要です。')
+        return redirect('main')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = f'ユーザー編集: {self.object.custom_id}'
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, f'ユーザー "{self.object.custom_id}" の情報が正常に更新されました。')
+        return super().form_valid(form)

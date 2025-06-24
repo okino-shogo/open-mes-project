@@ -16,6 +16,8 @@ urlpatterns = [
     path('issue-single-order/', rest_views.process_single_sales_order_issue_api, name='api_process_single_sales_order_issue'),
     path('update/', rest_views.update_inventory_api, name='api_update_inventory'),
     path('move/', rest_views.move_inventory_api, name='api_move_inventory'), # New endpoint for moving inventory
+    path('by-location/', rest_views.get_inventory_by_location_api, name='api_get_inventory_by_location'), # New endpoint for mobile screen
+    path('location-transfer/', rest_views.location_transfer_api, name='api_location_transfer'), # New endpoint for mobile location transfer
 
     # Endpoint for the purchase.html page to fetch purchase order data
     path('schedules/data/', rest_views.get_purchase_orders_api, name='api_get_purchase_schedules_data'),

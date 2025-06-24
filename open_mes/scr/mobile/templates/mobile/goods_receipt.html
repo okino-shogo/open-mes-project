@@ -26,6 +26,36 @@
     border-color: #28a745 !important; /* 枠線の色も合わせる */
     color: white !important; /* 文字色を白に */
 }
+
+/* From location_transfer.html for camera */
+#camera_view_container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    z-index: 1060; /* Higher than modal */
+    display: none;
+}
+#camera_video_element {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#close_camera_button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1061;
+}
+#camera_targeting_guide {
+    position: absolute; top: 50%; left: 50%;
+    width: 80%; height: 40%;
+    border: 3px solid rgba(255, 0, 0, 0.7);
+    transform: translate(-50%, -50%);
+    box-sizing: border-box; z-index: 1; pointer-events: none;
+}
 </style>
 <div class="container mt-3">
     <h1 class="text-center">入庫処理</h1>
@@ -42,7 +72,7 @@
                     </svg>カメラ読込
                 </button>
             </div>
-
+            <div id="message-area" class="mt-3"></div>
             <hr class="w-100 my-3">
             <h2 class="align-self-start">読み取りデータ (入庫予定リスト)</h2>
             <div id="data_display_area" class="card mb-3 w-100" style="max-height: 500px; overflow-y: auto;">
@@ -50,24 +80,6 @@
                     <!-- Purchase Order items will be appended here by JavaScript -->
                 </div>
                 <p id="loading_indicator" class="list-group-item text-center" style="display: none;">読み込み中...</p>
-            </div>
-
-            <!-- Camera Scan Area -->
-            <div id="camera_view_container" class="mt-3 border p-2" style="display: none; position: relative;">
-                <video id="camera_video_element" style="width: 100%; max-height: 400px; border: 1px solid #ccc;"></video>
-                <!-- Static targeting guide for aiming -->
-                <div id="camera_targeting_guide" style="
-                    position: absolute; top: 50%; left: 50%;
-                    width: 80%; /* Covers a good portion of the width */
-                    height: 40%; /* Aims for a rectangular area suitable for barcodes */
-                    border: 3px solid rgba(255, 0, 0, 0.6); /* Semi-transparent red border */
-                    transform: translate(-50%, -50%); /* Center the guide */
-                    box-sizing: border-box; z-index: 1; pointer-events: none; /* Above video, no pointer events */
-                "></div>
-                <button id="close_camera_button" class="btn btn-danger btn-sm" style="position: absolute; top: 10px; right: 10px; z-index: 2;"> {/* Ensure button is above the guide */}
-                    閉じる
-                </button>
-                <p id="camera_status_message" class="text-center mt-2"></p>
             </div>
 
         </div>
@@ -104,6 +116,13 @@
   </div>
 </div>
 
+<!-- Camera Scan Area -->
+<div id="camera_view_container">
+    <video id="camera_video_element" playsinline></video>
+    <div id="camera_targeting_guide"></div>
+    <button id="close_camera_button" class="btn btn-danger">&times; 閉じる</button>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const scanButton = document.getElementById('scan_button');
@@ -111,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const poListContainer = document.getElementById('po_list_container');
     const dataDisplayArea = document.getElementById('data_display_area');
     const loadingIndicator = document.getElementById('loading_indicator');
+    const messageArea = document.getElementById('message-area');
     // const quantityInput = document.getElementById('quantity_input'); // Removed from main page
     // const confirmReceiptButton = document.getElementById('confirm_receipt_button'); // Removed from main page
 
@@ -132,10 +152,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const cameraViewContainer = document.getElementById('camera_view_container');
     const cameraVideoElement = document.getElementById('camera_video_element');
     const closeCameraButton = document.getElementById('close_camera_button');
-    const cameraStatusMessage = document.getElementById('camera_status_message');
-    let stream = null; // To hold the camera stream
-    let quaggaInitialized = false; // Flag to track QuaggaJS initialization
+    let codeReader = null; // ZXing reader instance
 
+    function showMessage(area, message, isError = false) {
+        if (!area) return;
+        area.innerHTML = `<div class="alert ${isError ? 'alert-danger' : 'alert-success'}" role="alert">${message}</div>`;
+    }
+    
     let currentPage = 1;
     const itemsPerPage = 20;
     let isLoading = false;
@@ -356,165 +379,60 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- Camera Scan Logic ---
-    async function startCameraScan() {
-        if (!cameraViewContainer || !cameraVideoElement || !cameraStatusMessage || !barcodeInput) return;
-
+    // --- Camera Scan Logic (ZXing-js) ---
+    function startCameraScan() {
+        if (!cameraViewContainer || !barcodeInput) return;
+        if (messageArea) messageArea.innerHTML = '';
         cameraViewContainer.style.display = 'block';
-        cameraStatusMessage.textContent = 'カメラを起動中...';
 
-        if (typeof Quagga === 'undefined') {
-            cameraStatusMessage.textContent = 'バーコードスキャンライブラリの読み込みに失敗しました。';
-            alert('バーコードスキャンライブラリ(QuaggaJS)の読み込みに失敗しました。ページを再読み込みしてください。');
-            stopCameraScan(); // Ensure UI is reset
-            return;
+        if (!codeReader) {
+            codeReader = new ZXing.BrowserMultiFormatReader();
         }
 
-        try {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                // QuaggaJS will handle the stream internally based on constraints
-                const quaggaConfig = {
-                    inputStream: {
-                        name: "Live",
-                        type: "LiveStream",
-                        target: cameraVideoElement, // Directly use the video element
-                        constraints: {
-                            width: { min: 640 },
-                            height: { min: 480 },
-                            facingMode: "environment", // Use rear camera
-                            aspectRatio: { min: 1, max: 2 }
-                        },
-                    },
-                    decoder: {
-                        readers: [
-                            "code_128_reader",
-                            "ean_reader",
-                            "ean_8_reader",
-                            "code_39_reader",
-                            "code_39_vin_reader",
-                            "codabar_reader",
-                            "upc_reader",
-                            "upc_e_reader",
-                            "i2of5_reader"
-                        ],
-                        debug: {
-                            drawBoundingBox: true,
-                            showFrequency: true,
-                            drawScanline: true,
-                            showPattern: true
+        codeReader.listVideoInputDevices()
+            .then((videoInputDevices) => {
+                let deviceId = undefined;
+                if (videoInputDevices.length > 0) {
+                    const rearCamera = videoInputDevices.find(device => 
+                        device.label.toLowerCase().includes('back') || 
+                        device.label.toLowerCase().includes('environment')
+                    );
+                    deviceId = rearCamera ? rearCamera.deviceId : videoInputDevices[0].deviceId;
+                }
+
+                codeReader.decodeFromInputVideoDevice(deviceId, 'camera_video_element')
+                    .then((result) => {
+                        console.log("Scan successful:", result.text);
+                        barcodeInput.value = result.text;
+                        stopCameraScan();
+                        if (scanButton) scanButton.click();
+                    })
+                    .catch((err) => {
+                        if (!(err instanceof ZXing.NotFoundException)) {
+                            console.error("ZXing decoding error:", err);
+                            showMessage(messageArea, 'カメラでの読み取りに失敗しました。', true);
+                            stopCameraScan();
                         }
-                    },
-                    locate: true, // try to locate barcode in image (can be resource intensive)
-                    locator: {
-                        patchSize: "medium", // x-small, small, medium, large, x-large
-                        halfSample: true
-                    }
-                };
-
-                Quagga.init(quaggaConfig, function(err) {
-                    if (err) {
-                        console.error("QuaggaJS initialization error:", err, err.name);
-                        let userAlertMessage = '';
-                        let statusTextMessage = '';
-
-                        if (err.name === "NotAllowedError") {
-                            statusTextMessage = 'カメラアクセスが拒否されました。';
-                            userAlertMessage = 'カメラへのアクセスが許可されていません。\n\n' +
-                                             '1. ブラウザのサイト設定（通常はアドレスバーの鍵アイコンやサイト情報からアクセス）で、このサイトへのカメラアクセスを許可してください。\n' +
-                                             '2. ページを再読み込みしてください。\n' +
-                                             '3. このサイトが安全な接続 (HTTPS) で提供されていることを確認してください (開発環境のlocalhostを除く)。';
-                        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-                            statusTextMessage = 'カメラが見つかりません。';
-                            userAlertMessage = '使用可能なカメラが見つかりませんでした。\n\nカメラが正しく接続されているか、他のアプリケーションで使用中でないか確認してください。';
-                        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-                            statusTextMessage = 'カメラを読み取れませんでした。';
-                            userAlertMessage = 'カメラにアクセスできませんでした。\n\nカメラが他のアプリケーションで使用中であるか、ハードウェアに問題がある可能性があります。ページを再読み込みするか、デバイスを再起動してみてください。';
-                        } else {
-                            statusTextMessage = 'カメラ初期化エラー: ' + (err.message || err.name || '不明なエラー');
-                            userAlertMessage = 'カメラの初期化中に予期せぬエラーが発生しました: ' + (err.message || err.name || '不明なエラー') + '\n\nページを再読み込みするか、しばらくしてからもう一度お試しください。';
-                        }
-                        cameraStatusMessage.textContent = statusTextMessage;
-                        alert(userAlertMessage);
-                        stopCameraScan(); // Ensure UI is reset
-                        return;
-                    }
-                    console.log("QuaggaJS initialization finished. Ready to start.");
-                    Quagga.start();
-                    quaggaInitialized = true;
-                    cameraStatusMessage.textContent = 'カメラ起動中。バーコードをスキャンしてください。';
-                });
-
-                Quagga.onDetected(handleBarcodeDetected);
-                Quagga.onProcessed(updateCameraFeedback); // Optional: for drawing boxes etc.
-            } else {
-                cameraStatusMessage.textContent = 'カメラ機能がこのブラウザではサポートされていません。';
-                alert('カメラ機能がこのブラウザではサポートされていません。');
+                    });
+            })
+            .catch((err) => {
+                console.error("Error listing video devices:", err);
+                showMessage(messageArea, 'カメラデバイスの取得に失敗しました。カメラへのアクセスを許可してください。', true);
                 stopCameraScan();
-            }
-        } catch (err) {
-            console.error("Error accessing camera: ", err);
-            cameraStatusMessage.textContent = 'カメラへのアクセスに失敗しました: ' + err.message;
-            alert('カメラへのアクセスに失敗しました: ' + err.message + '\nカメラの使用許可を確認してください。');
-            stopCameraScan();
-        }
-    }
-
-    function handleBarcodeDetected(result) {
-        const code = result.codeResult.code;
-        if (code) {
-            console.log("Barcode detected and processed", result);
-            barcodeInput.value = code;
-            cameraStatusMessage.textContent = `スキャン成功: ${code}`;
-            // alert(`スキャン成功: ${code}`); // Optional: user feedback
-            stopCameraScan();
-            // Automatically trigger the "読込" button's action
-            if(scanButton) scanButton.click();
-        }
-    }
-
-    function updateCameraFeedback(result) {
-        const drawingCtx = Quagga.canvas.ctx.overlay;
-        const drawingCanvas = Quagga.canvas.dom.overlay;
-
-        if (result) {
-            if (result.boxes) {
-                drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
-                result.boxes.filter(function (box) {
-                    return box !== result.box;
-                }).forEach(function (box) {
-                    Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "green", lineWidth: 2});
-                });
-            }
-            if (result.box) {
-                Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00F", lineWidth: 2});
-            }
-            if (result.codeResult && result.codeResult.code) {
-                // Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: 'red', lineWidth: 3});
-            }
-        }
+            });
     }
 
     function stopCameraScan() {
-        if (quaggaInitialized) {
-            Quagga.stop();
-            Quagga.offDetected(handleBarcodeDetected); // Remove listener
-            Quagga.offProcessed(updateCameraFeedback); // Remove listener
-            quaggaInitialized = false;
-            console.log("QuaggaJS stopped.");
+        if (codeReader) {
+            codeReader.reset();
         }
-        // The stream is managed by Quagga, calling Quagga.stop() should release it.
-        // if (cameraVideoElement) cameraVideoElement.srcObject = null; // Quagga handles this
         if (cameraViewContainer) cameraViewContainer.style.display = 'none';
-        if (cameraStatusMessage) cameraStatusMessage.textContent = '';
     }
 
     if (cameraScanButton) {
         cameraScanButton.addEventListener('click', startCameraScan);
     }
-
-    if (closeCameraButton) {
-        closeCameraButton.addEventListener('click', stopCameraScan);
-    }
+    closeCameraButton.addEventListener('click', stopCameraScan);
 
     // --- Modal Hidden Event ---
     if (receiptModalElement) {

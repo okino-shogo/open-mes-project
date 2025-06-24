@@ -55,14 +55,17 @@
         <ul>
             {% if user.is_authenticated %}
                 <li><a href="{% url 'users:users_settings' %}">ユーザー設定</a></li>
+                {% if user.is_staff or user.is_superuser %}
+                    <li><a href="{% url 'users:admin_user_management' %}">ユーザー管理</a></li>
+                {% endif %}
                 <li>
-                    <form id="logout-form-top" action="{% url 'users_logout' %}" method="post" style="display: inline;">
+                    <form id="logout-form-top" action="{% url 'users:logout' %}" method="post" style="display: inline;">
                         {% csrf_token %}
                         <button type="submit" class="link-button">ログアウト</button>
                     </form>
                 </li>
             {% else %}
-                <li><a href="{% url 'users_login' %}">ログイン</a></li>
+                <li><a href="{% url 'users:login' %}">ログイン</a></li>
             {% endif %}
         </ul>
     </div>
@@ -108,7 +111,7 @@
 .menu-section ul li a {
     text-decoration: none;
     color: #0056b3;
-    background-color: #EBF8FF; 
+    background-color: #EBF8FF;
     padding: 6px 10px; /* リンクの上下paddingを少し減らす */
     border-radius: 4px; /* 角を丸める */
     border: 1px solid #BEE3F8; /* 薄い青のボーダー */
