@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination # PageNumberPagination は StandardResultsSetPagination で使用
-from rest_framework.views import APIView # Import APIView
+from rest_framework.views import APIView
 from .serializers import PurchaseOrderSerializer, InventorySerializer, StockMovementSerializer, AllocateInventoryForSalesOrderRequestSerializer # StockMovementSerializer をインポート
 from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # SalesOrderモデルをインポート
 from django.http import JsonResponse # JsonResponse をインポート
@@ -11,6 +11,7 @@ from django.db import transaction # トランザクションのためにイン�
 from django.db.models import Q, F # Fオブジェクトをインポート
 from django.shortcuts import get_object_or_404 # オブジェクト取得のためにインポート
 from django.db.models import ProtectedError # Import ProtectedError
+from .serializers import SalesOrderSerializer # SalesOrderSerializer をインポート
 from .forms import PurchaseOrderEntryForm # 新しいフォームをインポート
 
 @permission_classes([IsAuthenticated]) # 認証が必要な場合はこの行のコメントを解除してください
@@ -1148,3 +1149,37 @@ class PurchaseOrderDeleteAjaxAPIView(APIView):
             return Response({'status': 'error', 'message': '指定された入庫予定が見つかりません。'}, status=status.HTTP_404_NOT_FOUND)
         except ProtectedError: # If PurchaseOrder is protected by other models
             return Response({'status': 'error', 'message': 'この入庫予定は他で使用されているため削除できません。'}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_sales_orders_for_issue_api(request):
+    """
+    出庫予定のSalesOrderをフィルタリングしてページネーション付きで取得するAPI。
+    """
+    paginator = StandardResultsSetPagination()
+    
+    filters = Q()
+
+    # 検索パラメータに基づくフィルタリング
+    search_order_number = request.query_params.get('search_order_number')
+    if search_order_number:
+        filters &= Q(order_number__icontains=search_order_number)
+
+    search_item = request.query_params.get('search_item')
+    if search_item:
+        filters &= Q(item__icontains=search_item)
+
+    search_warehouse = request.query_params.get('search_warehouse')
+    if search_warehouse:
+        filters &= Q(warehouse__icontains=search_warehouse)
+
+    search_status = request.query_params.get('search_status')
+    if search_status:
+        filters &= Q(status=search_status)
+
+    sales_orders_qs = SalesOrder.objects.filter(filters).order_by('expected_shipment', 'order_number')
+
+    paginated_sales_orders = paginator.paginate_queryset(sales_orders_qs, request)
+    serializer = SalesOrderSerializer(paginated_sales_orders, many=True)
+    
+    return paginator.get_paginated_response(serializer.data)

@@ -26,6 +26,7 @@ urlpatterns = [
     path('purchase-order/create-ajax/', rest_views.PurchaseOrderCreateAjaxAPIView.as_view(), name='purchase_order_create_ajax'),
     path('purchase-order/list/ajax/', rest_views.PurchaseOrderListAjaxAPIView.as_view(), name='purchase_order_list_ajax'),
     path('purchase-order/<uuid:pk>/detail/ajax/', rest_views.PurchaseOrderDetailAjaxAPIView.as_view(), name='purchase_order_detail_ajax'),
+    path('sales-orders/data/', rest_views.get_sales_orders_for_issue_api, name='api_get_sales_orders_for_issue'), # 新しい出庫予定一覧API
     path('purchase-order/<uuid:pk>/delete/ajax/', rest_views.PurchaseOrderDeleteAjaxAPIView.as_view(), name='purchase_order_delete_ajax'),
 
     # CSV Template and Import URLs for Purchase Orders

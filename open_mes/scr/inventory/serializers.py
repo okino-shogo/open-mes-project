@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PurchaseOrder, Inventory, StockMovement # StockMovementモデルをインポート
+from .models import PurchaseOrder, Inventory, StockMovement, SalesOrder # StockMovement, SalesOrderモデルをインポート
 # master.modelsのインポートは、将来的に関連モデルとして扱うための準備か、
 # あるいはビューなどで型ヒント等に利用されている可能性があります。
 # 現状このシリアライザー内では直接参照されていません。
@@ -136,6 +136,30 @@ class AllocateInventoryForSalesOrderRequestSerializer(serializers.Serializer):
         help_text="List of parts and quantities to allocate."
     )
 
+
+class SalesOrderSerializer(serializers.ModelSerializer):
+    """
+    出庫予定モデルのためのシリアライザ。
+    """
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    remaining_quantity = serializers.IntegerField(read_only=True) # プロパティを読み取り専用フィールドとして追加
+
+    class Meta:
+        model = SalesOrder
+        fields = [
+            'id',
+            'order_number',
+            'item',
+            'quantity',
+            'shipped_quantity',
+            'remaining_quantity', # 利用可能在庫 (プロパティ)
+            'order_date',
+            'expected_shipment',
+            'warehouse',
+            'status',
+            'status_display', # 表示用のステータス名
+        ]
+        read_only_fields = ['id', 'order_date', 'shipped_quantity', 'remaining_quantity', 'status', 'status_display']
     def validate_allocations(self, value):
         if not value:
             raise serializers.ValidationError("Allocations list cannot be empty.")
