@@ -12,6 +12,8 @@ services:
     working_dir: '/open_mes'
     user: app_user
     command: "python3 manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - scr/.env
 
     networks:
       - open_mes
