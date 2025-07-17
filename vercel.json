@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/static/(.*)",
+      "dest": "/open_mes/staticfiles/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "open_mes/scr/vercel_app.py"
     }

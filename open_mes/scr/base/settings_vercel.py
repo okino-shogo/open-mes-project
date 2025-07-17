@@ -4,7 +4,6 @@ Django settings for Vercel deployment
 
 from pathlib import Path
 import os
-import dj_database_url
 
 VERSION = '0.0.0'
 
