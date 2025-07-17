@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "open_mes/build.sh",
+      "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
         "distDir": "open_mes/staticfiles"
