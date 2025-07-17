@@ -6,12 +6,12 @@ services:
     volumes:
       - ./scr:/open_mes
     ports:
-      - "8000:8000"
+      - "8000:8050"
     container_name: open_mes
     tty: true
     working_dir: '/open_mes'
     user: app_user
-    command: "python3 manage.py runserver 0.0.0.0:8000"
+    command: "python3 manage.py runserver 0.0.0.0:8050"
     env_file:
       - scr/.env
 

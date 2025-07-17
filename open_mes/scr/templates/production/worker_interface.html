@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% load md5url %}
+{% block title %}作業者インターフェース{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-2" style="max-width: 1024px;">
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <!-- ヘッダー部分 -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header bg-primary text-white text-center">
+                    <h3 class="mb-0">工程作業管理</h3>
+                    <small id="currentTime" class="d-block mt-1"></small>
+                </div>
+            </div>
+
+            <!-- 作業者情報入力 -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">作業者ID</label>
+                            <input type="text" id="workerId" class="form-control form-control-lg" placeholder="作業者IDを入力">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">工程選択</label>
+                            <select id="processSelect" class="form-select form-select-lg">
+                                <option value="">工程を選択してください</option>
+                                <option value="slit">スリット</option>
+                                <option value="cut">カット</option>
+                                <option value="base_material_cut">基材カット</option>
+                                <option value="molder">モルダー</option>
+                                <option value="v_cut_lapping">Vカットラッピング</option>
+                                <option value="post_processing">後加工</option>
+                                <option value="packing">梱包</option>
+                                <option value="decorative_board">化粧板貼付</option>
+                                <option value="decorative_board_cut">化粧板カット</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 現在の作業状況表示 -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">現在の作業状況</h5>
+                </div>
+                <div class="card-body">
+                    <div id="currentWorkStatus" class="text-center">
+                        <p class="text-muted">作業者IDと工程を選択してください</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 生産計画一覧と操作ボタン -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">生産計画一覧</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="productionPlansContainer" class="table-responsive">
+                        <!-- JavaScriptで動的に生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 大きな操作ボタン -->
+            <div class="row mt-4 g-3">
+                <div class="col-6">
+                    <button id="startProcessBtn" class="btn btn-success btn-lg w-100 py-4" disabled>
+                        <i class="fas fa-play fs-1 d-block mb-2"></i>
+                        <span class="fs-4">工程開始</span>
+                    </button>
+                </div>
+                <div class="col-6">
+                    <button id="completeProcessBtn" class="btn btn-danger btn-lg w-100 py-4" disabled>
+                        <i class="fas fa-stop fs-1 d-block mb-2"></i>
+                        <span class="fs-4">工程完了</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 操作履歴 -->
+            <div class="card mt-4 shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0">操作履歴</h6>
+                </div>
+                <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                    <div id="operationHistory">
+                        <p class="text-muted small">操作履歴はここに表示されます</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CSS -->
+<style>
+    .btn-lg {
+        font-size: 1.25rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .btn-lg:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    .btn-lg:disabled {
+        opacity: 0.5;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .production-plan-item {
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        padding: 15px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+    }
+    
+    .production-plan-item:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 8px rgba(0,123,255,0.2);
+    }
+    
+    .production-plan-item.selected {
+        border-color: #28a745;
+        background-color: #f8fff9;
+        box-shadow: 0 2px 8px rgba(40,167,69,0.3);
+    }
+    
+    .status-badge {
+        font-size: 0.8rem;
+        font-weight: bold;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+    
+    .status-未着手 { background-color: #6c757d; color: white; }
+    .status-着手中 { background-color: #ffc107; color: black; }
+    .status-完了 { background-color: #28a745; color: white; }
+    .status-遅延 { background-color: #dc3545; color: white; }
+    
+    @media (max-width: 768px) {
+        .fs-1 { font-size: 2rem !important; }
+        .fs-4 { font-size: 1.1rem !important; }
+        .btn-lg { padding: 1rem 2rem; }
+    }
+</style>
+
+<!-- JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const workerIdInput = document.getElementById('workerId');
+    const processSelect = document.getElementById('processSelect');
+    const currentWorkStatus = document.getElementById('currentWorkStatus');
+    const productionPlansContainer = document.getElementById('productionPlansContainer');
+    const startProcessBtn = document.getElementById('startProcessBtn');
+    const completeProcessBtn = document.getElementById('completeProcessBtn');
+    const operationHistory = document.getElementById('operationHistory');
+    
+    let selectedPlan = null;
+    let productionPlans = [];
+    
+    // 現在時刻の表示更新
+    function updateCurrentTime() {
+        const now = new Date();
+        document.getElementById('currentTime').textContent = 
+            now.toLocaleDateString('ja-JP') + ' ' + now.toLocaleTimeString('ja-JP');
+    }
+    
+    setInterval(updateCurrentTime, 1000);
+    updateCurrentTime();
+    
+    // 生産計画データの取得
+    function loadProductionPlans() {
+        fetch('/api/production/plans/')
+            .then(response => response.json())
+            .then(data => {
+                productionPlans = data;
+                renderProductionPlans();
+            })
+            .catch(error => {
+                console.error('Error loading production plans:', error);
+                addToHistory('エラー: 生産計画の読み込みに失敗しました', 'danger');
+            });
+    }
+    
+    // 生産計画の表示
+    function renderProductionPlans() {
+        const selectedProcess = processSelect.value;
+        if (!selectedProcess) {
+            productionPlansContainer.innerHTML = '<p class="text-center text-muted p-4">工程を選択してください</p>';
+            return;
+        }
+        
+        const processFieldMap = {
+            'slit': 'slit_status',
+            'cut': 'cut_status',
+            'base_material_cut': 'base_material_cut_status',
+            'molder': 'molder_status',
+            'v_cut_lapping': 'v_cut_lapping_status',
+            'post_processing': 'post_processing_status',
+            'packing': 'packing_status',
+            'decorative_board': 'decorative_board_status',
+            'decorative_board_cut': 'decorative_board_cut_status'
+        };
+        
+        const processNameMap = {
+            'slit': 'スリット',
+            'cut': 'カット',
+            'base_material_cut': '基材カット',
+            'molder': 'モルダー',
+            'v_cut_lapping': 'Vカットラッピング',
+            'post_processing': '後加工',
+            'packing': '梱包',
+            'decorative_board': '化粧板貼付',
+            'decorative_board_cut': '化粧板カット'
+        };
+        
+        const statusField = processFieldMap[selectedProcess];
+        const processName = processNameMap[selectedProcess];
+        
+        let html = '<div class="p-3">';
+        
+        productionPlans.forEach(plan => {
+            const status = plan[statusField] || '未着手';
+            const isSelected = selectedPlan && selectedPlan.id === plan.id ? 'selected' : '';
+            
+            html += `
+                <div class="production-plan-item ${isSelected}" data-plan-id="${plan.id}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${plan.reception_no} - ${plan.additional_no}</h6>
+                            <p class="mb-1 text-muted small">${plan.site_name} | ${plan.product_name}</p>
+                            <p class="mb-0 small">数量: ${plan.planned_quantity} | ${processName}</p>
+                        </div>
+                        <div class="text-end">
+                            <span class="status-badge status-${status}">${status}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        productionPlansContainer.innerHTML = html;
+        
+        // クリックイベントの追加
+        document.querySelectorAll('.production-plan-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const planId = this.dataset.planId;
+                selectPlan(planId);
+            });
+        });
+    }
+    
+    // 生産計画の選択
+    function selectPlan(planId) {
+        selectedPlan = productionPlans.find(plan => plan.id == planId);
+        updateWorkStatus();
+        updateButtons();
+        renderProductionPlans(); // 選択状態を更新
+    }
+    
+    // 作業状況の更新
+    function updateWorkStatus() {
+        const workerId = workerIdInput.value.trim();
+        const selectedProcess = processSelect.value;
+        
+        if (!workerId || !selectedProcess || !selectedPlan) {
+            currentWorkStatus.innerHTML = '<p class="text-muted">作業者ID、工程、生産計画を選択してください</p>';
+            return;
+        }
+        
+        const processNameMap = {
+            'slit': 'スリット',
+            'cut': 'カット',
+            'base_material_cut': '基材カット',
+            'molder': 'モルダー',
+            'v_cut_lapping': 'Vカットラッピング',
+            'post_processing': '後加工',
+            'packing': '梱包',
+            'decorative_board': '化粧板貼付',
+            'decorative_board_cut': '化粧板カット'
+        };
+        
+        const processFieldMap = {
+            'slit': 'slit_status',
+            'cut': 'cut_status',
+            'base_material_cut': 'base_material_cut_status',
+            'molder': 'molder_status',
+            'v_cut_lapping': 'v_cut_lapping_status',
+            'post_processing': 'post_processing_status',
+            'packing': 'packing_status',
+            'decorative_board': 'decorative_board_status',
+            'decorative_board_cut': 'decorative_board_cut_status'
+        };
+        
+        const processName = processNameMap[selectedProcess];
+        const statusField = processFieldMap[selectedProcess];
+        const currentStatus = selectedPlan[statusField] || '未着手';
+        
+        currentWorkStatus.innerHTML = `
+            <div class="row text-start">
+                <div class="col-6">
+                    <strong>作業者:</strong> ${workerId}<br>
+                    <strong>工程:</strong> ${processName}
+                </div>
+                <div class="col-6">
+                    <strong>受注No:</strong> ${selectedPlan.reception_no}<br>
+                    <strong>現在状態:</strong> <span class="status-badge status-${currentStatus}">${currentStatus}</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    // ボタンの状態更新
+    function updateButtons() {
+        const workerId = workerIdInput.value.trim();
+        const selectedProcess = processSelect.value;
+        
+        if (!workerId || !selectedProcess || !selectedPlan) {
+            startProcessBtn.disabled = true;
+            completeProcessBtn.disabled = true;
+            return;
+        }
+        
+        const processFieldMap = {
+            'slit': 'slit_status',
+            'cut': 'cut_status',
+            'base_material_cut': 'base_material_cut_status',
+            'molder': 'molder_status',
+            'v_cut_lapping': 'v_cut_lapping_status',
+            'post_processing': 'post_processing_status',
+            'packing': 'packing_status',
+            'decorative_board': 'decorative_board_status',
+            'decorative_board_cut': 'decorative_board_cut_status'
+        };
+        
+        const statusField = processFieldMap[selectedProcess];
+        const currentStatus = selectedPlan[statusField] || '未着手';
+        
+        startProcessBtn.disabled = currentStatus !== '未着手';
+        completeProcessBtn.disabled = currentStatus !== '着手中';
+    }
+    
+    // 工程開始処理
+    function startProcess() {
+        const workerId = workerIdInput.value.trim();
+        const selectedProcess = processSelect.value;
+        
+        if (!workerId || !selectedProcess || !selectedPlan) {
+            alert('作業者ID、工程、生産計画を選択してください');
+            return;
+        }
+        
+        const now = new Date().toISOString();
+        
+        fetch('/production/api/update-process-status/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify({
+                plan_id: selectedPlan.id,
+                process_type: selectedProcess,
+                action: 'start',
+                worker_id: workerId,
+                timestamp: now
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addToHistory(`${workerId}が${getProcessName(selectedProcess)}を開始しました`, 'success');
+                loadProductionPlans(); // データを再読み込み
+            } else {
+                addToHistory(`エラー: ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            addToHistory('エラー: 工程開始処理に失敗しました', 'danger');
+        });
+    }
+    
+    // 工程完了処理
+    function completeProcess() {
+        const workerId = workerIdInput.value.trim();
+        const selectedProcess = processSelect.value;
+        
+        if (!workerId || !selectedProcess || !selectedPlan) {
+            alert('作業者ID、工程、生産計画を選択してください');
+            return;
+        }
+        
+        const now = new Date().toISOString();
+        
+        fetch('/production/api/update-process-status/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify({
+                plan_id: selectedPlan.id,
+                process_type: selectedProcess,
+                action: 'complete',
+                worker_id: workerId,
+                timestamp: now
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addToHistory(`${workerId}が${getProcessName(selectedProcess)}を完了しました`, 'success');
+                loadProductionPlans(); // データを再読み込み
+            } else {
+                addToHistory(`エラー: ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            addToHistory('エラー: 工程完了処理に失敗しました', 'danger');
+        });
+    }
+    
+    // 操作履歴に追加
+    function addToHistory(message, type = 'info') {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('ja-JP');
+        const badgeClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-info';
+        
+        const historyItem = document.createElement('div');
+        historyItem.className = 'mb-1';
+        historyItem.innerHTML = `
+            <small class="d-flex justify-content-between">
+                <span>${message}</span>
+                <span class="badge ${badgeClass}">${timeStr}</span>
+            </small>
+        `;
+        
+        operationHistory.insertBefore(historyItem, operationHistory.firstChild);
+        
+        // 履歴が20件を超えた場合、古いものを削除
+        const historyItems = operationHistory.children;
+        if (historyItems.length > 20) {
+            operationHistory.removeChild(historyItems[historyItems.length - 1]);
+        }
+    }
+    
+    // プロセス名の取得
+    function getProcessName(processType) {
+        const processNameMap = {
+            'slit': 'スリット',
+            'cut': 'カット',
+            'base_material_cut': '基材カット',
+            'molder': 'モルダー',
+            'v_cut_lapping': 'Vカットラッピング',
+            'post_processing': '後加工',
+            'packing': '梱包',
+            'decorative_board': '化粧板貼付',
+            'decorative_board_cut': '化粧板カット'
+        };
+        return processNameMap[processType] || processType;
+    }
+    
+    // イベントリスナーの設定
+    workerIdInput.addEventListener('input', function() {
+        updateWorkStatus();
+        updateButtons();
+    });
+    
+    processSelect.addEventListener('change', function() {
+        selectedPlan = null; // 工程変更時は選択をクリア
+        updateWorkStatus();
+        updateButtons();
+        renderProductionPlans();
+    });
+    
+    startProcessBtn.addEventListener('click', startProcess);
+    completeProcessBtn.addEventListener('click', completeProcess);
+    
+    // CSRFトークンの追加
+    if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrfmiddlewaretoken';
+        csrfToken.value = '{{ csrf_token }}';
+        document.body.appendChild(csrfToken);
+    }
+    
+    // 初期データの読み込み
+    loadProductionPlans();
+});
+</script>
+{% endblock %}

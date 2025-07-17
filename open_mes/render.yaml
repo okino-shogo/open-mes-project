@@ -1,0 +1,24 @@
+databases:
+  - name: open-mes-db
+    databaseName: open_mes
+    user: open_mes_user
+
+services:
+  - type: web
+    name: open-mes
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "cd scr && gunicorn base.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: base.settings_render
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: open-mes-db
+          property: connectionString

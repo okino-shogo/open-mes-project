@@ -281,3 +281,39 @@ class PartsUsedImportCSVView(LoginRequiredMixin, View):
             print(f"Unexpected server error during PartsUsed CSV import: {e}")
             print(traceback.format_exc())
             return JsonResponse({'status': 'error', 'message': f'予期せぬサーバーエラーが発生しました。管理者にお問い合わせください。'}, status=500)
+
+class CSVUploadView(LoginRequiredMixin, View):
+    """CSVファイルアップロード機能"""
+    
+    def post(self, request):
+        try:
+            csv_file = request.FILES.get('csv_file')
+            if not csv_file:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'CSVファイルが選択されていません。'
+                })
+            
+            # CSVファイルのインポート
+            from ..utils import import_csv_data
+            result = import_csv_data(csv_file)
+            
+            if result['errors']:
+                return JsonResponse({
+                    'success': False,
+                    'errors': result['errors'],
+                    'created_plans': len(result['created_plans']),
+                    'created_schedules': len(result['created_schedules'])
+                })
+            else:
+                return JsonResponse({
+                    'success': True,
+                    'created_plans': len(result['created_plans']),
+                    'created_schedules': len(result['created_schedules'])
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'アップロード処理中にエラーが発生しました: {str(e)}'
+            })

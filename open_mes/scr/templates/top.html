@@ -7,11 +7,11 @@
     <div class="menu-section">
         <h3>在庫管理</h3>
         <ul>
-            <li><a href="{% url 'inventory_inquiry' %}">在庫照会</a></li>
-            <li><a href="{% url 'inventory_stock_movement_history' %}">入出庫履歴</a></li>
-            <li><a href="{% url 'inventory_shipment' %}">出庫予定</a></li>
-            <li><a href="{% url 'inventory_purchase' %}">入庫処置</a></li>
-            <li><a href="{% url 'inventory_issue' %}">出庫処理</a></li>
+            <li><a href="{% url 'inventory:inventory_inquiry' %}">在庫照会</a></li>
+            <li><a href="{% url 'inventory:inventory_stock_movement_history' %}">入出庫履歴</a></li>
+            <li><a href="{% url 'inventory:inventory_shipment' %}">出庫予定</a></li>
+            <li><a href="{% url 'inventory:inventory_purchase' %}">入庫処置</a></li>
+            <li><a href="{% url 'inventory:inventory_issue' %}">出庫処理</a></li>
         </ul>
     </div>
 
@@ -19,9 +19,13 @@
         <h3>生産管理</h3>
         <ul>
             <li><a href="{% url 'production:production_plan' %}">生産計画</a></li>
+            <li><a href="{% url 'production:gantt_chart' %}">ガントチャート</a></li>
             <li><a href="{% url 'production:production_parts_used' %}">使用部品</a></li>
             <li><a href="{% url 'production:production_material_allocation' %}">材料引当</a></li>
             <li><a href="{% url 'production:production_work_progress' %}">作業進捗</a></li>
+            <li><a href="{% url 'production:worker_interface_list' %}">作業者インターフェース</a></li>
+            <li><a href="{% url 'production:analytics' %}">生産性分析</a></li>
+            <li><a href="{% url 'production:ai_worker_analysis' %}">🤖AI作業者分析</a></li>
         </ul>
     </div>
 
@@ -31,6 +35,7 @@
             <li><a href="{% url 'quality:process_inspection' %}">工程内検査</a></li>
             <li><a href="{% url 'quality:acceptance_inspection' %}">受入検査</a></li>
             <li><a href="{% url 'quality:inspection_item_master_list' %}">マスター作成</a></li>
+            <li><a href="{% url 'production:kaizen' %}">改善提案</a></li>
         </ul>
     </div>
 
@@ -103,6 +108,30 @@
     display: flex; /* 小項目を横並びにする */
     flex-wrap: wrap; /* 画面幅に応じて折り返す */
     gap: 10px 15px; /* 縦方向のgapを少し減らし、横方向は維持 */
+}
+
+/* 生産管理メニューは縦並びで表示 */
+.menu-section:nth-child(2) ul {
+    display: block; /* 生産管理セクションは縦並び */
+}
+
+.menu-section:nth-child(2) ul li {
+    margin-bottom: 8px; /* 生産管理セクションのリストアイテム間隔 */
+}
+
+/* AI作業者分析リンクを強調 */
+.menu-section ul li a[href*="ai_worker_analysis"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: 1px solid #5a67d8;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.menu-section ul li a[href*="ai_worker_analysis"]:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 .menu-section ul li {
     /* margin-bottom: 8px; Flexboxのgapプロパティで間隔を調整するため不要に */

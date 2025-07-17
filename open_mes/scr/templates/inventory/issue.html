@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const quantityToShip = document.getElementById('modal_quantity_to_ship').value;
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-        fetch("{% url 'inventory_api:api_process_single_sales_order_issue' %}", {
+        fetch("{% url 'inventory:api_process_single_sales_order_issue' %}", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

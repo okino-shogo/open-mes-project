@@ -538,6 +538,208 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
             "new_status": plan.get_status_display()
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'], url_path='update-process-status')
+    def update_process_status(self, request):
+        """
+        作業者インターフェースから工程の開始・完了状態を更新するためのAPIエンドポイント
+        """
+        data = request.data
+        plan_id = data.get('plan_id')
+        process_type = data.get('process_type')
+        action = data.get('action')  # 'start' または 'complete'
+        worker_id = data.get('worker_id')
+        timestamp = data.get('timestamp')
+        
+        # 必須パラメータの検証
+        if not all([plan_id, process_type, action, worker_id]):
+            return Response({
+                'success': False,
+                'error': '必須パラメータが不足しています (plan_id, process_type, action, worker_id)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # アクションの検証
+        if action not in ['start', 'complete']:
+            return Response({
+                'success': False,
+                'error': 'actionは"start"または"complete"である必要があります'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # 生産計画の取得
+            production_plan = get_object_or_404(ProductionPlan, id=plan_id)
+            
+            # 工程フィールドのマッピング
+            process_field_mapping = {
+                'slit': {
+                    'status': 'slit_status',
+                    'start_time': 'slit_start_time',
+                    'completion_time': 'slit_completion_time',
+                    'duration': 'slit_duration_minutes',
+                    'worker_id': 'slit_worker_id'
+                },
+                'cut': {
+                    'status': 'cut_status',
+                    'start_time': 'cut_start_time',
+                    'completion_time': 'cut_completion_time',
+                    'duration': 'cut_duration_minutes',
+                    'worker_id': 'cut_worker_id'
+                },
+                'base_material_cut': {
+                    'status': 'base_material_cut_status',
+                    'start_time': 'base_material_cut_start_time',
+                    'completion_time': 'base_material_cut_completion_time',
+                    'duration': 'base_material_cut_duration_minutes',
+                    'worker_id': 'base_material_cut_worker_id'
+                },
+                'molder': {
+                    'status': 'molder_status',
+                    'start_time': 'molder_start_time',
+                    'completion_time': 'molder_completion_time',
+                    'duration': 'molder_duration_minutes',
+                    'worker_id': 'molder_worker_id'
+                },
+                'v_cut_lapping': {
+                    'status': 'v_cut_lapping_status',
+                    'start_time': 'v_cut_lapping_start_time',
+                    'completion_time': 'v_cut_lapping_completion_time',
+                    'duration': 'v_cut_lapping_duration_minutes',
+                    'worker_id': 'v_cut_lapping_worker_id'
+                },
+                'post_processing': {
+                    'status': 'post_processing_status',
+                    'start_time': 'post_processing_start_time',
+                    'completion_time': 'post_processing_completion_time',
+                    'duration': 'post_processing_duration_minutes',
+                    'worker_id': 'post_processing_worker_id'
+                },
+                'packing': {
+                    'status': 'packing_status',
+                    'start_time': 'packing_start_time',
+                    'completion_time': 'packing_completion_time',
+                    'duration': 'packing_duration_minutes',
+                    'worker_id': 'packing_worker_id'
+                },
+                'decorative_board': {
+                    'status': 'decorative_board_status',
+                    'start_time': 'decorative_board_start_time',
+                    'completion_time': 'decorative_board_completion_time',
+                    'duration': 'decorative_board_duration_minutes',
+                    'worker_id': 'decorative_board_worker_id'
+                },
+                'decorative_board_cut': {
+                    'status': 'decorative_board_cut_status',
+                    'start_time': 'decorative_board_cut_start_time',
+                    'completion_time': 'decorative_board_cut_completion_time',
+                    'duration': 'decorative_board_cut_duration_minutes',
+                    'worker_id': 'decorative_board_cut_worker_id'
+                }
+            }
+            
+            if process_type not in process_field_mapping:
+                return Response({
+                    'success': False,
+                    'error': f'無効な工程タイプ: {process_type}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            fields = process_field_mapping[process_type]
+            current_status = getattr(production_plan, fields['status'])
+            
+            # 時刻文字列をdatetimeオブジェクトに変換
+            if timestamp:
+                try:
+                    parsed_timestamp = parse_datetime(timestamp)
+                    if not parsed_timestamp:
+                        parsed_timestamp = timezone.now()
+                except:
+                    parsed_timestamp = timezone.now()
+            else:
+                parsed_timestamp = timezone.now()
+            
+            with transaction.atomic():
+                if action == 'start':
+                    # 工程開始処理
+                    if current_status != '未着手':
+                        return Response({
+                            'success': False,
+                            'error': f'この工程は既に{current_status}状態です。開始できません。'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # ステータス、開始時刻、作業者IDを更新
+                    setattr(production_plan, fields['status'], '着手中')
+                    setattr(production_plan, fields['start_time'], parsed_timestamp)
+                    setattr(production_plan, fields['worker_id'], worker_id)
+                    
+                    message = f'工程 {process_type} を開始しました'
+                    
+                elif action == 'complete':
+                    # 工程完了処理
+                    if current_status != '着手中':
+                        return Response({
+                            'success': False,
+                            'error': f'この工程は{current_status}状態です。完了できません。'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # 開始時刻を取得
+                    start_time = getattr(production_plan, fields['start_time'])
+                    
+                    # ステータスと完了時刻を更新
+                    setattr(production_plan, fields['status'], '完了')
+                    setattr(production_plan, fields['completion_time'], parsed_timestamp)
+                    
+                    # 所要時間を計算（開始時刻がある場合）
+                    if start_time:
+                        duration_seconds = (parsed_timestamp - start_time).total_seconds()
+                        duration_minutes = duration_seconds / 60
+                        
+                        # 負の値を防ぐため、最小値を0に設定
+                        if duration_minutes < 0:
+                            print(f"警告: 工程 {process_type} の所要時間が負の値になりました。開始時刻: {start_time}, 完了時刻: {parsed_timestamp}")
+                            duration_minutes = 0
+                        
+                        setattr(production_plan, fields['duration'], int(duration_minutes))
+                    
+                    message = f'工程 {process_type} を完了しました'
+                
+                # 生産計画を保存
+                production_plan.save()
+                
+                # 作業履歴の記録（WorkProgressモデルがある場合）
+                if hasattr(production_plan, 'workprogress_set'):
+                    WorkProgress.objects.create(
+                        production_plan=production_plan,
+                        process_step=process_type,
+                        operator_id=worker_id,
+                        status='IN_PROGRESS' if action == 'start' else 'COMPLETED',
+                        start_datetime=parsed_timestamp if action == 'start' else None,
+                        end_datetime=parsed_timestamp if action == 'complete' else None,
+                        quantity_completed=production_plan.planned_quantity if action == 'complete' else 0
+                    )
+                
+                return Response({
+                    'success': True,
+                    'message': message,
+                    'plan_id': plan_id,
+                    'process_type': process_type,
+                    'action': action,
+                    'worker_id': worker_id,
+                    'timestamp': parsed_timestamp.isoformat(),
+                    'new_status': getattr(production_plan, fields['status'])
+                }, status=status.HTTP_200_OK)
+                
+        except ProductionPlan.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': f'生産計画ID {plan_id} が見つかりません'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            print(f"工程状態更新エラー: {str(e)}")
+            print(traceback.format_exc())
+            return Response({
+                'success': False,
+                'error': f'工程状態の更新中にエラーが発生しました: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class PartsUsedViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows PartsUsed records to be viewed or created.

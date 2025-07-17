@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+{% load md5url %}
+{% block title %}生産性分析ダッシュボード{% endblock %}
+
+{% block js_link %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="text-primary">📊 生産性分析ダッシュボード</h2>
+                <div class="btn-group" role="group">
+                    <input type="number" id="daysFilter" class="form-control" value="{{ default_days }}" min="1" max="365" style="width: 80px;">
+                    <button class="btn btn-outline-secondary" onclick="refreshAnalytics()">更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- サマリーカード -->
+    <div class="row mb-4" id="summaryCards">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary">総計画数</h5>
+                    <h2 class="text-primary" id="totalPlans">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-success">完了計画</h5>
+                    <h2 class="text-success" id="completedPlans">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-warning">進行中</h5>
+                    <h2 class="text-warning" id="inProgressPlans">-</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-danger">遅延</h5>
+                    <h2 class="text-danger" id="delayedPlans">-</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- チャートエリア -->
+    <div class="row mb-4">
+        <!-- 工程別所要時間 -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">🔧 工程別平均所要時間</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="processDurationChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 完了率 -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">✅ 工程別完了率</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="completionRateChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- 予実差分析 -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">⏱️ 予実差分析（最新10件）</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="planVsActualChart" width="600" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 作業者生産性 -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0">👥 作業者効率スコア</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="workerProductivityChart" width="300" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 詳細テーブル -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">📋 詳細分析データ</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs" id="detailTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="process-tab" data-bs-toggle="tab" data-bs-target="#process" type="button" role="tab">工程分析</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="variance-tab" data-bs-toggle="tab" data-bs-target="#variance" type="button" role="tab">予実差</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="worker-tab" data-bs-toggle="tab" data-bs-target="#worker" type="button" role="tab">作業者</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="detailTabContent">
+                        <div class="tab-pane fade show active" id="process" role="tabpanel">
+                            <div class="table-responsive mt-3">
+                                <table class="table table-striped" id="processTable">
+                                    <thead>
+                                        <tr>
+                                            <th>工程名</th>
+                                            <th>平均所要時間(分)</th>
+                                            <th>最短時間(分)</th>
+                                            <th>最長時間(分)</th>
+                                            <th>対象件数</th>
+                                            <th>完了率(%)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="variance" role="tabpanel">
+                            <div class="table-responsive mt-3">
+                                <table class="table table-striped" id="varianceTable">
+                                    <thead>
+                                        <tr>
+                                            <th>計画名</th>
+                                            <th>計画時間(h)</th>
+                                            <th>実績時間(h)</th>
+                                            <th>差異(h)</th>
+                                            <th>差異率(%)</th>
+                                            <th>ステータス</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="worker" role="tabpanel">
+                            <div class="table-responsive mt-3">
+                                <table class="table table-striped" id="workerTable">
+                                    <thead>
+                                        <tr>
+                                            <th>作業者名</th>
+                                            <th>完了タスク数</th>
+                                            <th>平均完了時間(h)</th>
+                                            <th>効率スコア</th>
+                                            <th>品質スコア(%)</th>
+                                            <th>主要工程</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// グローバル変数
+let charts = {};
+let analyticsData = {};
+
+// ページ読み込み時の初期化
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    loadAnalyticsData();
+});
+
+// チャートの初期化
+function initializeCharts() {
+    // 工程別所要時間チャート
+    charts.processDuration = new Chart(document.getElementById('processDurationChart'), {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: '平均所要時間(分)',
+                data: [],
+                backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '時間(分)'
+                    }
+                }
+            }
+        }
+    });
+
+    // 完了率チャート
+    charts.completionRate = new Chart(document.getElementById('completionRateChart'), {
+        type: 'doughnut',
+        data: {
+            labels: [],
+            datasets: [{
+                label: '完了率(%)',
+                data: [],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 205, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)',
+                    'rgba(201, 203, 207, 0.6)',
+                    'rgba(255, 99, 255, 0.6)',
+                    'rgba(99, 255, 132, 0.6)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+
+    // 予実差チャート
+    charts.planVsActual = new Chart(document.getElementById('planVsActualChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: '計画時間(h)',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                },
+                {
+                    label: '実績時間(h)',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '時間(h)'
+                    }
+                }
+            }
+        }
+    });
+
+    // 作業者生産性チャート
+    charts.workerProductivity = new Chart(document.getElementById('workerProductivityChart'), {
+        type: 'radar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: '効率スコア',
+                data: [],
+                borderColor: 'rgba(255, 206, 86, 1)',
+                backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                pointBackgroundColor: 'rgba(255, 206, 86, 1)',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(255, 206, 86, 1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+// 分析データの読み込み
+async function loadAnalyticsData() {
+    const days = document.getElementById('daysFilter').value || 30;
+    
+    try {
+        // 並行してAPI呼び出し
+        const [summaryData, processDurationData, planVsActualData, workerProductivityData] = await Promise.all([
+            fetchAPI(`/production/api/analytics/dashboard_summary/?days=${days}`),
+            fetchAPI(`/production/api/analytics/process_duration/?days=${days}`),
+            fetchAPI(`/production/api/analytics/plan_vs_actual/?days=${days}`),
+            fetchAPI(`/production/api/analytics/worker_productivity/?days=${days}`)
+        ]);
+
+        // データを保存
+        analyticsData = {
+            summary: summaryData,
+            processDuration: processDurationData,
+            planVsActual: planVsActualData,
+            workerProductivity: workerProductivityData
+        };
+
+        // UIを更新
+        updateSummaryCards(summaryData);
+        updateProcessDurationChart(processDurationData);
+        updateCompletionRateChart(processDurationData);
+        updatePlanVsActualChart(planVsActualData);
+        updateWorkerProductivityChart(workerProductivityData);
+        updateDetailTables();
+
+    } catch (error) {
+        console.error('分析データの読み込みエラー:', error);
+        showAlert('分析データの読み込みに失敗しました: ' + error.message, 'danger');
+    }
+}
+
+// API呼び出しヘルパー
+async function fetchAPI(url) {
+    const response = await fetch(url, {
+        credentials: 'same-origin'
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+}
+
+// サマリーカード更新
+function updateSummaryCards(summaryData) {
+    document.getElementById('totalPlans').textContent = summaryData.total_plans || 0;
+    document.getElementById('completedPlans').textContent = summaryData.completed_plans || 0;
+    document.getElementById('inProgressPlans').textContent = summaryData.in_progress_plans || 0;
+    document.getElementById('delayedPlans').textContent = summaryData.delayed_plans || 0;
+}
+
+// 工程別所要時間チャート更新
+function updateProcessDurationChart(data) {
+    if (!data || data.length === 0) return;
+    
+    const labels = data.map(item => item.process_name);
+    const durations = data.map(item => item.avg_duration);
+    
+    charts.processDuration.data.labels = labels;
+    charts.processDuration.data.datasets[0].data = durations;
+    charts.processDuration.update();
+}
+
+// 完了率チャート更新
+function updateCompletionRateChart(data) {
+    if (!data || data.length === 0) return;
+    
+    const labels = data.map(item => item.process_name);
+    const rates = data.map(item => item.completion_rate);
+    
+    charts.completionRate.data.labels = labels;
+    charts.completionRate.data.datasets[0].data = rates;
+    charts.completionRate.update();
+}
+
+// 予実差チャート更新
+function updatePlanVsActualChart(data) {
+    if (!data || data.length === 0) return;
+    
+    // 最新10件のみ表示
+    const recentData = data.slice(-10);
+    const labels = recentData.map(item => item.plan_name);
+    const plannedHours = recentData.map(item => item.planned_duration_hours);
+    const actualHours = recentData.map(item => item.actual_duration_hours);
+    
+    charts.planVsActual.data.labels = labels;
+    charts.planVsActual.data.datasets[0].data = plannedHours;
+    charts.planVsActual.data.datasets[1].data = actualHours;
+    charts.planVsActual.update();
+}
+
+// 作業者生産性チャート更新
+function updateWorkerProductivityChart(data) {
+    if (!data || data.length === 0) return;
+    
+    // 上位5名のみ表示
+    const topWorkers = data.slice(0, 5);
+    const labels = topWorkers.map(item => item.worker_name);
+    const scores = topWorkers.map(item => Math.min(100, item.efficiency_score * 10)); // スケール調整
+    
+    charts.workerProductivity.data.labels = labels;
+    charts.workerProductivity.data.datasets[0].data = scores;
+    charts.workerProductivity.update();
+}
+
+// 詳細テーブル更新
+function updateDetailTables() {
+    updateProcessTable();
+    updateVarianceTable();
+    updateWorkerTable();
+}
+
+// 工程分析テーブル更新
+function updateProcessTable() {
+    const tbody = document.querySelector('#processTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!analyticsData.processDuration) return;
+    
+    analyticsData.processDuration.forEach(item => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${item.process_name}</td>
+            <td>${item.avg_duration}</td>
+            <td>${item.min_duration}</td>
+            <td>${item.max_duration}</td>
+            <td>${item.total_plans}</td>
+            <td>${item.completion_rate}%</td>
+        `;
+    });
+}
+
+// 予実差テーブル更新
+function updateVarianceTable() {
+    const tbody = document.querySelector('#varianceTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!analyticsData.planVsActual) return;
+    
+    analyticsData.planVsActual.slice(0, 20).forEach(item => {
+        const row = tbody.insertRow();
+        const varianceClass = item.variance_hours > 0 ? 'text-danger' : 'text-success';
+        row.innerHTML = `
+            <td>${item.plan_name}</td>
+            <td>${item.planned_duration_hours}</td>
+            <td>${item.actual_duration_hours}</td>
+            <td class="${varianceClass}">${item.variance_hours > 0 ? '+' : ''}${item.variance_hours}</td>
+            <td class="${varianceClass}">${item.variance_percentage > 0 ? '+' : ''}${item.variance_percentage}%</td>
+            <td>${item.status}</td>
+        `;
+    });
+}
+
+// 作業者テーブル更新
+function updateWorkerTable() {
+    const tbody = document.querySelector('#workerTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!analyticsData.workerProductivity) return;
+    
+    analyticsData.workerProductivity.forEach(item => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${item.worker_name}</td>
+            <td>${item.total_completed_tasks}</td>
+            <td>${item.avg_completion_time_hours}</td>
+            <td>${item.efficiency_score}</td>
+            <td>${item.quality_score}%</td>
+            <td>${item.favorite_processes.join(', ')}</td>
+        `;
+    });
+}
+
+// 分析データの更新
+function refreshAnalytics() {
+    showAlert('分析データを更新中...', 'info');
+    loadAnalyticsData().then(() => {
+        showAlert('分析データを更新しました', 'success');
+    });
+}
+
+// アラート表示
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // 3秒後に自動削除
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

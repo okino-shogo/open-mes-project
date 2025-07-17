@@ -76,7 +76,7 @@
                     </button>
                     <a href="#" class="btn btn-outline-secondary w-100"
                        data-bs-toggle="modal" data-bs-target="#dataListModal"
-                       data-list-url="{% url 'inventory_api:purchase_order_list_ajax' %}"
+                       data-list-url="{% url 'inventory:purchase_order_list_ajax' %}"
                        data-master-name="入庫予定"
                        data-master-type="inventory-purchase-entry">入庫予定呼び出し</a>
                 </div>
@@ -134,7 +134,7 @@
                                 <option value="warehouse" data-template-url="{% url 'master:warehouse_csv_template' %}" data-upload-url="{% url 'master:warehouse_import_csv' %}">倉庫マスター</option>
                             </optgroup>
                             <optgroup label="業務データ">
-                                <option value="purchase_order" data-template-url="{% url 'inventory_api:purchase_order_csv_template' %}" data-upload-url="{% url 'inventory_api:purchase_order_import_csv' %}">入庫予定</option>
+                                <option value="purchase_order" data-template-url="{% url 'inventory:purchase_order_csv_template' %}" data-upload-url="{% url 'inventory:purchase_order_import_csv' %}">入庫予定</option>
                                 <option value="production_plan" data-template-url="{% url 'production:production_plan_csv_template' %}" data-upload-url="{% url 'production:production_plan_import_csv' %}">生産計画</option>
                                 <option value="parts_used" data-template-url="{% url 'production:parts_used_csv_template' %}" data-upload-url="{% url 'production:parts_used_import_csv' %}">使用部品</option>
                             </optgroup>
@@ -187,7 +187,7 @@
             </form>
         </div>
         <div id="inventory-purchase-entry-form-template">
-            <form method="post" id="inventoryPurchaseEntryForm" action="{% url 'inventory_api:purchase_order_create_ajax' %}">
+            <form method="post" id="inventoryPurchaseEntryForm" action="{% url 'inventory:purchase_order_create_ajax' %}"
                 {% csrf_token %}
                 <input type="hidden" name="id" id="inventory_purchase_entry_id">
                 {{ inventory_purchase_entry_form.as_p }}
@@ -745,7 +745,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (masterType === 'supplier') return "{% url 'master:supplier_create_ajax' %}";
         if (masterType === 'warehouse') return "{% url 'master:warehouse_create_ajax' %}"; // Warehouse uses UUID
         // 他の業務データフォームも同様に
-        if (masterType === 'inventory-purchase-entry') return "{% url 'inventory_api:purchase_order_create_ajax' %}";
+        if (masterType === 'inventory-purchase-entry') return "{% url 'inventory:purchase_order_create_ajax' %}";
         if (masterType === 'production-plan-entry') return "{% url 'production:production_plan_create_ajax' %}";
         if (masterType === 'parts-used-entry') return "{% url 'production:parts_used_create_ajax' %}";
         return '#'; // Fallback

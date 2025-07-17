@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             const params = new URLSearchParams({ warehouse: warehouse, location: sourceLocation });
-            const response = await fetch(`{% url 'inventory_api:api_get_inventory_by_location' %}?${params.toString()}`);
+            const response = await fetch(`{% url 'inventory:api_get_inventory_by_location' %}?${params.toString()}`);
             
             if (!response.ok) {
                 const errData = await response.json();
@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         try {
-            const response = await fetch("{% url 'inventory_api:api_location_transfer' %}", {
+            const response = await fetch("{% url 'inventory:api_location_transfer' %}", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
                 body: JSON.stringify(payload)

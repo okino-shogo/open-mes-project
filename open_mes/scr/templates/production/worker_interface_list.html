@@ -1,0 +1,977 @@
+{% extends "base.html" %}
+{% load md5url %}
+{% block title %}作業者インターフェース{% endblock %}
+
+{% block extra_head %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white text-center">
+                    <div class="row align-items-center">
+                        <div class="col-4">
+                            <h4 class="mb-0">物件数</h4>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="mb-0">製作数</h4>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-warning btn-lg" onclick="generateReport()">
+                                <strong>日報<br>作成</strong>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 今日の製作完了予定残数 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white text-center">
+                    <h5 class="mb-0">本日の製作完了予定残数</h5>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <span id="remainingItems" class="text-danger fs-1 fw-bold">0</span>
+                        </div>
+                        <div class="col-6">
+                            <span id="remainingProduction" class="text-danger fs-1 fw-bold">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 作業者情報入力 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">作業者ID</label>
+                            <input type="text" id="workerId" class="form-control form-control-lg" placeholder="作業者IDを入力">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">工程選択</label>
+                            <select id="processSelect" class="form-select form-select-lg">
+                                <option value="">工程を選択してください</option>
+                                <option value="slit">スリット</option>
+                                <option value="cut">カット</option>
+                                <option value="base_material_cut">基材カット</option>
+                                <option value="molder">モルダー</option>
+                                <option value="v_cut_lapping">Vカットラッピング</option>
+                                <option value="post_processing">後加工</option>
+                                <option value="packing">梱包</option>
+                                <option value="decorative_board">化粧板貼付</option>
+                                <option value="decorative_board_cut">化粧板カット</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">現在時刻</label>
+                            <div id="currentTime" class="form-control form-control-lg text-center bg-light"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 製作計画一覧 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">生産計画一覧</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>区分</th>
+                                    <th>受付No.</th>
+                                    <th>追加No.</th>
+                                    <th>現場名</th>
+                                    <th>追加内容</th>
+                                    <th>品名</th>
+                                    <th>製作数</th>
+                                    <th id="processColumnHeader">予定日</th>
+                                    <th>開始終了</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productionPlansTable">
+                                <!-- 計画データがここに挿入されます -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作履歴 -->
+    <div class="row mt-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">操作履歴</h5>
+                </div>
+                <div class="card-body">
+                    <div id="operationHistory" class="operation-history">
+                        <div class="text-muted">操作履歴はここに表示されます</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.operation-history {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 10px;
+}
+
+.btn-work-toggle {
+    background-color: #28a745;
+    border-color: #28a745;
+    color: white;
+    min-width: 60px;
+    transition: all 0.3s ease;
+}
+
+.btn-work-toggle:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+    color: white;
+}
+
+.btn-work-toggle[data-status="IN_PROGRESS"] {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.btn-work-toggle[data-status="IN_PROGRESS"]:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+    color: white;
+}
+
+.btn-work-toggle[data-status="COMPLETED"] {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+    cursor: not-allowed;
+}
+
+.btn-work-toggle[data-status="COMPLETED"]:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+}
+
+.status-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.status-not-started {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.status-in-progress {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-completed {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-delayed {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-on-hold {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.status-cancelled {
+    background-color: #f5c6cb;
+    color: #721c24;
+}
+
+.row-clickable {
+    cursor: pointer;
+}
+
+.row-selected {
+    background-color: #e3f2fd !important;
+}
+</style>
+
+<script>
+let productionPlans = [];
+let selectedPlan = null;
+let currentProcess = '';
+let currentWorkerId = '';
+
+// 工程名のマッピング
+const processNames = {
+    'slit': 'スリット',
+    'cut': 'カット', 
+    'base_material_cut': '基材カット',
+    'molder': 'モルダー',
+    'v_cut_lapping': 'Vカット',
+    'post_processing': '後加工',
+    'packing': '梱包',
+    'decorative_board': '化粧板貼付',
+    'decorative_board_cut': '化粧板カット'
+};
+
+// 現在時刻を更新する関数
+function updateCurrentTime() {
+    const now = new Date();
+    const timeString = now.toLocaleString('ja-JP', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    document.getElementById('currentTime').textContent = timeString;
+}
+
+// 1秒ごとに現在時刻を更新
+setInterval(updateCurrentTime, 1000);
+updateCurrentTime();
+
+// 生産計画データの取得
+function loadProductionPlans() {
+    fetch('/api/production/plans/', {
+        credentials: 'same-origin'
+    })
+        .then(response => response.json())
+        .then(data => {
+            // APIレスポンスはページネーション形式なので、resultsを取得
+            productionPlans = data.results || [];
+            renderProductionPlans();
+            updateSummary();
+            
+            // 初回ロード時のみ、データ読み込み完了を通知
+            if (productionPlans.length > 0 && !window.initialLoadComplete) {
+                addToHistory(`${productionPlans.length}件の生産計画を読み込みました`, 'success');
+                window.initialLoadComplete = true;
+            }
+        })
+        .catch(error => {
+            console.error('生産計画の取得に失敗しました:', error);
+            addToHistory('エラー: 生産計画の読み込みに失敗しました', 'error');
+        });
+}
+
+// 計画一覧を表示する関数
+function renderProductionPlans() {
+    const tableBody = document.getElementById('productionPlansTable');
+    const processSelect = document.getElementById('processSelect');
+    const selectedProcess = processSelect.value;
+    
+    // ヘッダーを更新
+    updateTableHeader(selectedProcess);
+    
+    // 選択した工程でフィルタリング
+    let filteredPlans = productionPlans;
+    if (selectedProcess) {
+        // 選択した工程に関連する計画を表示
+        filteredPlans = productionPlans.filter(plan => {
+            // 工程が選択されている場合は、その工程の状態を確認
+            const processStatus = getProcessStatus(plan, selectedProcess);
+            // 未着手、着手中、遅延、保留の計画を表示（完了・中止は除外）
+            return processStatus !== 'COMPLETED' && processStatus !== 'CANCELLED';
+        });
+    }
+    
+    // 予定日順にソート（早い順）
+    filteredPlans.sort((a, b) => {
+        const dateA = getProcessScheduleDateForSort(a, selectedProcess);
+        const dateB = getProcessScheduleDateForSort(b, selectedProcess);
+        
+        // 日付がない場合は最後に
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        
+        return new Date(dateA) - new Date(dateB);
+    });
+    
+    tableBody.innerHTML = '';
+    
+    filteredPlans.forEach(plan => {
+        const row = document.createElement('tr');
+        row.classList.add('row-clickable');
+        
+        // 工程のステータスを取得
+        const processStatus = getProcessStatus(plan, selectedProcess);
+        const statusClass = getStatusClass(processStatus);
+        const statusText = getStatusText(processStatus);
+        
+        // 選択された工程名を取得
+        const displayProcessName = selectedProcess ? processNames[selectedProcess] || selectedProcess : '全工程';
+        
+        // 工程の予定日を取得
+        const scheduledDate = getProcessScheduledDate(plan, selectedProcess);
+        
+        row.innerHTML = `
+            <td>${displayProcessName}</td>
+            <td>${plan.reception_no || plan.plan_name || ''}</td>
+            <td>${plan.additional_no || '-'}</td>
+            <td>${plan.site_name || '-'}</td>
+            <td>${plan.additional_content || '-'}</td>
+            <td>${plan.product_name || plan.product_code || ''}</td>
+            <td>${plan.planned_quantity || 0}</td>
+            <td>${scheduledDate}</td>
+            <td>
+                <button class="btn btn-sm btn-work-toggle" 
+                        onclick="toggleWork('${plan.id}')"
+                        data-status="${processStatus}"
+                        ${processStatus === 'COMPLETED' || processStatus === 'CANCELLED' ? 'disabled' : ''}>
+                    ${processStatus === 'COMPLETED' ? '完了' : 
+                      processStatus === 'CANCELLED' ? '中止' :
+                      processStatus === 'IN_PROGRESS' ? '終了' : '開始'}
+                </button>
+                <br>
+                <span class="status-badge ${statusClass}">${statusText}</span>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+}
+
+// テーブルヘッダーを更新
+function updateTableHeader(selectedProcess) {
+    const headerElement = document.getElementById('processColumnHeader');
+    if (selectedProcess && processNames[selectedProcess]) {
+        headerElement.textContent = `${processNames[selectedProcess]}予定日`;
+    } else {
+        headerElement.textContent = '予定日';
+    }
+}
+
+// ソート用の日付取得（生の日付文字列を返す）
+function getProcessScheduleDateForSort(plan, processType) {
+    if (!processType) return plan.planned_start_datetime || plan.manufacturing_scheduled_date || plan.shipping_scheduled_date;
+    
+    // 工程別の予定日フィールドマッピング
+    const scheduledDateFields = {
+        'slit': 'slit_scheduled_date',
+        'cut': 'cut_scheduled_date',
+        'base_material_cut': 'base_material_cut_scheduled_date',
+        'molder': 'molder_scheduled_date',
+        'v_cut_lapping': 'v_cut_lapping_scheduled_date',
+        'post_processing': 'post_processing_scheduled_date',
+        'packing': 'packing_scheduled_date',
+        'decorative_board': 'decorative_board_scheduled_date',
+        'decorative_board_cut': 'decorative_board_cut_scheduled_date'
+    };
+    
+    const dateField = scheduledDateFields[processType];
+    if (!dateField) return null;
+    
+    const scheduledDate = plan[dateField];
+    if (scheduledDate) return scheduledDate;
+    
+    // フォールバック日付
+    return plan.planned_start_datetime || plan.manufacturing_scheduled_date || plan.shipping_scheduled_date;
+}
+
+// 工程の予定日を取得
+function getProcessScheduledDate(plan, processType) {
+    if (!processType) return '-';
+    
+    // 工程別の予定日フィールドマッピング（CSVヘッダーに合わせて修正）
+    const scheduledDateFields = {
+        'slit': 'slit_scheduled_date',              // スリット予定日
+        'cut': 'cut_scheduled_date',                // カット予定日  
+        'base_material_cut': 'base_material_cut_scheduled_date', // 基材カット予定日（CSVにはないが保持）
+        'molder': 'molder_scheduled_date',          // モルダー予定日
+        'v_cut_lapping': 'v_cut_lapping_scheduled_date', // Vカットラッピング予定日
+        'post_processing': 'post_processing_scheduled_date', // 後加工予定日
+        'packing': 'packing_scheduled_date',        // 梱包予定日
+        'decorative_board': 'decorative_board_scheduled_date', // 化粧板貼予定日
+        'decorative_board_cut': 'decorative_board_cut_scheduled_date' // カット化粧板予定日
+    };
+    
+    const dateField = scheduledDateFields[processType];
+    if (!dateField) {
+        console.warn('予定日フィールドが見つかりません:', processType);
+        return '-';
+    }
+    
+    const scheduledDate = plan[dateField];
+    
+    if (!scheduledDate) {
+        // 予定日がない場合、他の日付をフォールバックとして使用
+        const fallbackDates = [
+            plan.planned_start_datetime,
+            plan.manufacturing_scheduled_date,
+            plan.shipping_scheduled_date
+        ];
+        
+        for (const fallbackDate of fallbackDates) {
+            if (fallbackDate) {
+                try {
+                    const date = new Date(fallbackDate);
+                    if (!isNaN(date.getTime())) {
+                        const formatted = date.toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                        }).replace(/\//g, '/');
+                        return `(${formatted})`;  // ()付きで表示してフォールバックであることを示す
+                    }
+                } catch (error) {
+                    continue;
+                }
+            }
+        }
+        return '-';
+    }
+    
+    // 日付フォーマット：YYYY/MM/DD形式で表示
+    try {
+        const date = new Date(scheduledDate);
+        if (isNaN(date.getTime())) {
+            console.warn('無効な日付:', scheduledDate);
+            return '-';
+        }
+        
+        const formatted = date.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).replace(/\//g, '/');
+        
+        return formatted;
+    } catch (error) {
+        console.warn('日付変換エラー:', scheduledDate, error);
+        return '-';
+    }
+}
+
+// 工程のステータスを取得
+function getProcessStatus(plan, processType) {
+    if (!processType) return plan.status || 'PENDING';
+    
+    // 工程別のステータスフィールドを取得
+    const statusField = `${processType}_status`;
+    const processStatus = plan[statusField];
+    
+    // デバッグ用ログ
+    console.log(`ステータス確認: ${plan.plan_name} - ${processType}`, {
+        statusField: statusField,
+        rawStatus: processStatus,
+        planId: plan.id
+    });
+    
+    if (processStatus) {
+        // 日本語のステータスを英語のステータスにマッピング
+        switch(processStatus) {
+            case '未着手':
+                return 'PENDING';
+            case '着手中':
+                return 'IN_PROGRESS';
+            case '完了':
+                return 'COMPLETED';
+            case '遅延':
+                return 'DELAYED';
+            case '保留':
+                return 'ON_HOLD';
+            case '中止':
+                return 'CANCELLED';
+            default:
+                console.warn(`未知のステータス: ${processStatus}`);
+                return 'PENDING';
+        }
+    }
+    
+    // フォールバック: 全体のステータスを使用
+    return plan.status || 'PENDING';
+}
+
+// ステータスのCSSクラスを取得
+function getStatusClass(status) {
+    switch(status) {
+        case 'IN_PROGRESS':
+            return 'status-in-progress';
+        case 'COMPLETED':
+            return 'status-completed';
+        case 'DELAYED':
+            return 'status-delayed';
+        case 'ON_HOLD':
+            return 'status-on-hold';
+        case 'CANCELLED':
+            return 'status-cancelled';
+        default:
+            return 'status-not-started';
+    }
+}
+
+// ステータスのテキストを取得
+function getStatusText(status) {
+    switch(status) {
+        case 'IN_PROGRESS':
+            return '着手中';
+        case 'COMPLETED':
+            return '完了';
+        case 'DELAYED':
+            return '遅延';
+        case 'ON_HOLD':
+            return '保留';
+        case 'CANCELLED':
+            return '中止';
+        default:
+            return '未着手';
+    }
+}
+
+// 作業開始・終了の切り替え（楽観的更新版）
+function toggleWork(planId) {
+    const workerId = document.getElementById('workerId').value;
+    const processType = document.getElementById('processSelect').value;
+    
+    if (!workerId) {
+        alert('作業者IDを入力してください');
+        return;
+    }
+    
+    if (!processType) {
+        alert('工程を選択してください');
+        return;
+    }
+    
+    // 現在の状態を取得
+    const plan = productionPlans.find(p => p.id === planId);
+    if (!plan) {
+        alert('計画が見つかりません');
+        return;
+    }
+    
+    const currentStatus = getProcessStatus(plan, processType);
+    
+    // 完了済みの場合は操作不可
+    if (currentStatus === 'COMPLETED') {
+        addToHistory('この工程は既に完了しています', 'error');
+        return;
+    }
+    
+    // 中止・保留の場合は操作不可
+    if (currentStatus === 'CANCELLED') {
+        addToHistory('この工程は中止されています', 'error');
+        return;
+    }
+    
+    const action = currentStatus === 'IN_PROGRESS' ? 'complete' : 'start';
+    const actionText = action === 'start' ? '開始' : '完了';
+    
+    console.log('状態切り替え:', {
+        planId: planId,
+        planName: plan.plan_name,
+        currentStatus: currentStatus,
+        action: action,
+        workerId: workerId,
+        processType: processType,
+        processStatusField: `${processType}_status`,
+        rawProcessStatus: plan[`${processType}_status`]
+    });
+    
+    // 1. 即座にUI更新（楽観的更新）
+    updateUIOptimistically(planId, processType, action);
+    addToHistory(`${actionText}中...`, 'info');
+    
+    // 2. バックグラウンドでAPI呼び出し
+    updateProcessStatusAsync(planId, processType, action, workerId)
+        .then(result => {
+            // 成功時
+            addToHistory(`工程${actionText}: ${result.message}`, 'success');
+            // サーバーデータと同期確認（軽量化のため個別更新）
+            syncSinglePlan(planId);
+        })
+        .catch(error => {
+            // エラー時のUIロールバック
+            rollbackUI(planId, processType, currentStatus);
+            addToHistory(`エラー: ${error.message}`, 'error');
+        });
+}
+
+// 作業開始（下位互換性のため残す）
+function startWork(planId) {
+    toggleWork(planId);
+}
+
+// 作業終了（下位互換性のため残す）
+function endWork(planId) {
+    toggleWork(planId);
+}
+
+// 楽観的UI更新：即座にローカル状態とUIを更新
+function updateUIOptimistically(planId, processType, action) {
+    const plan = productionPlans.find(p => p.id === planId);
+    if (!plan) return;
+    
+    const statusField = `${processType}_status`;
+    const now = new Date().toISOString();
+    
+    if (action === 'start') {
+        // 開始：未着手 → 着手中
+        plan[statusField] = '着手中';
+        plan[`${processType}_start_time`] = now;
+    } else if (action === 'complete') {
+        // 完了：着手中 → 完了
+        plan[statusField] = '完了';
+        plan[`${processType}_completion_time`] = now;
+        // 所要時間も計算（概算）
+        const startTime = plan[`${processType}_start_time`];
+        if (startTime) {
+            const duration = Math.max(0, Math.floor((new Date(now) - new Date(startTime)) / (1000 * 60)));
+            plan[`${processType}_duration_minutes`] = duration;
+        }
+    }
+    
+    // UI即座更新
+    renderProductionPlans();
+}
+
+// UIロールバック：エラー時に元の状態に戻す
+function rollbackUI(planId, processType, originalStatus) {
+    const plan = productionPlans.find(p => p.id === planId);
+    if (!plan) return;
+    
+    const statusField = `${processType}_status`;
+    
+    // 元の状態に戻す（日本語ステータスに変換）
+    switch(originalStatus) {
+        case 'PENDING':
+            plan[statusField] = '未着手';
+            break;
+        case 'IN_PROGRESS':
+            plan[statusField] = '着手中';
+            break;
+        case 'COMPLETED':
+            plan[statusField] = '完了';
+            break;
+        case 'DELAYED':
+            plan[statusField] = '遅延';
+            break;
+        case 'ON_HOLD':
+            plan[statusField] = '保留';
+            break;
+        case 'CANCELLED':
+            plan[statusField] = '中止';
+            break;
+        default:
+            plan[statusField] = '未着手';
+    }
+    
+    // UI再描画
+    renderProductionPlans();
+}
+
+// 非同期APIリクエスト
+async function updateProcessStatusAsync(planId, processType, action, workerId) {
+    const data = {
+        plan_id: planId,
+        process_type: processType,
+        action: action,
+        worker_id: workerId,
+        timestamp: new Date().toISOString()
+    };
+    
+    console.log('非同期API呼び出し:', data);
+    
+    const response = await fetch('/api/production/plans/update-process-status/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
+            'Referer': window.location.href
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(result.message || result.error || 'ステータス更新に失敗しました');
+    }
+    
+    return result;
+}
+
+// 単一計画の同期：サーバーから最新データを取得して更新
+async function syncSinglePlan(planId) {
+    try {
+        const response = await fetch(`/api/production/plans/${planId}/`, {
+            credentials: 'same-origin'
+        });
+        
+        if (response.ok) {
+            const updatedPlan = await response.json();
+            // ローカルデータを更新
+            const index = productionPlans.findIndex(p => p.id === planId);
+            if (index !== -1) {
+                productionPlans[index] = updatedPlan;
+                // 必要に応じてUI再描画（通常は楽観的更新と一致するので不要）
+                console.log('単一計画同期完了:', updatedPlan.plan_name);
+            }
+        }
+    } catch (error) {
+        console.warn('単一計画同期エラー:', error);
+        // エラーは無視（バックグラウンド処理のため）
+    }
+}
+
+// 工程ステータスを更新（従来版 - レガシー互換性のため残す）
+function updateProcessStatus(planId, processType, action, workerId) {
+    const data = {
+        plan_id: planId,
+        process_type: processType,
+        action: action,
+        worker_id: workerId,
+        timestamp: new Date().toISOString()
+    };
+    
+    // デバッグ用ログ
+    console.log('API呼び出し:', {
+        url: '/api/production/plans/update-process-status/',
+        data: data,
+        method: 'POST'
+    });
+    
+    fetch('/api/production/plans/update-process-status/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken(),
+            'Referer': window.location.href
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        console.log('API応答:', response);
+        if (!response.ok) {
+            // エラーレスポンスの詳細を取得
+            return response.json().then(errorData => {
+                console.error('APIエラー詳細:', errorData);
+                addToHistory(`HTTPエラー: ${response.status} - ${errorData.error || errorData.message || response.statusText}`, 'error');
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }).catch(() => {
+                addToHistory(`HTTPエラー: ${response.status} ${response.statusText}`, 'error');
+                throw new Error(`HTTP error! status: ${response.status}`);
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('API結果:', result);
+        if (result.success) {
+            const actionText = action === 'start' ? '開始' : '完了';
+            addToHistory(`工程${actionText}: ${result.message}`, 'success');
+            
+            // APIから最新データを再取得して表示を更新
+            loadProductionPlans();
+        } else {
+            const errorMessage = result.message || result.error || 'ステータス更新に失敗しました';
+            addToHistory(`エラー: ${errorMessage}`, 'error');
+            
+            // 特定のエラーメッセージの場合は追加の説明を提供
+            if (errorMessage.includes('完了')) {
+                addToHistory('ヒント: 既に完了している工程は操作できません', 'info');
+            } else if (errorMessage.includes('着手中')) {
+                addToHistory('ヒント: 既に開始されている工程です', 'info');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('ステータス更新エラー:', error);
+        addToHistory(`エラー: ステータス更新に失敗しました - ${error.message}`, 'error');
+    });
+}
+
+// 操作履歴に追加
+function addToHistory(message, type = 'info') {
+    const historyDiv = document.getElementById('operationHistory');
+    const timestamp = new Date().toLocaleTimeString('ja-JP');
+    const typeClass = type === 'error' ? 'text-danger' : type === 'success' ? 'text-success' : 'text-info';
+    
+    const historyItem = document.createElement('div');
+    historyItem.className = `mb-1 ${typeClass}`;
+    historyItem.innerHTML = `<span class="text-muted">${timestamp}</span> - ${message}`;
+    
+    historyDiv.prepend(historyItem);
+    
+    // 最新の履歴を最上部に表示
+    historyDiv.scrollTop = 0;
+}
+
+// サマリーを更新
+function updateSummary() {
+    const totalItems = productionPlans.length;
+    const totalProduction = productionPlans.reduce((sum, plan) => sum + (plan.planned_quantity || 0), 0);
+    
+    document.getElementById('remainingItems').textContent = totalItems;
+    document.getElementById('remainingProduction').textContent = totalProduction;
+}
+
+// 日報作成
+function generateReport() {
+    addToHistory('日報作成機能は準備中です', 'info');
+}
+
+// CSRFトークンを取得
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// CSRFトークンをHTMLから取得（フォールバック）
+function getCSRFToken() {
+    const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (csrfInput) {
+        return csrfInput.value;
+    }
+    
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) {
+        return csrfMeta.getAttribute('content');
+    }
+    
+    return getCookie('csrftoken');
+}
+
+// 工程選択が変更されたときの処理
+document.getElementById('processSelect').addEventListener('change', function() {
+    const selectedProcess = this.value;
+    const processName = selectedProcess ? processNames[selectedProcess] || selectedProcess : '全工程';
+    
+    // 現在の工程を更新
+    currentProcess = selectedProcess;
+    
+    // 操作履歴に記録
+    if (selectedProcess) {
+        addToHistory(`工程「${processName}」を選択しました`, 'info');
+    } else {
+        addToHistory('全工程を表示します', 'info');
+    }
+    
+    // 表示を更新
+    renderProductionPlans();
+    updateSummary();
+});
+
+// 定期同期：バックグラウンドで全データを同期（頻度を下げて軽量化）
+let syncInterval = null;
+
+function startPeriodicSync() {
+    // 既存のインターバルをクリア
+    if (syncInterval) {
+        clearInterval(syncInterval);
+    }
+    
+    // 5分に1回バックグラウンド同期
+    syncInterval = setInterval(() => {
+        console.log('バックグラウンド同期開始...');
+        loadProductionPlansQuietly();
+    }, 5 * 60 * 1000); // 5分
+}
+
+function stopPeriodicSync() {
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+}
+
+// 静かなデータロード：履歴にメッセージを追加しない
+function loadProductionPlansQuietly() {
+    fetch('/api/production/plans/', {
+        credentials: 'same-origin'
+    })
+        .then(response => response.json())
+        .then(data => {
+            const newPlans = data.results || [];
+            
+            // データに変更があった場合のみ更新
+            if (JSON.stringify(newPlans) !== JSON.stringify(productionPlans)) {
+                productionPlans = newPlans;
+                renderProductionPlans();
+                updateSummary();
+                console.log('バックグラウンド同期完了: データ更新');
+            } else {
+                console.log('バックグラウンド同期完了: 変更なし');
+            }
+        })
+        .catch(error => {
+            console.warn('バックグラウンド同期エラー:', error);
+            // エラーは無視（バックグラウンド処理のため）
+        });
+}
+
+// 手動リフレッシュ関数（必要時に呼び出し可能）
+function refreshData() {
+    addToHistory('データを更新中...', 'info');
+    loadProductionPlans();
+}
+
+// 初期化
+document.addEventListener('DOMContentLoaded', function() {
+    loadProductionPlans();
+    addToHistory('システムが初期化されました', 'info');
+    
+    // 定期同期開始
+    startPeriodicSync();
+    addToHistory('バックグラウンド同期を開始しました（5分間隔）', 'info');
+});
+
+// ページ離脱時にインターバルをクリア
+window.addEventListener('beforeunload', function() {
+    stopPeriodicSync();
+});
+</script>
+{% endblock %}

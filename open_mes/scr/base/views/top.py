@@ -1,7 +1,7 @@
 from django.views import generic
 from django.contrib.auth.mixins import LoginRequiredMixin
 
-class TopView(LoginRequiredMixin, generic.TemplateView):
+class TopView(generic.TemplateView):
     template_name = 'top.html'
     # login_url = reverse_lazy('users_login') # settings.LOGIN_URL を使用するため通常は不要
 

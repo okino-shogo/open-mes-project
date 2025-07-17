@@ -434,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         try {
-            const response = await fetch("{% url 'inventory_api:api_update_inventory' %}", {
+            const response = await fetch("{% url 'inventory:api_update_inventory' %}", {
                 method: 'POST',
                 headers: requestHeaders,
                 body: JSON.stringify({
@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         try {
-            const response = await fetch("{% url 'inventory_api:api_move_inventory' %}", { // New URL
+            const response = await fetch("{% url 'inventory:api_move_inventory' %}", { // New URL
                 method: 'POST',
                 headers: requestHeaders,
                 body: JSON.stringify({

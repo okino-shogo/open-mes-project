@@ -286,7 +286,7 @@
             $(this).prop('disabled', true).text('処理中...');
 
             $.ajax({
-                url: '{% url "inventory_api:api_process_single_sales_order_issue" %}',
+                url: '{% url "inventory:api_process_single_sales_order_issue" %}',
                 type: 'POST',
                 dataType: 'json',
                 headers: {

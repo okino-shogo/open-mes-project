@@ -296,16 +296,21 @@
 <nav id='menu-bar'>
     <a href="{% url 'main' %}">トップページ</a>
     <div class="menu-category-title">在庫管理</div>
-    <a href="{% url 'inventory_inquiry' %}" class="menu-subcategory-link">在庫照会</a>
-    <a href="{% url 'inventory_stock_movement_history' %}" class="menu-subcategory-link">入出庫履歴</a>
-    <a href="{% url 'inventory_shipment' %}" class="menu-subcategory-link">出庫予定</a>
-    <a href="{% url 'inventory_purchase' %}" class="menu-subcategory-link">入庫処置</a>
-    <a href="{% url 'inventory_issue' %}" class="menu-subcategory-link">出庫処理</a>
+    <a href="{% url 'inventory:inventory_inquiry' %}" class="menu-subcategory-link">在庫照会</a>
+    <a href="{% url 'inventory:inventory_stock_movement_history' %}" class="menu-subcategory-link">入出庫履歴</a>
+    <a href="{% url 'inventory:inventory_shipment' %}" class="menu-subcategory-link">出庫予定</a>
+    <a href="{% url 'inventory:inventory_purchase' %}" class="menu-subcategory-link">入庫処置</a>
+    <a href="{% url 'inventory:inventory_issue' %}" class="menu-subcategory-link">出庫処理</a>
     <div class="menu-category-title">生産管理</div>
     <a href="{% url 'production:production_plan' %}" class="menu-subcategory-link">生産計画</a>
+    <a href="{% url 'production:gantt_chart' %}" class="menu-subcategory-link">ガントチャート</a>
     <a href="{% url 'production:production_parts_used' %}" class="menu-subcategory-link">使用部品</a>
     <a href="{% url 'production:production_material_allocation' %}" class="menu-subcategory-link">材料引当</a>
     <a href="{% url 'production:production_work_progress' %}" class="menu-subcategory-link">作業進捗</a>
+    <a href="{% url 'production:worker_interface_list' %}" class="menu-subcategory-link">作業者インターフェース</a>
+    <a href="{% url 'production:analytics' %}" class="menu-subcategory-link">生産性分析</a>
+    <a href="{% url 'production:ai_worker_analysis' %}" class="menu-subcategory-link">🤖AI作業者分析</a>
+    <a href="{% url 'production:kaizen' %}" class="menu-subcategory-link">改善提案</a>
     <div class="menu-category-title">品質管理</div>
     <a href="{% url 'quality:process_inspection' %}" class="menu-subcategory-link">工程内検査</a>
     <a href="{% url 'quality:acceptance_inspection' %}" class="menu-subcategory-link">受入検査</a>

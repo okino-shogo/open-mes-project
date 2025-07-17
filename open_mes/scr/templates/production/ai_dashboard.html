@@ -1,0 +1,885 @@
+{% extends "base.html" %}
+{% load md5url %}
+{% block title %}AI作業者分析ダッシュボード{% endblock %}
+
+{% block js_link %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- ヘッダー -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="text-primary">🤖 AI作業者分析ダッシュボード</h2>
+                <div class="btn-group" role="group">
+                    <select id="analysisType" class="form-select">
+                        <option value="individual">個人分析</option>
+                        <option value="team">チーム分析</option>
+                        <option value="skill_matrix">スキルマトリックス</option>
+                    </select>
+                    <button class="btn btn-outline-primary" onclick="refreshAnalysis()">🔄 更新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 個人分析セクション -->
+    <div id="individualAnalysis" class="analysis-section">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">👤 作業者選択</h5>
+                        <select id="workerSelect" class="form-select">
+                            <option value="">作業者を選択してください</option>
+                        </select>
+                        <div class="mt-3">
+                            <label class="form-label">分析期間</label>
+                            <select id="individualDays" class="form-select">
+                                <option value="7">過去7日間</option>
+                                <option value="30" selected>過去30日間</option>
+                                <option value="90">過去90日間</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary mt-3" onclick="analyzeWorker()">分析開始</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">📊 総合評価</h5>
+                        <div id="overallAssessment">
+                            <div class="text-center text-muted">
+                                作業者を選択して分析を開始してください
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">🔧 工程別パフォーマンス</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="processPerformanceChart" width="600" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0">🎯 スキルレベル</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="skillLevelChart" width="300" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">💡 AI改善提案</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="improvementSuggestions">
+                            <!-- 改善提案がここに表示されます -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- チーム分析セクション -->
+    <div id="teamAnalysis" class="analysis-section d-none">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <div class="card border-primary">
+                    <div class="card-body text-center">
+                        <h5 class="card-title text-primary">👥 総作業者数</h5>
+                        <h2 class="text-primary" id="totalWorkers">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-success">
+                    <div class="card-body text-center">
+                        <h5 class="card-title text-success">📈 分析済み</h5>
+                        <h2 class="text-success" id="analyzedWorkers">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-info">
+                    <div class="card-body text-center">
+                        <h5 class="card-title text-info">⭐ 平均スキル</h5>
+                        <h2 class="text-info" id="avgSkillLevel">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-warning">
+                    <div class="card-body text-center">
+                        <h5 class="card-title text-warning">🔧 改善対象</h5>
+                        <h2 class="text-warning" id="improvementCandidates">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">🏆 トップパフォーマー</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="topPerformers">
+                            <!-- トップパフォーマーリスト -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0">📚 改善候補</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="improvementCandidatesList">
+                            <!-- 改善候補リスト -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- スキルマトリックスセクション -->
+    <div id="skillMatrix" class="analysis-section d-none">
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">🎯 工程別スキルマトリックス</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="skillMatrixTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>作業者</th>
+                                        <th>総合</th>
+                                        <th>スリット</th>
+                                        <th>カット</th>
+                                        <th>基材カット</th>
+                                        <th>モルダー</th>
+                                        <th>Vカット</th>
+                                        <th>後加工</th>
+                                        <th>梱包</th>
+                                        <th>化粧板貼付</th>
+                                        <th>化粧板カット</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- スキルマトリックスデータ -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">📊 工程別統計</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="processStats">
+                            <!-- 工程別統計 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 推薦管理セクション -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">🎯 AI推薦管理</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <button class="btn btn-success" onclick="generateRecommendations()">
+                            ✨ 推薦生成
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="loadRecommendations()">
+                            📋 推薦一覧
+                        </button>
+                    </div>
+                    <div id="recommendationsList">
+                        <!-- 推薦一覧 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.analysis-section {
+    min-height: 400px;
+}
+
+.skill-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.skill-expert {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.skill-advanced {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.skill-intermediate {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.skill-beginner {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.skill-none {
+    background-color: #f1f3f4;
+    color: #6c757d;
+}
+
+.recommendation-card {
+    border-left: 4px solid #007bff;
+    margin-bottom: 1rem;
+}
+
+.recommendation-high {
+    border-left-color: #dc3545;
+}
+
+.recommendation-medium {
+    border-left-color: #ffc107;
+}
+
+.recommendation-low {
+    border-left-color: #28a745;
+}
+
+.worker-score {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.process-score {
+    text-align: center;
+    padding: 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.score-excellent {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.score-good {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.score-fair {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.score-poor {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.score-none {
+    background-color: #f1f3f4;
+    color: #6c757d;
+}
+</style>
+
+<script>
+// グローバル変数
+let charts = {};
+let currentAnalysisType = 'individual';
+let workers = [];
+let currentWorkerAnalysis = null;
+
+// 初期化
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    loadWorkers();
+    
+    // 分析タイプ変更イベント
+    document.getElementById('analysisType').addEventListener('change', function() {
+        currentAnalysisType = this.value;
+        showAnalysisSection(currentAnalysisType);
+    });
+});
+
+// チャート初期化
+function initializeCharts() {
+    // 工程別パフォーマンスチャート
+    charts.processPerformance = new Chart(document.getElementById('processPerformanceChart'), {
+        type: 'radar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'パフォーマンススコア',
+                data: [],
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    stepSize: 20
+                }
+            }
+        }
+    });
+
+    // スキルレベルチャート
+    charts.skillLevel = new Chart(document.getElementById('skillLevelChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['得意工程', '普通', '苦手工程'],
+            datasets: [{
+                data: [0, 0, 0],
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(255, 99, 132, 0.6)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+// 作業者リスト読み込み
+async function loadWorkers() {
+    try {
+        const response = await fetch('/production/api/ai-optimization/worker_list/');
+        const data = await response.json();
+        
+        workers = data;
+        const select = document.getElementById('workerSelect');
+        select.innerHTML = '<option value="">作業者を選択してください</option>';
+        
+        data.forEach(worker => {
+            const option = document.createElement('option');
+            option.value = worker.id;
+            option.textContent = `${worker.username} (${worker.full_name})`;
+            select.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('作業者リスト読み込みエラー:', error);
+        showAlert('作業者リストの読み込みに失敗しました', 'danger');
+    }
+}
+
+// 分析セクション表示切り替え
+function showAnalysisSection(type) {
+    document.querySelectorAll('.analysis-section').forEach(section => {
+        section.classList.add('d-none');
+    });
+    
+    switch(type) {
+        case 'individual':
+            document.getElementById('individualAnalysis').classList.remove('d-none');
+            break;
+        case 'team':
+            document.getElementById('teamAnalysis').classList.remove('d-none');
+            loadTeamAnalysis();
+            break;
+        case 'skill_matrix':
+            document.getElementById('skillMatrix').classList.remove('d-none');
+            loadSkillMatrix();
+            break;
+    }
+}
+
+// 作業者分析
+async function analyzeWorker() {
+    const workerId = document.getElementById('workerSelect').value;
+    const days = document.getElementById('individualDays').value;
+    
+    if (!workerId) {
+        showAlert('作業者を選択してください', 'warning');
+        return;
+    }
+    
+    try {
+        showAlert('分析中...', 'info');
+        
+        const response = await fetch(`/production/api/ai-optimization/${workerId}/worker_analysis/?days=${days}`);
+        const data = await response.json();
+        
+        if (data.error) {
+            showAlert(data.error, 'danger');
+            return;
+        }
+        
+        currentWorkerAnalysis = data;
+        displayWorkerAnalysis(data);
+        showAlert('分析が完了しました', 'success');
+        
+    } catch (error) {
+        console.error('作業者分析エラー:', error);
+        showAlert('分析に失敗しました', 'danger');
+    }
+}
+
+// 作業者分析結果表示
+function displayWorkerAnalysis(data) {
+    // 総合評価表示
+    const assessment = data.overall_assessment;
+    const assessmentDiv = document.getElementById('overallAssessment');
+    
+    assessmentDiv.innerHTML = `
+        <div class="row">
+            <div class="col-md-4 text-center">
+                <div class="worker-score text-primary">${assessment.overall_score}</div>
+                <div class="text-muted">総合スコア</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="worker-score text-success">${assessment.skill_level}</div>
+                <div class="text-muted">スキルレベル</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="worker-score text-info">${assessment.processes_analyzed}</div>
+                <div class="text-muted">分析工程数</div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h6>得意工程</h6>
+                ${assessment.best_processes.map(p => `<span class="badge bg-success me-1">${p.name} (${p.score})</span>`).join('')}
+            </div>
+            <div class="col-md-6">
+                <h6>改善対象</h6>
+                ${assessment.weak_processes.map(p => `<span class="badge bg-warning me-1">${p.name} (${p.score})</span>`).join('')}
+            </div>
+        </div>
+    `;
+    
+    // 工程別パフォーマンスチャート更新
+    updateProcessPerformanceChart(data.process_analysis);
+    
+    // スキルレベルチャート更新
+    updateSkillLevelChart(assessment);
+    
+    // 改善提案表示
+    displayImprovementSuggestions(data.improvement_suggestions);
+}
+
+// 工程別パフォーマンスチャート更新
+function updateProcessPerformanceChart(processAnalysis) {
+    const labels = [];
+    const scores = [];
+    
+    Object.entries(processAnalysis).forEach(([process, data]) => {
+        if (data.personal_data.task_count > 0) {
+            labels.push(data.name);
+            scores.push(data.performance_rating.overall_score);
+        }
+    });
+    
+    charts.processPerformance.data.labels = labels;
+    charts.processPerformance.data.datasets[0].data = scores;
+    charts.processPerformance.update();
+}
+
+// スキルレベルチャート更新
+function updateSkillLevelChart(assessment) {
+    const excellent = assessment.best_processes.length;
+    const poor = assessment.weak_processes.length;
+    const normal = assessment.processes_analyzed - excellent - poor;
+    
+    charts.skillLevel.data.datasets[0].data = [excellent, normal, poor];
+    charts.skillLevel.update();
+}
+
+// 改善提案表示
+function displayImprovementSuggestions(suggestions) {
+    const suggestionsDiv = document.getElementById('improvementSuggestions');
+    
+    if (suggestions.length === 0) {
+        suggestionsDiv.innerHTML = '<div class="text-center text-muted">改善提案はありません</div>';
+        return;
+    }
+    
+    suggestionsDiv.innerHTML = suggestions.map(suggestion => `
+        <div class="card recommendation-card recommendation-${suggestion.priority} mb-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="card-title">${suggestion.title}</h6>
+                        <p class="card-text">${suggestion.description}</p>
+                        <div class="text-muted">
+                            <small>期待改善効果: ${suggestion.expected_improvement}</small>
+                        </div>
+                    </div>
+                    <span class="badge bg-${suggestion.priority === 'high' ? 'danger' : suggestion.priority === 'medium' ? 'warning' : 'success'}">
+                        ${suggestion.priority}
+                    </span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// チーム分析読み込み
+async function loadTeamAnalysis() {
+    try {
+        const response = await fetch('/production/api/ai-optimization/team_performance_summary/');
+        const data = await response.json();
+        
+        // 統計カード更新
+        document.getElementById('totalWorkers').textContent = data.team_stats.total_workers;
+        document.getElementById('analyzedWorkers').textContent = data.team_stats.analyzed_workers;
+        document.getElementById('avgSkillLevel').textContent = data.team_stats.avg_skill_level.toFixed(1);
+        document.getElementById('improvementCandidates').textContent = data.team_stats.improvement_candidates.length;
+        
+        // トップパフォーマー表示
+        displayTopPerformers(data.team_stats.top_performers);
+        
+        // 改善候補表示
+        displayImprovementCandidates(data.team_stats.improvement_candidates);
+        
+    } catch (error) {
+        console.error('チーム分析読み込みエラー:', error);
+        showAlert('チーム分析の読み込みに失敗しました', 'danger');
+    }
+}
+
+// トップパフォーマー表示
+function displayTopPerformers(topPerformers) {
+    const div = document.getElementById('topPerformers');
+    
+    if (topPerformers.length === 0) {
+        div.innerHTML = '<div class="text-center text-muted">データがありません</div>';
+        return;
+    }
+    
+    div.innerHTML = topPerformers.map((performer, index) => `
+        <div class="d-flex align-items-center mb-3">
+            <div class="me-3">
+                <span class="badge bg-warning fs-6">${index + 1}</span>
+            </div>
+            <div class="flex-grow-1">
+                <div class="fw-bold">${performer.worker_name}</div>
+                <div class="text-muted small">${performer.skill_level}</div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold text-success">${performer.overall_score.toFixed(1)}</div>
+                <div class="text-muted small">スコア</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 改善候補表示
+function displayImprovementCandidates(candidates) {
+    const div = document.getElementById('improvementCandidatesList');
+    
+    if (candidates.length === 0) {
+        div.innerHTML = '<div class="text-center text-muted">改善候補はありません</div>';
+        return;
+    }
+    
+    div.innerHTML = candidates.map(candidate => `
+        <div class="d-flex align-items-center mb-3">
+            <div class="flex-grow-1">
+                <div class="fw-bold">${candidate.worker_name}</div>
+                <div class="text-muted small">${candidate.improvement_suggestions}件の提案</div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold text-warning">${candidate.overall_score.toFixed(1)}</div>
+                <div class="text-muted small">スコア</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// スキルマトリックス読み込み
+async function loadSkillMatrix() {
+    try {
+        const response = await fetch('/production/api/ai-optimization/process_skill_matrix/');
+        const data = await response.json();
+        
+        displaySkillMatrix(data.skill_matrix);
+        displayProcessStats(data.process_stats);
+        
+    } catch (error) {
+        console.error('スキルマトリックス読み込みエラー:', error);
+        showAlert('スキルマトリックスの読み込みに失敗しました', 'danger');
+    }
+}
+
+// スキルマトリックス表示
+function displaySkillMatrix(skillMatrix) {
+    const tbody = document.querySelector('#skillMatrixTable tbody');
+    tbody.innerHTML = '';
+    
+    skillMatrix.forEach(worker => {
+        const row = tbody.insertRow();
+        
+        // 作業者名
+        const nameCell = row.insertCell();
+        nameCell.innerHTML = `<strong>${worker.worker_name}</strong><br><small class="text-muted">${worker.full_name}</small>`;
+        
+        // 総合スコア
+        const overallCell = row.insertCell();
+        overallCell.innerHTML = `<div class="process-score ${getScoreClass(worker.overall_score)}">${worker.overall_score.toFixed(1)}</div>`;
+        
+        // 各工程のスコア
+        const processes = ['slit', 'cut', 'base_material_cut', 'molder', 'v_cut_lapping', 'post_processing', 'packing', 'decorative_board', 'decorative_board_cut'];
+        
+        processes.forEach(process => {
+            const cell = row.insertCell();
+            const processData = worker.processes[process];
+            
+            if (processData.has_experience) {
+                cell.innerHTML = `<div class="process-score ${getScoreClass(processData.score)}">${processData.score.toFixed(1)}</div>`;
+            } else {
+                cell.innerHTML = `<div class="process-score score-none">未経験</div>`;
+            }
+        });
+    });
+}
+
+// 工程別統計表示
+function displayProcessStats(processStats) {
+    const div = document.getElementById('processStats');
+    
+    const statsHTML = Object.entries(processStats).map(([process, stats]) => `
+        <div class="col-md-4 col-lg-3 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h6 class="card-title">${stats.name}</h6>
+                    <div class="text-primary fs-4">${stats.experienced_workers}</div>
+                    <div class="text-muted small">経験者数</div>
+                    <div class="mt-2">
+                        <div class="text-success">${stats.avg_score.toFixed(1)}</div>
+                        <div class="text-muted small">平均スコア</div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-info">${stats.coverage_rate.toFixed(1)}%</div>
+                        <div class="text-muted small">カバー率</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    div.innerHTML = statsHTML;
+}
+
+// スコアクラス取得
+function getScoreClass(score) {
+    if (score >= 80) return 'score-excellent';
+    if (score >= 70) return 'score-good';
+    if (score >= 60) return 'score-fair';
+    if (score > 0) return 'score-poor';
+    return 'score-none';
+}
+
+// 推薦生成
+async function generateRecommendations() {
+    const workerId = document.getElementById('workerSelect').value;
+    
+    if (!workerId) {
+        showAlert('作業者を選択してください', 'warning');
+        return;
+    }
+    
+    try {
+        showAlert('推薦生成中...', 'info');
+        
+        const response = await fetch('/production/api/ai-optimization/generate_recommendations/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({
+                worker_id: workerId,
+                days: 30
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showAlert(data.error, 'danger');
+            return;
+        }
+        
+        showAlert(data.message, 'success');
+        loadRecommendations();
+        
+    } catch (error) {
+        console.error('推薦生成エラー:', error);
+        showAlert('推薦生成に失敗しました', 'danger');
+    }
+}
+
+// 推薦一覧読み込み
+async function loadRecommendations() {
+    try {
+        const response = await fetch('/production/api/ai-optimization/optimization_recommendations/');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        displayRecommendations(data);
+        
+    } catch (error) {
+        console.error('推薦読み込みエラー:', error);
+        showAlert(`推薦一覧の読み込みに失敗しました: ${error.message}`, 'danger');
+    }
+}
+
+// 推薦表示
+function displayRecommendations(recommendations) {
+    const div = document.getElementById('recommendationsList');
+    
+    if (!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) {
+        div.innerHTML = '<div class="text-center text-muted">推薦はありません</div>';
+        return;
+    }
+    
+    div.innerHTML = recommendations.map(rec => `
+        <div class="card recommendation-card recommendation-${rec.priority} mb-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="card-title">${rec.title}</h6>
+                        <p class="card-text">${rec.description}</p>
+                        <div class="text-muted">
+                            <small>対象: ${rec.worker_name} | 工程: ${rec.target_process || '全般'}</small>
+                        </div>
+                        <div class="text-muted">
+                            <small>期待改善効果: ${rec.expected_improvement}${typeof rec.expected_improvement === 'string' ? '' : '%'}</small>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-${rec.priority === 'high' ? 'danger' : rec.priority === 'medium' ? 'warning' : 'success'}">
+                            ${rec.priority}
+                        </span>
+                        <div class="text-muted small mt-1">
+                            ${new Date(rec.created_at).toLocaleDateString()}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 分析更新
+function refreshAnalysis() {
+    switch(currentAnalysisType) {
+        case 'individual':
+            if (currentWorkerAnalysis) {
+                analyzeWorker();
+            }
+            break;
+        case 'team':
+            loadTeamAnalysis();
+            break;
+        case 'skill_matrix':
+            loadSkillMatrix();
+            break;
+    }
+}
+
+// CSRFトークン取得
+function getCSRFToken() {
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    return csrfMeta ? csrfMeta.getAttribute('content') : '';
+}
+
+// アラート表示
+function showAlert(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}
