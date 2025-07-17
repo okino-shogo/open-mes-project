@@ -9,3 +9,4 @@ migrations/
 /script/data/
 *.ini
 *sqlite3
+.vercel

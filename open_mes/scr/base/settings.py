@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'base',  # Added for static_tags template tags
     'users.apps.UsersConfig',
     'django_static_md5url',
     'production.apps.ProductionConfig',

@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     # 'django_static_md5url',  # Disabled for Vercel deployment
+    'base',  # Added for static_tags template tags
     'users',
     'inventory',
     'production',
