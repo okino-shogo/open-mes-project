@@ -12,6 +12,15 @@ sys.path.insert(0, str(project_dir))
 # Set Django settings module for Vercel
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'base.settings_vercel')
 
+# Debug: Print environment variables (temporary)
+print("=== Environment Variables Debug ===")
+print(f"DB_NAME: {os.environ.get('DB_NAME', 'NOT SET')}")
+print(f"DB_USER: {os.environ.get('DB_USER', 'NOT SET')}")
+print(f"DB_HOST: {os.environ.get('DB_HOST', 'NOT SET')}")
+print(f"DB_PORT: {os.environ.get('DB_PORT', 'NOT SET')}")
+print(f"DB_PASSWORD: {'SET' if os.environ.get('DB_PASSWORD') else 'NOT SET'}")
+print("================================")
+
 try:
     # Import Django setup
     import django
@@ -59,7 +68,6 @@ except Exception as e:
     def app(environ, start_response):
         response_body = f'Error initializing Django: {str(e)}'.encode('utf-8')
         status = '500 Internal Server Error'
-        response_headers = [('Content-Type', 'text/plain'),
-                          ('Content-Length', str(len(response_body)))]
+        response_headers = [('Content-Type', 'text/plain')]
         start_response(status, response_headers)
         return [response_body]
