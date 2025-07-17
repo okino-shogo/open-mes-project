@@ -20,6 +20,31 @@ try:
     # Setup Django
     django.setup()
     
+    # Check if database exists and run migrations if needed
+    from django.core.management import execute_from_command_line
+    from django.db import connection
+    from django.db.utils import OperationalError
+    
+    def ensure_database_ready():
+        """Ensure database is ready by running migrations if needed"""
+        try:
+            # Test database connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+        except OperationalError:
+            # Database doesn't exist or needs migration
+            print("Database not ready, running migrations...")
+            try:
+                # Run migrations programmatically
+                from django.core.management import call_command
+                call_command('migrate', verbosity=0, interactive=False)
+                print("Migrations completed successfully")
+            except Exception as e:
+                print(f"Migration failed: {e}")
+    
+    # Ensure database is ready
+    ensure_database_ready()
+    
     # Import Django WSGI application
     from django.core.wsgi import get_wsgi_application
     

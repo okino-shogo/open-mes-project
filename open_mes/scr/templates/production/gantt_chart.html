@@ -4,6 +4,29 @@
 <div class="container-fluid mt-4">
     <h2 class="text-center mb-4">生産管理ガントチャート</h2>
     
+    <!-- エラーメッセージ表示 -->
+    {% if error %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>データベース初期化中:</strong> {{ error }}
+        <div class="mt-2">
+            <small>この画面を数分後に再読み込みしてください。</small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    
+    <!-- データがない場合のメッセージ -->
+    {% if not production_plans and not error %}
+    <div class="alert alert-info" role="alert">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>生産計画データがありません。</strong>
+        <div class="mt-2">
+            <a href="{% url 'production:production_plan' %}" class="btn btn-primary btn-sm">生産計画を作成する</a>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- フィルター -->
     <div class="filter-controls">
         <form method="get" class="mb-3">

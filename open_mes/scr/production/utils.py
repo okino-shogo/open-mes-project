@@ -219,45 +219,69 @@ def get_gantt_chart_data(start_date=None, end_date=None):
     """
     ガントチャート表示用のデータを取得する
     """
-    # 基本的な生産計画データを取得
-    production_plans = ProductionPlan.objects.all()
+    from django.db.utils import OperationalError
+    from django.utils import timezone
     
-    if start_date:
-        production_plans = production_plans.filter(
-            planned_start_datetime__gte=start_date
-        )
-    
-    if end_date:
-        production_plans = production_plans.filter(
-            planned_end_datetime__lte=end_date
-        )
-    
-    # 工程スケジュールデータを取得
-    process_schedules = ProcessSchedule.objects.filter(
-        production_plan__in=production_plans
-    )
-    
-    # 日付範囲を決定
-    if not start_date and not end_date:
-        dates = []
-        for plan in production_plans:
-            if plan.planned_start_datetime:
-                dates.append(plan.planned_start_datetime.date())
-            if plan.planned_end_datetime:
-                dates.append(plan.planned_end_datetime.date())
+    try:
+        # 基本的な生産計画データを取得
+        production_plans = ProductionPlan.objects.all()
         
-        if dates:
-            start_date = min(dates)
-            end_date = max(dates)
-        else:
-            start_date = timezone.now().date()
-            end_date = timezone.now().date()
-    
-    return {
-        'production_plans': production_plans,
-        'process_schedules': process_schedules,
-        'date_range': {
-            'start': start_date,
-            'end': end_date
+        if start_date:
+            production_plans = production_plans.filter(
+                planned_start_datetime__gte=start_date
+            )
+        
+        if end_date:
+            production_plans = production_plans.filter(
+                planned_end_datetime__lte=end_date
+            )
+        
+        # 工程スケジュールデータを取得
+        try:
+            process_schedules = ProcessSchedule.objects.filter(
+                production_plan__in=production_plans
+            )
+        except OperationalError:
+            # ProcessScheduleテーブルが存在しない場合
+            process_schedules = []
+        
+        # 日付範囲を決定
+        if not start_date and not end_date:
+            dates = []
+            for plan in production_plans:
+                if plan.planned_start_datetime:
+                    dates.append(plan.planned_start_datetime.date())
+                if plan.planned_end_datetime:
+                    dates.append(plan.planned_end_datetime.date())
+            
+            if dates:
+                start_date = min(dates)
+                end_date = max(dates)
+            else:
+                start_date = timezone.now().date()
+                end_date = timezone.now().date()
+        
+        return {
+            'production_plans': production_plans,
+            'process_schedules': process_schedules,
+            'date_range': {
+                'start': start_date,
+                'end': end_date
+            }
         }
-    }
+        
+    except OperationalError as e:
+        # データベーステーブルが存在しない場合の処理
+        print(f"Database table error: {e}")
+        from django.utils import timezone
+        
+        # 空のクエリセットまたはリストを返す
+        return {
+            'production_plans': [],
+            'process_schedules': [],
+            'date_range': {
+                'start': timezone.now().date(),
+                'end': timezone.now().date()
+            },
+            'error': 'データベースが初期化されていません。しばらくお待ちください。'
+        }
