@@ -4,3 +4,6 @@ django-cors-headers==4.3.1
 whitenoise==6.6.0
 gunicorn==21.2.0
 uuid6==2024.1.12
+mssql-django==1.4
+pyodbc==5.1.0
+python-decouple==3.8

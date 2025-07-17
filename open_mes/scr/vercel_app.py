@@ -28,19 +28,22 @@ try:
     def ensure_database_ready():
         """Ensure database is ready by running migrations if needed"""
         try:
-            # Test database connection
+            # Test database connection (SQL Server compatible)
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
-        except OperationalError:
-            # Database doesn't exist or needs migration
-            print("Database not ready, running migrations...")
+            print("Database connection successful")
+        except Exception as db_error:
+            # Database connection failed or needs migration
+            print(f"Database not ready: {db_error}")
+            print("Running migrations...")
             try:
                 # Run migrations programmatically
                 from django.core.management import call_command
-                call_command('migrate', verbosity=0, interactive=False)
+                call_command('migrate', verbosity=1, interactive=False)
                 print("Migrations completed successfully")
             except Exception as e:
                 print(f"Migration failed: {e}")
+                # Continue with the app anyway
     
     # Ensure database is ready
     ensure_database_ready()

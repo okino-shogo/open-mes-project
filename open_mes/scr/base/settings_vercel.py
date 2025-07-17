@@ -4,6 +4,7 @@ Django settings for Vercel deployment
 
 from pathlib import Path
 import os
+from decouple import config
 
 VERSION = '0.0.0'
 
@@ -60,11 +61,19 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'base.urls_vercel'
 
-# Database (SQLite for Vercel)
+# Database (AWS RDS SQL Server for Vercel)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': '/tmp/db.sqlite3',
+        'ENGINE': 'mssql',
+        'NAME': config('DB_NAME', default='open_mes_db'),
+        'USER': config('DB_USER', default='admin'),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='1433'),
+        'OPTIONS': {
+            'driver': 'ODBC Driver 18 for SQL Server',
+            'extra_params': 'TrustServerCertificate=yes;',
+        },
     }
 }
 
