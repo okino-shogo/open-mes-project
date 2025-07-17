@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "open_mes/build.sh",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "open_mes/staticfiles"
+      }
+    },
+    {
+      "src": "open_mes/scr/vercel_app.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb",
+        "runtime": "python3.11"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "open_mes/scr/vercel_app.py"
+    }
+  ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "base.settings_vercel",
+    "PYTHONPATH": "/var/task/open_mes/scr"
+  }
+}
