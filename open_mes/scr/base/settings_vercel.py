@@ -61,17 +61,18 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'base.urls_vercel'
 
-# Database (PostgreSQL - Supabase for Vercel)
+# Database (AWS RDS SQL Server for Vercel)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='postgres'),
-        'USER': config('DB_USER', default='postgres'),
+        'ENGINE': 'mssql',
+        'NAME': config('DB_NAME', default='open_mes_db'),
+        'USER': config('DB_USER', default='admin'),
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
+        'PORT': config('DB_PORT', default='1433'),
         'OPTIONS': {
-            'sslmode': 'require',
+            'driver': 'ODBC Driver 18 for SQL Server',
+            'extra_params': 'TrustServerCertificate=yes;',
         },
     }
 }
