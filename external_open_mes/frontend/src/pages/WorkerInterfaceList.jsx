@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import authFetch from '../utils/api.js';
 import './WorkerInterfaceList.css';
 
@@ -37,14 +37,16 @@ const PROCESSES = [
 const WorkerInterfaceList = () => {
   // 状態管理
   const [productionPlans, setProductionPlans] = useState([]);
-  const [filteredPlans, setFilteredPlans] = useState([]);
   const [workerId, setWorkerId] = useState('');
+  const [workers, setWorkers] = useState([]);
   const [selectedProcess, setSelectedProcess] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [operationHistory, setOperationHistory] = useState([]);
-  const [summaryData, setSummaryData] = useState({ totalItems: 0, totalProduction: 0 });
+  const [recentOperations, setRecentOperations] = useState([]); // 最近の作業操作（WorkProgress）
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [processingPlanId, setProcessingPlanId] = useState(null); // 処理中の計画ID
+  const [cancellingWorkProgressId, setCancellingWorkProgressId] = useState(null); // 取り消し処理中の操作ID
 
   // 操作履歴に追加
   const addToHistory = useCallback((message, type = 'info') => {
@@ -57,6 +59,29 @@ const WorkerInterfaceList = () => {
     };
     setOperationHistory(prev => [historyItem, ...prev]);
   }, []);
+
+  // 作業者リスト取得
+  const loadWorkers = useCallback(async () => {
+    try {
+      const response = await authFetch('/api/users/workers/');
+      if (response.ok) {
+        const data = await response.json();
+        setWorkers(data || []);
+
+        // LocalStorageから前回選択した作業者を復元
+        const savedWorkerId = localStorage.getItem('selectedWorkerId');
+        if (savedWorkerId && data.some(w => w.username === savedWorkerId)) {
+          setWorkerId(savedWorkerId);
+          const worker = data.find(w => w.username === savedWorkerId);
+          addToHistory(`作業者「${worker.display_name}」を選択しました`, 'info');
+        }
+      } else {
+        console.error('作業者リストの取得に失敗:', response.status);
+      }
+    } catch (err) {
+      console.error('作業者リストの取得エラー:', err);
+    }
+  }, [addToHistory]);
 
   // 生産計画データ取得
   const loadProductionPlans = useCallback(async (silent = false) => {
@@ -83,6 +108,82 @@ const WorkerInterfaceList = () => {
     }
   }, [addToHistory]);
 
+  // 最近の操作履歴を取得
+  const loadRecentOperations = useCallback(async () => {
+    try {
+      const response = await authFetch('/api/production/work-progress/recent-operations/?limit=10');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.operations) {
+          setRecentOperations(data.operations);
+        }
+      } else {
+        console.error('最近の操作の取得に失敗:', response.status);
+      }
+    } catch (err) {
+      console.error('最近の操作の取得エラー:', err);
+    }
+  }, []);
+
+  // 操作を取り消す
+  const cancelOperation = useCallback(async (workProgressId) => {
+    if (!workProgressId) return;
+
+    if (!confirm('この操作を取り消しますか?')) {
+      return;
+    }
+
+    setCancellingWorkProgressId(workProgressId);
+
+    try {
+      const response = await authFetch('/api/production/work-progress/cancel-operation/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          work_progress_id: workProgressId
+        })
+      });
+
+      if (!response.ok) {
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('エラーレスポンスのJSON parse失敗:', parseError);
+        }
+        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        const errorMessage = result.message || result.error || '操作の取り消しに失敗しました';
+        throw new Error(errorMessage);
+      }
+
+      addToHistory(`操作を取り消しました: ${result.message}`, 'success');
+
+      // 更新されたplanデータで状態を更新
+      if (result.plan) {
+        setProductionPlans(prev =>
+          prev.map(p => p.id === result.plan.id ? result.plan : p)
+        );
+      }
+
+      // 操作履歴を再読み込み
+      loadRecentOperations();
+
+    } catch (error) {
+      console.error('操作の取り消しエラー:', error);
+      addToHistory(`エラー: ${error.message}`, 'error');
+    } finally {
+      setCancellingWorkProgressId(null);
+    }
+  }, [addToHistory, loadRecentOperations]);
+
   // 現在時刻更新（1秒ごと）
   useEffect(() => {
     const timer = setInterval(() => {
@@ -93,9 +194,11 @@ const WorkerInterfaceList = () => {
 
   // 初回データ読み込み
   useEffect(() => {
+    loadWorkers();
     loadProductionPlans();
+    loadRecentOperations();
     addToHistory('システムが初期化されました', 'info');
-  }, [loadProductionPlans, addToHistory]);
+  }, [loadWorkers, loadProductionPlans, loadRecentOperations, addToHistory]);
 
   // バックグラウンド同期（5分ごと）
   useEffect(() => {
@@ -116,7 +219,14 @@ const WorkerInterfaceList = () => {
 
     const status = plan[process.statusField];
 
-    // 日本語ステータスを英語にマッピング
+    // バックエンドから英語のステータスが返ってくるので、そのまま返す
+    // 既に英語の値（'PENDING', 'IN_PROGRESS'など）の場合はそのまま
+    const validStatuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'ON_HOLD', 'CANCELLED'];
+    if (validStatuses.includes(status)) {
+      return status;
+    }
+
+    // 互換性のため、日本語の場合も対応（旧データ用）
     const statusMap = {
       '未着手': 'PENDING',
       '着手中': 'IN_PROGRESS',
@@ -201,8 +311,8 @@ const WorkerInterfaceList = () => {
     return textMap[status] || '未着手';
   }, []);
 
-  // フィルタリングとソート
-  useEffect(() => {
+  // フィルタリングとソート（useMemoでキャッシュ化）
+  const filteredAndSortedPlans = useMemo(() => {
     let filtered = [...productionPlans];
 
     // 工程フィルター
@@ -234,14 +344,14 @@ const WorkerInterfaceList = () => {
       return new Date(dateA) - new Date(dateB);
     });
 
-    setFilteredPlans(filtered);
-
-    // サマリー更新
-    setSummaryData({
-      totalItems: filtered.length,
-      totalProduction: filtered.reduce((sum, plan) => sum + (plan.planned_quantity || 0), 0)
-    });
+    return filtered;
   }, [productionPlans, selectedProcess, getProcessStatus]);
+
+  // サマリーデータ（useMemoでキャッシュ化）
+  const summaryStats = useMemo(() => ({
+    totalItems: filteredAndSortedPlans.length,
+    totalProduction: filteredAndSortedPlans.reduce((sum, plan) => sum + (plan.planned_quantity || 0), 0)
+  }), [filteredAndSortedPlans]);
 
   // 楽観的UI更新
   const updateUIOptimistically = useCallback((planId, processType, action) => {
@@ -288,6 +398,8 @@ const WorkerInterfaceList = () => {
 
   // 工程ステータス更新API
   const updateProcessStatusAsync = useCallback(async (planId, processType, action, workerId) => {
+    console.log('[updateProcessStatusAsync] 開始:', { planId, processType, action, workerId });
+
     const data = {
       plan_id: planId,
       process_type: processType,
@@ -296,44 +408,63 @@ const WorkerInterfaceList = () => {
       timestamp: new Date().toISOString()
     };
 
-    const response = await authFetch('/api/production/plans/update-process-status/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.message || result.error || 'ステータス更新に失敗しました');
-    }
-
-    return result;
-  }, []);
-
-  // 単一計画同期
-  const syncSinglePlan = useCallback(async (planId) => {
     try {
-      const response = await authFetch(`/api/production/plans/${planId}/`);
-      if (response.ok) {
-        const updatedPlan = await response.json();
-        setProductionPlans(prev =>
-          prev.map(p => p.id === planId ? updatedPlan : p)
-        );
+      const response = await authFetch('/api/production/plans/update-process-status/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+
+      console.log('[updateProcessStatusAsync] レスポンス受信:', { status: response.status, ok: response.ok });
+
+      if (!response.ok) {
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('[updateProcessStatusAsync] エラーレスポンスのJSON parse失敗:', parseError);
+        }
+        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}`;
+        console.error('[updateProcessStatusAsync] APIエラー:', errorMessage);
+        throw new Error(errorMessage);
       }
+
+      let result;
+      try {
+        result = await response.json();
+        console.log('[updateProcessStatusAsync] レスポンスJSON:', result);
+      } catch (parseError) {
+        console.error('[updateProcessStatusAsync] レスポンスのJSON parse失敗:', parseError);
+        throw new Error('サーバーレスポンスの解析に失敗しました');
+      }
+
+      if (!result.success) {
+        const errorMessage = result.message || result.error || 'ステータス更新に失敗しました';
+        console.error('[updateProcessStatusAsync] サーバーエラー:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      console.log('[updateProcessStatusAsync] 成功:', result.message);
+      return result;
     } catch (error) {
-      console.warn('単一計画同期エラー:', error);
+      console.error('[updateProcessStatusAsync] 例外発生:', error);
+      throw error;
     }
   }, []);
 
   // 作業開始・終了切り替え
   const toggleWork = useCallback(async (planId) => {
+    console.log('[toggleWork] 開始:', { planId, selectedProcess, workerId, processingPlanId });
+
+    // 既に処理中の計画がある場合は処理しない
+    if (processingPlanId) {
+      console.warn('[toggleWork] 既に処理中の計画があります:', processingPlanId);
+      addToHistory('他の操作を処理中です。しばらくお待ちください。', 'warning');
+      return;
+    }
+
     if (!selectedProcess) {
       alert('工程を選択してください');
       return;
@@ -346,6 +477,7 @@ const WorkerInterfaceList = () => {
     }
 
     const currentStatus = getProcessStatus(plan, selectedProcess);
+    console.log('[toggleWork] 現在のステータス:', currentStatus);
 
     if (currentStatus === 'COMPLETED') {
       addToHistory('この工程は既に完了しています', 'error');
@@ -358,6 +490,7 @@ const WorkerInterfaceList = () => {
     }
 
     const action = currentStatus === 'IN_PROGRESS' ? 'complete' : 'start';
+    console.log('[toggleWork] アクション:', action);
 
     // 開始ボタンの場合のみ作業者IDチェック
     if (action === 'start' && !workerId) {
@@ -366,19 +499,60 @@ const WorkerInterfaceList = () => {
     }
     const actionText = action === 'start' ? '開始' : '完了';
 
+    // 処理開始
+    setProcessingPlanId(planId);
+
     // 楽観的UI更新
+    console.log('[toggleWork] 楽観的UI更新実行');
     updateUIOptimistically(planId, selectedProcess, action);
     addToHistory(`${actionText}中...`, 'info');
 
     try {
+      console.log('[toggleWork] API呼び出し前');
       const result = await updateProcessStatusAsync(planId, selectedProcess, action, workerId);
+      console.log('[toggleWork] API呼び出し成功:', result);
       addToHistory(`工程${actionText}: ${result.message}`, 'success');
-      await syncSinglePlan(planId);
+
+      // バックエンドから返された更新後のplanデータで状態を更新
+      if (result.plan) {
+        setProductionPlans(prev =>
+          prev.map(p => p.id === planId ? result.plan : p)
+        );
+        console.log('[toggleWork] サーバーから受け取ったplanデータで状態を更新');
+      }
+
+      // 操作履歴を再読み込み
+      loadRecentOperations();
+
+      console.log('[toggleWork] 完了');
     } catch (error) {
+      console.error('[toggleWork] エラー発生:', error);
       rollbackUI(planId, selectedProcess, currentStatus);
       addToHistory(`エラー: ${error.message}`, 'error');
+    } finally {
+      // 処理完了
+      setProcessingPlanId(null);
+      console.log('[toggleWork] 処理終了、ボタン有効化');
     }
-  }, [workerId, selectedProcess, productionPlans, getProcessStatus, updateUIOptimistically, rollbackUI, updateProcessStatusAsync, syncSinglePlan, addToHistory]);
+  }, [workerId, selectedProcess, productionPlans, processingPlanId, getProcessStatus, updateUIOptimistically, rollbackUI, updateProcessStatusAsync, addToHistory, loadRecentOperations]);
+
+  // 作業者選択変更
+  const handleWorkerChange = useCallback((e) => {
+    const selectedWorkerId = e.target.value;
+    setWorkerId(selectedWorkerId);
+
+    // LocalStorageに保存
+    if (selectedWorkerId) {
+      localStorage.setItem('selectedWorkerId', selectedWorkerId);
+      const worker = workers.find(w => w.username === selectedWorkerId);
+      if (worker) {
+        addToHistory(`作業者「${worker.display_name}」を選択しました`, 'info');
+      }
+    } else {
+      localStorage.removeItem('selectedWorkerId');
+      addToHistory('作業者の選択を解除しました', 'info');
+    }
+  }, [workers, addToHistory]);
 
   // 工程選択変更
   const handleProcessChange = useCallback((e) => {
@@ -431,10 +605,10 @@ const WorkerInterfaceList = () => {
               <h5 className="mb-0">本日の製作完了予定残数</h5>
               <div className="row mt-2">
                 <div className="col-6">
-                  <span className="text-danger fs-1 fw-bold">{summaryData.totalItems}</span>
+                  <span className="text-danger fs-1 fw-bold">{summaryStats.totalItems}</span>
                 </div>
                 <div className="col-6">
-                  <span className="text-danger fs-1 fw-bold">{summaryData.totalProduction}</span>
+                  <span className="text-danger fs-1 fw-bold">{summaryStats.totalProduction}</span>
                 </div>
               </div>
             </div>
@@ -449,14 +623,19 @@ const WorkerInterfaceList = () => {
             <div className="card-body">
               <div className="row g-2">
                 <div className="col-md-4">
-                  <label className="form-label fw-bold">作業者ID</label>
-                  <input
-                    type="text"
-                    className="form-control form-control-lg"
-                    placeholder="作業者IDを入力"
+                  <label className="form-label fw-bold">作業者</label>
+                  <select
+                    className="form-select form-select-lg"
                     value={workerId}
-                    onChange={(e) => setWorkerId(e.target.value)}
-                  />
+                    onChange={handleWorkerChange}
+                  >
+                    <option value="">作業者を選択してください</option>
+                    {workers.map(worker => (
+                      <option key={worker.username} value={worker.username}>
+                        {worker.display_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="col-md-4">
                   <label className="form-label fw-bold">工程選択</label>
@@ -492,6 +671,87 @@ const WorkerInterfaceList = () => {
         </div>
       </div>
 
+      {/* 最近の操作（直近1件のみ） */}
+      {recentOperations.length > 0 && (
+        <div className="row mb-3">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">最近の操作</h5>
+                <button
+                  className="btn btn-sm btn-light"
+                  onClick={loadRecentOperations}
+                  title="最新の状態に更新"
+                >
+                  🔄 更新
+                </button>
+              </div>
+              <div className="card-body">
+                {(() => {
+                  const operation = recentOperations[0];  // 直近1件のみ
+                  const createdAt = new Date(operation.created_at);
+                  const timeStr = createdAt.toLocaleTimeString('ja-JP', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+                  const dateStr = createdAt.toLocaleDateString('ja-JP', {
+                    month: '2-digit',
+                    day: '2-digit'
+                  });
+                  const processName = PROCESS_NAMES[operation.process_type] || operation.process_step;
+                  const workTypeName = operation.work_type === 'start' ? '開始' : '完了';
+                  const planData = operation.production_plan;
+                  const receptionNo = planData?.reception_no || planData?.plan_name || '-';
+                  const workerName = operation.operator?.display_name || operation.operator?.username || '-';
+
+                  return (
+                    <div className="table-responsive">
+                      <table className="table table-sm table-hover mb-0">
+                        <thead>
+                          <tr>
+                            <th>時刻</th>
+                            <th>受付No</th>
+                            <th>工程</th>
+                            <th>操作</th>
+                            <th>作業者</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>
+                              <small className="text-muted">{dateStr}</small><br />
+                              <strong>{timeStr}</strong>
+                            </td>
+                            <td>{receptionNo}</td>
+                            <td>{processName}</td>
+                            <td>
+                              <span className={`badge ${operation.work_type === 'start' ? 'bg-success' : 'bg-info'}`}>
+                                {workTypeName}
+                              </span>
+                            </td>
+                            <td>{workerName}</td>
+                            <td>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => cancelOperation(operation.id)}
+                                disabled={cancellingWorkProgressId === operation.id}
+                              >
+                                {cancellingWorkProgressId === operation.id ? '取り消し中...' : '取り消し'}
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 製作計画一覧 */}
       <div className="row">
         <div className="col-12">
@@ -520,12 +780,12 @@ const WorkerInterfaceList = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPlans.length === 0 ? (
+                      {filteredAndSortedPlans.length === 0 ? (
                         <tr>
                           <td colSpan="9" className="text-center">データがありません</td>
                         </tr>
                       ) : (
-                        filteredPlans.map(plan => {
+                        filteredAndSortedPlans.map(plan => {
                           const processStatus = getProcessStatus(plan, selectedProcess);
                           const statusClass = getStatusClass(processStatus);
                           const statusText = getStatusText(processStatus);
@@ -544,12 +804,17 @@ const WorkerInterfaceList = () => {
                               <td>{scheduledDate}</td>
                               <td>
                                 <button
-                                  className={`btn btn-sm btn-work-toggle ${processStatus === 'IN_PROGRESS' ? 'btn-end' : 'btn-start'}`}
+                                  className={`btn btn-sm btn-work-toggle ${processStatus === 'IN_PROGRESS' ? 'btn-end' : 'btn-start'} ${processingPlanId === plan.id ? 'processing' : ''}`}
                                   onClick={() => toggleWork(plan.id)}
-                                  disabled={processStatus === 'COMPLETED' || processStatus === 'CANCELLED'}
+                                  disabled={
+                                    processStatus === 'COMPLETED' ||
+                                    processStatus === 'CANCELLED' ||
+                                    processingPlanId !== null
+                                  }
                                   data-status={processStatus}
                                 >
-                                  {processStatus === 'COMPLETED' ? '完了' :
+                                  {processingPlanId === plan.id ? '処理中...' :
+                                   processStatus === 'COMPLETED' ? '完了' :
                                    processStatus === 'CANCELLED' ? '中止' :
                                    processStatus === 'IN_PROGRESS' ? '終了' : '開始'}
                                 </button>
@@ -568,6 +833,86 @@ const WorkerInterfaceList = () => {
           </div>
         </div>
       </div>
+
+      {/* 最近の操作（残りの履歴） */}
+      {recentOperations.length > 1 && (
+        <div className="row mt-3">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">最近の操作</h5>
+                <button
+                  className="btn btn-sm btn-light"
+                  onClick={loadRecentOperations}
+                  title="最新の状態に更新"
+                >
+                  🔄 更新
+                </button>
+              </div>
+              <div className="card-body">
+                <div className="table-responsive">
+                  <table className="table table-sm table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>時刻</th>
+                        <th>受付No</th>
+                        <th>工程</th>
+                        <th>操作</th>
+                        <th>作業者</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentOperations.slice(1).map(operation => {
+                        const createdAt = new Date(operation.created_at);
+                        const timeStr = createdAt.toLocaleTimeString('ja-JP', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                        const dateStr = createdAt.toLocaleDateString('ja-JP', {
+                          month: '2-digit',
+                          day: '2-digit'
+                        });
+                        const processName = PROCESS_NAMES[operation.process_type] || operation.process_step;
+                        const workTypeName = operation.work_type === 'start' ? '開始' : '完了';
+                        const planData = operation.production_plan;
+                        const receptionNo = planData?.reception_no || planData?.plan_name || '-';
+                        const workerName = operation.operator?.display_name || operation.operator?.username || '-';
+
+                        return (
+                          <tr key={operation.id}>
+                            <td>
+                              <small className="text-muted">{dateStr}</small><br />
+                              <strong>{timeStr}</strong>
+                            </td>
+                            <td>{receptionNo}</td>
+                            <td>{processName}</td>
+                            <td>
+                              <span className={`badge ${operation.work_type === 'start' ? 'bg-success' : 'bg-info'}`}>
+                                {workTypeName}
+                              </span>
+                            </td>
+                            <td>{workerName}</td>
+                            <td>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => cancelOperation(operation.id)}
+                                disabled={cancellingWorkProgressId === operation.id}
+                              >
+                                {cancellingWorkProgressId === operation.id ? '取り消し中...' : '取り消し'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 操作履歴 */}
       <div className="row mt-3">

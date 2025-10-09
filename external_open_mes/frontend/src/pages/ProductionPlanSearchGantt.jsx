@@ -5,15 +5,15 @@ import './ProductionPlanSearchGantt.css';
 // 工程定義（作業者インターフェースの9工程と一致）
 // コンポーネント外で定義することで、useEffect依存配列での再生成を防ぐ
 const PROCESS_DEFINITIONS = [
-  { key: 'slit_scheduled_date', label: 'スリット', statusKey: 'slit_status' },
-  { key: 'cut_scheduled_date', label: 'カット', statusKey: 'cut_status' },
-  { key: 'base_material_cut_scheduled_date', label: '基材カット', statusKey: 'base_material_cut_status' },
-  { key: 'molder_scheduled_date', label: 'モルダー', statusKey: 'molder_status' },
-  { key: 'vcut_wrapping_scheduled_date', label: 'Vカットラッピング', statusKey: 'v_cut_lapping_status' },
-  { key: 'post_processing_scheduled_date', label: '後加工', statusKey: 'post_processing_status' },
-  { key: 'packing_scheduled_date', label: '梱包', statusKey: 'packing_status' },
-  { key: 'veneer_scheduled_date', label: '化粧板貼', statusKey: 'decorative_board_status' },
-  { key: 'cut_veneer_scheduled_date', label: 'カット化粧板', statusKey: 'decorative_board_cut_status' }
+  { key: 'slit_scheduled_date', startedKey: 'slit_started_datetime', completedKey: 'slit_completed_date', label: 'スリット', statusKey: 'slit_status' },
+  { key: 'cut_scheduled_date', startedKey: 'cut_started_datetime', completedKey: 'cut_completed_date', label: 'カット', statusKey: 'cut_status' },
+  { key: 'base_material_cut_scheduled_date', startedKey: 'base_material_cut_started_datetime', completedKey: 'base_material_cut_completed_date', label: '基材カット', statusKey: 'base_material_cut_status' },
+  { key: 'molder_scheduled_date', startedKey: 'molder_started_datetime', completedKey: 'molder_completed_date', label: 'モルダー', statusKey: 'molder_status' },
+  { key: 'vcut_wrapping_scheduled_date', startedKey: 'vcut_wrapping_started_datetime', completedKey: 'vcut_wrapping_completed_date', label: 'Vカットラッピング', statusKey: 'v_cut_lapping_status' },
+  { key: 'post_processing_scheduled_date', startedKey: 'post_processing_started_datetime', completedKey: 'post_processing_completed_date', label: '後加工', statusKey: 'post_processing_status' },
+  { key: 'packing_scheduled_date', startedKey: 'packing_started_datetime', completedKey: 'packing_completed_date', label: '梱包', statusKey: 'packing_status' },
+  { key: 'veneer_scheduled_date', startedKey: 'veneer_started_datetime', completedKey: 'veneer_completed_date', label: '化粧板貼', statusKey: 'decorative_board_status' },
+  { key: 'cut_veneer_scheduled_date', startedKey: 'cut_veneer_started_datetime', completedKey: 'cut_veneer_completed_date', label: 'カット化粧板', statusKey: 'decorative_board_cut_status' }
 ];
 
 /**
@@ -92,6 +92,19 @@ const ProductionPlanSearchGantt = () => {
       }
       const data = await response.json();
 
+      // デバッグ: 受付No 35087のデータを確認
+      const plan35087 = (data.results || []).find(p => p.reception_no === '35087');
+      if (plan35087) {
+        console.log('🔍 API Response 35087:', {
+          reception_no: plan35087.reception_no,
+          slit_status: plan35087.slit_status,
+          slit_started_datetime: plan35087.slit_started_datetime,
+          slit_scheduled_date: plan35087.slit_scheduled_date,
+          hasStartedField: 'slit_started_datetime' in plan35087,
+          allKeys: Object.keys(plan35087).filter(k => k.includes('slit'))
+        });
+      }
+
       // バックエンドから受け取った生産計画データをそのまま使用
       // ステータスはバックエンドのDBフィールドから取得される
       setPlans(data.results || []);
@@ -136,6 +149,22 @@ const ProductionPlanSearchGantt = () => {
   // 初期データ取得（マウント時のみ）
   useEffect(() => {
     fetchProductionPlans();
+
+    // デバッグ用: グローバルに公開
+    window.debugPlans = () => {
+      const plan = filteredPlans.find(p => p.reception_no === '35087');
+      if (plan) {
+        console.log('🔍 Plan 35087 Fields:', {
+          allFields: Object.keys(plan),
+          slitFields: Object.keys(plan).filter(k => k.includes('slit')),
+          slit_status: plan.slit_status,
+          slit_started_datetime: plan.slit_started_datetime,
+          slit_scheduled_date: plan.slit_scheduled_date
+        });
+      } else {
+        console.log('❌ Plan 35087 not found in filteredPlans');
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 初回レンダリング時のみ実行
 
@@ -210,6 +239,21 @@ const ProductionPlanSearchGantt = () => {
       return `${date.getMonth() + 1}/${date.getDate()}`;
     } catch {
       return dateStr;
+    }
+  };
+
+  // 日時フォーマット（開始日時用）
+  const formatDateTime = (datetimeStr) => {
+    if (!datetimeStr) return '';
+    try {
+      const date = new Date(datetimeStr);
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${month}/${day} ${hours}:${minutes}`;
+    } catch {
+      return datetimeStr;
     }
   };
 
@@ -489,17 +533,55 @@ const ProductionPlanSearchGantt = () => {
                 <td className="text-center delivery-target">
                   {plan.delivery_date ? <strong>{formatDate(plan.delivery_date)}</strong> : '-'}
                 </td>
-                {PROCESS_DEFINITIONS.map(({ key, statusKey }) => {
+                {PROCESS_DEFINITIONS.map(({ key, startedKey, completedKey, statusKey }) => {
                   const statusCode = plan[statusKey] || 'PENDING';
                   const statusDisplay = getStatusDisplay(statusCode);
                   const scheduledDate = plan[key];
+                  const startedDatetime = plan[startedKey];
+                  const completedDate = plan[completedKey];
+
+                  // デバッグログ(受付No 35087のスリットのみ)
+                  if (plan.reception_no === '35087' && statusKey === 'slit_status') {
+                    console.log('🔍 DEBUG 35087 スリット:', {
+                      statusCode,
+                      startedKey,
+                      startedDatetime,
+                      scheduledDate,
+                      isInProgress: statusCode === 'IN_PROGRESS',
+                      shouldShowStarted: statusCode === 'IN_PROGRESS' && startedDatetime
+                    });
+                  }
+
+                  // ステータスに応じて表示する情報を決定
+                  const isCompleted = statusCode === 'COMPLETED';
+                  const isInProgress = statusCode === 'IN_PROGRESS';
+
                   return (
                     <td key={key} className={`text-center process-cell ${getStatusClass(statusCode)}`}>
                       <div className="process-cell-content">
                         <span className={`badge ${getBadgeClass(statusCode)} mb-1`}>
                           {statusDisplay}
                         </span>
-                        {scheduledDate && (
+                        {/* 完了している場合: 完了日を表示（完了日がない場合は予定日） */}
+                        {isCompleted && (
+                          <small className="d-block">
+                            {completedDate ? (
+                              <><strong>完了:</strong> {formatDate(completedDate)}</>
+                            ) : scheduledDate ? (
+                              <><strong>予定:</strong> {formatDate(scheduledDate)}</>
+                            ) : (
+                              <span className="text-muted">日付未設定</span>
+                            )}
+                          </small>
+                        )}
+                        {/* 完了していないが開始している場合: 開始日時を表示 */}
+                        {!isCompleted && (isInProgress || startedDatetime) && startedDatetime && (
+                          <small className="d-block">
+                            <strong>着手:</strong> {formatDateTime(startedDatetime)}
+                          </small>
+                        )}
+                        {/* 予定日を表示（未着手の場合、または開始日時がない場合） */}
+                        {!isCompleted && !startedDatetime && scheduledDate && (
                           <small className="d-block">
                             <strong>予定:</strong> {formatDate(scheduledDate)}
                           </small>

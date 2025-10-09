@@ -24,6 +24,9 @@ urlpatterns = [
         'get': 'list',
         'post': 'create'
     }), name='user-list'),
+    path('workers/', rest_views.UserViewSet.as_view({
+        'get': 'workers'
+    }), name='user-workers'),
     path('<uuid:pk>/', rest_views.UserViewSet.as_view({
         'get': 'retrieve',
         'put': 'update',

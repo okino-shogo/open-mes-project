@@ -2,7 +2,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import requires_csrf_token, ensure_csrf_cookie
 import logging
 from rest_framework import status, viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken as DefaultObtainAuthToken
@@ -178,3 +178,27 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all().order_by('-date_joined')
     serializer_class = AdminUserSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrSuperuser]
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated], authentication_classes=[TokenAuthentication, SessionAuthentication])
+    def workers(self, request):
+        """
+        作業者インターフェース用の作業者リストを返すエンドポイント。
+        認証済みユーザーのみアクセス可能。
+        """
+        workers = CustomUser.objects.filter(
+            is_active=True,
+            is_staff=False
+        ).values('id', 'username', 'first_name', 'last_name', 'custom_id')
+
+        result = [
+            {
+                'id': str(w['id']),
+                'username': w['username'],
+                'custom_id': w['custom_id'],
+                'display_name': f"{w['last_name']} {w['first_name']}" if w['first_name'] and w['last_name'] else w['username']
+            }
+            for w in workers
+        ]
+
+        return Response(result)

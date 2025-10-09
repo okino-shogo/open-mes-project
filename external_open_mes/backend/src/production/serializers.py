@@ -44,6 +44,26 @@ class ProductionPlanSerializer(serializers.ModelSerializer):
             'delivery_date',
             'veneer_scheduled_date',
             'cut_veneer_scheduled_date',
+            # 各工程開始日時 (9 fields - start datetimes)
+            'slit_started_datetime',
+            'cut_started_datetime',
+            'base_material_cut_started_datetime',
+            'molder_started_datetime',
+            'vcut_wrapping_started_datetime',
+            'post_processing_started_datetime',
+            'packing_started_datetime',
+            'veneer_started_datetime',
+            'cut_veneer_started_datetime',
+            # 各工程完了日 (9 fields - completion dates)
+            'slit_completed_date',
+            'cut_completed_date',
+            'base_material_cut_completed_date',
+            'molder_completed_date',
+            'vcut_wrapping_completed_date',
+            'post_processing_completed_date',
+            'packing_completed_date',
+            'veneer_completed_date',
+            'cut_veneer_completed_date',
             # 工程別ステータス (9 fields - raw values from model)
             'slit_status',
             'cut_status',
@@ -191,3 +211,38 @@ class WorkProgressSerializer(serializers.ModelSerializer):
                     "end_datetime": "End datetime must be after start datetime."
                 })
         return data
+
+
+class OperatorSerializer(serializers.Serializer):
+    """
+    作業者情報のシリアライザ（WorkProgressRecentOperationsSerializer用）
+    """
+    username = serializers.CharField()
+    display_name = serializers.CharField(source='username')  # usernameをdisplay_nameとして返す
+
+
+class ProductionPlanMinimalSerializer(serializers.Serializer):
+    """
+    生産計画の最小限情報のシリアライザ（WorkProgressRecentOperationsSerializer用）
+    """
+    id = serializers.UUIDField()
+    plan_name = serializers.CharField(allow_null=True)
+    reception_no = serializers.CharField(allow_null=True)
+
+
+class WorkProgressRecentOperationsSerializer(serializers.ModelSerializer):
+    """
+    最近の操作履歴表示用のシリアライザ
+    production_planとoperatorをネストオブジェクトとして返す
+    """
+    production_plan = ProductionPlanMinimalSerializer(read_only=True)
+    operator = OperatorSerializer(read_only=True)
+
+    class Meta:
+        model = WorkProgress
+        fields = [
+            'id', 'production_plan', 'process_step', 'process_type', 'work_type',
+            'operator', 'start_datetime', 'end_datetime',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields

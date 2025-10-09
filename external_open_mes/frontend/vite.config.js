@@ -19,7 +19,7 @@ export default defineConfig({
       // DjangoバックエンドへのAPIリクエストをプロキシする設定
       // /api で始まるリクエストのみをバックエンドに転送する
       '^/api/.*': {
-        target: 'http://backend:8000',
+        target: process.env.VITE_BACKEND_URL || 'http://localhost:8000',
         changeOrigin: true,
       },
     },

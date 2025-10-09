@@ -8,7 +8,8 @@ from rest_framework.response import Response # Responseをインポート
 from .models import ProductionPlan, PartsUsed, MaterialAllocation, WorkProgress
 from .serializers import (
     ProductionPlanSerializer, PartsUsedSerializer, RequiredPartSerializer,
-    MaterialAllocationSerializer, WorkProgressSerializer
+    MaterialAllocationSerializer, WorkProgressSerializer,
+    WorkProgressRecentOperationsSerializer
 )
 from inventory.rest_views import StandardResultsSetPagination # inventoryアプリのページネーションクラスをインポート
 from django.db.models import Q # Qオブジェクトをインポート
@@ -180,8 +181,36 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
             'decorative_board_cut': 'decorative_board_cut_status'
         }
 
+        # 工程タイプと開始日時フィールドのマッピング
+        started_datetime_field_map = {
+            'slit': 'slit_started_datetime',
+            'cut': 'cut_started_datetime',
+            'base_material_cut': 'base_material_cut_started_datetime',
+            'molder': 'molder_started_datetime',
+            'v_cut_lapping': 'vcut_wrapping_started_datetime',
+            'post_processing': 'post_processing_started_datetime',
+            'packing': 'packing_started_datetime',
+            'decorative_board': 'veneer_started_datetime',
+            'decorative_board_cut': 'cut_veneer_started_datetime'
+        }
+
+        # 工程タイプと完了日フィールドのマッピング
+        completed_date_field_map = {
+            'slit': 'slit_completed_date',
+            'cut': 'cut_completed_date',
+            'base_material_cut': 'base_material_cut_completed_date',
+            'molder': 'molder_completed_date',
+            'v_cut_lapping': 'vcut_wrapping_completed_date',
+            'post_processing': 'post_processing_completed_date',
+            'packing': 'packing_completed_date',
+            'decorative_board': 'veneer_completed_date',
+            'decorative_board_cut': 'cut_veneer_completed_date'
+        }
+
         process_step = process_name_map.get(process_type, process_type)
         status_field_name = status_field_map.get(process_type)
+        started_datetime_field_name = started_datetime_field_map.get(process_type)
+        completed_date_field_name = completed_date_field_map.get(process_type)
 
         # 作業者の取得（usernameで検索）
         from django.contrib.auth import get_user_model
@@ -205,16 +234,31 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                     work_progress = WorkProgress.objects.create(
                         production_plan=production_plan,
                         process_step=process_step,
+                        process_type=process_type,  # 工程タイプを記録
+                        work_type='start',  # 作業種別を記録
                         operator=operator,
                         start_datetime=timestamp_dt,
                         status='IN_PROGRESS',
                         remarks=f'作業者: {worker_id}'
                     )
 
-                    # ProductionPlanの工程ステータスを更新
+                    # ProductionPlanの工程ステータスと開始日時を更新
+                    update_fields = []
                     if status_field_name:
                         setattr(production_plan, status_field_name, 'IN_PROGRESS')
-                        production_plan.save(update_fields=[status_field_name])
+                        update_fields.append(status_field_name)
+
+                    if started_datetime_field_name:
+                        setattr(production_plan, started_datetime_field_name, timestamp_dt)
+                        update_fields.append(started_datetime_field_name)
+
+                    if update_fields:
+                        production_plan.save(update_fields=update_fields)
+
+                    # フロントエンドで再度GETリクエストを送らなくて済むように、
+                    # 更新後の完全なProductionPlanデータを返す
+                    from .serializers import ProductionPlanSerializer
+                    plan_data = ProductionPlanSerializer(production_plan).data
 
                     return Response({
                         'success': True,
@@ -223,7 +267,8 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                         'process_type': process_type,
                         'new_status': 'IN_PROGRESS',
                         'timestamp': timestamp_dt.isoformat(),
-                        'work_progress_id': str(work_progress.id)
+                        'work_progress_id': str(work_progress.id),
+                        'plan': plan_data  # 更新後の完全なplanデータ
                     })
 
                 elif action_type == 'complete':
@@ -242,13 +287,29 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
 
                     work_progress.end_datetime = timestamp_dt
                     work_progress.status = 'COMPLETED'
+                    work_progress.process_type = process_type  # 工程タイプを記録
+                    work_progress.work_type = 'complete'  # 作業種別を記録
                     work_progress.quantity_completed = production_plan.planned_quantity or 0
                     work_progress.save()
 
-                    # ProductionPlanの工程ステータスを更新
+                    # ProductionPlanの工程ステータスと完了日を更新
+                    update_fields = []
                     if status_field_name:
                         setattr(production_plan, status_field_name, 'COMPLETED')
-                        production_plan.save(update_fields=[status_field_name])
+                        update_fields.append(status_field_name)
+
+                    if completed_date_field_name:
+                        # DateTimeFieldからDateに変換
+                        setattr(production_plan, completed_date_field_name, timestamp_dt.date())
+                        update_fields.append(completed_date_field_name)
+
+                    if update_fields:
+                        production_plan.save(update_fields=update_fields)
+
+                    # フロントエンドで再度GETリクエストを送らなくて済むように、
+                    # 更新後の完全なProductionPlanデータを返す
+                    from .serializers import ProductionPlanSerializer
+                    plan_data = ProductionPlanSerializer(production_plan).data
 
                     return Response({
                         'success': True,
@@ -257,7 +318,8 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                         'process_type': process_type,
                         'new_status': 'COMPLETED',
                         'timestamp': timestamp_dt.isoformat(),
-                        'work_progress_id': str(work_progress.id)
+                        'work_progress_id': str(work_progress.id),
+                        'plan': plan_data  # 更新後の完全なplanデータ
                     })
 
                 else:
@@ -772,3 +834,119 @@ class WorkProgressViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(operator_id=operator_id)
 
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='recent-operations')
+    def recent_operations(self, request):
+        """
+        最近の作業履歴を取得（操作履歴セクション用）
+        取り消されていない操作のみを対象
+        """
+        # クエリパラメータから制限数を取得（デフォルト: 20件）
+        limit = int(request.query_params.get('limit', 20))
+
+        # 取り消されていない最近の操作を取得
+        recent_work_progresses = WorkProgress.objects.filter(
+            is_cancelled=False,
+            process_type__isnull=False,  # process_typeが設定されているもののみ
+            work_type__isnull=False  # work_typeが設定されているもののみ
+        ).select_related(
+            'production_plan', 'operator'
+        ).order_by('-created_at')[:limit]
+
+        # シリアライズして返す
+        serializer = WorkProgressRecentOperationsSerializer(recent_work_progresses, many=True)
+        return Response({
+            'success': True,
+            'operations': serializer.data,
+            'count': len(serializer.data)
+        })
+
+    @action(detail=False, methods=['post'], url_path='cancel-operation')
+    def cancel_operation(self, request):
+        """
+        作業操作を取り消すエンドポイント
+        """
+        work_progress_id = request.data.get('work_progress_id')
+
+        if not work_progress_id:
+            return Response({
+                'success': False,
+                'error': 'work_progress_idが必要です'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            work_progress = WorkProgress.objects.select_related('production_plan').get(
+                id=work_progress_id,
+                is_cancelled=False  # 既に取り消し済みの操作は取り消せない
+            )
+        except WorkProgress.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': '指定された操作が見つからないか、既に取り消されています'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        production_plan = work_progress.production_plan
+        process_type = work_progress.process_type
+        work_type = work_progress.work_type
+
+        # 工程タイプとステータスフィールドのマッピング
+        status_field_map = {
+            'slit': 'slit_status',
+            'cut': 'cut_status',
+            'base_material_cut': 'base_material_cut_status',
+            'molder': 'molder_status',
+            'v_cut_lapping': 'v_cut_lapping_status',
+            'post_processing': 'post_processing_status',
+            'packing': 'packing_status',
+            'decorative_board': 'decorative_board_status',
+            'decorative_board_cut': 'decorative_board_cut_status'
+        }
+
+        status_field_name = status_field_map.get(process_type)
+
+        if not status_field_name:
+            return Response({
+                'success': False,
+                'error': '無効な工程タイプです'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # ステータスを元に戻す
+                if work_type == 'start':
+                    # 開始を取り消し → 未着手に戻す
+                    setattr(production_plan, status_field_name, 'PENDING')
+                elif work_type == 'complete':
+                    # 完了を取り消し → 着手中に戻す
+                    setattr(production_plan, status_field_name, 'IN_PROGRESS')
+
+                production_plan.save(update_fields=[status_field_name])
+
+                # WorkProgressを取り消し済みとしてマーク
+                work_progress.is_cancelled = True
+                work_progress.cancelled_at = timezone.now()
+                if request.user.is_authenticated:
+                    work_progress.cancelled_by = request.user
+                work_progress.save(update_fields=['is_cancelled', 'cancelled_at', 'cancelled_by'])
+
+                # 更新後の完全なplanデータを返す
+                from .serializers import ProductionPlanSerializer
+                plan_data = ProductionPlanSerializer(production_plan).data
+
+                return Response({
+                    'success': True,
+                    'message': '操作を取り消しました',
+                    'plan': plan_data,
+                    'cancelled_operation': {
+                        'id': str(work_progress.id),
+                        'process_type': process_type,
+                        'work_type': work_type,
+                        'cancelled_at': work_progress.cancelled_at.isoformat()
+                    }
+                })
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'操作の取り消し中にエラーが発生しました: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -188,6 +188,100 @@ class ProductionPlan(models.Model):
         verbose_name="カット化粧板予定日"
     )
 
+    # 各工程開始日時
+    slit_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="スリット開始日時"
+    )
+    cut_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="カット開始日時"
+    )
+    base_material_cut_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="基材カット開始日時"
+    )
+    molder_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="モルダー開始日時"
+    )
+    vcut_wrapping_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Vカットラッピング開始日時"
+    )
+    post_processing_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="後加工開始日時"
+    )
+    packing_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="梱包開始日時"
+    )
+    veneer_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="化粧板貼開始日時"
+    )
+    cut_veneer_started_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="カット化粧板開始日時"
+    )
+
+    # 各工程完了日
+    slit_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="スリット完了日"
+    )
+    cut_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="カット完了日"
+    )
+    base_material_cut_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="基材カット完了日"
+    )
+    molder_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="モルダー完了日"
+    )
+    vcut_wrapping_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Vカットラッピング完了日"
+    )
+    post_processing_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="後加工完了日"
+    )
+    packing_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="梱包完了日"
+    )
+    veneer_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="化粧板貼完了日"
+    )
+    cut_veneer_completed_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="カット化粧板完了日"
+    )
+
     # 各工程ステータス (フロントエンドとの整合性のため追加)
     slit_status = models.CharField(
         max_length=20,
@@ -340,8 +434,28 @@ class WorkProgress(models.Model):
         ('PAUSED', '一時停止'),
     ]
 
+    WORK_TYPE_CHOICES = [
+        ('start', '開始'),
+        ('complete', '完了'),
+    ]
+
     production_plan = models.ForeignKey(ProductionPlan, on_delete=models.CASCADE, related_name='work_progresses', verbose_name="生産計画")
     process_step = models.CharField(max_length=100, verbose_name="工程ステップ") # 例: '組立', '塗装', '検査'
+    process_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="工程タイプ",
+        help_text="例: slit, cut, base_material_cut など"
+    )
+    work_type = models.CharField(
+        max_length=20,
+        choices=WORK_TYPE_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name="作業種別",
+        help_text="開始操作か完了操作か"
+    )
     operator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -361,6 +475,28 @@ class WorkProgress(models.Model):
         verbose_name="ステータス"
     )
     remarks = models.TextField(blank=True, null=True, verbose_name="備考")
+
+    # 取り消し関連フィールド
+    is_cancelled = models.BooleanField(
+        default=False,
+        verbose_name="取り消し済み",
+        help_text="この操作が取り消されたかどうか"
+    )
+    cancelled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="取り消し日時",
+        help_text="操作が取り消された日時"
+    )
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cancelled_work_progresses',
+        verbose_name="取り消し実行者"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
 
