@@ -1,0 +1,327 @@
+/* ==========================================================================
+   生産計画検索 (ガントチャート形式) スタイルシート
+   ========================================================================== */
+
+:root {
+  /* ステータス色 */
+  --status-completed: #d4edda;
+  --status-completed-border: #28a745;
+  --status-inprogress: #fff3cd;
+  --status-inprogress-border: #ffc107;
+  --status-notstarted: #f8f9fa;
+  --status-notstarted-border: #6c757d;
+  --status-delayed: #f8d7da;
+  --status-delayed-border: #dc3545;
+  --status-onhold: #e2e3e5;
+  --status-onhold-border: #17a2b8;
+
+  /* 工程別アクセントカラー */
+  --process-slit: #e3f2fd;
+  --process-cut: #f3e5f5;
+  --process-molder: #e8f5e8;
+  --process-vcut: #fce4ec;
+  --process-post: #f3e5f5;
+  --process-packing: #e0f2f1;
+  --process-veneer: #fff8e1;
+  --process-cut-veneer: #ffebee;
+
+  /* UI要素 */
+  --grid-color: #e3e6ea;
+  --grid-dark: #cfd3d8;
+  --header-bg: linear-gradient(135deg, #2c3e50, #34495e);
+  --row-height: 80px;
+  --cell-padding: 0.5rem;
+  --sticky-col-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+/* メインレイアウト */
+.production-plan-search-gantt {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.production-plan-search-gantt h2 {
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+/* 検索フィルター */
+.production-plan-search-gantt .card-body {
+  background: #f8f9fa !important;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.production-plan-search-gantt .form-control-sm,
+.production-plan-search-gantt .form-select-sm {
+  font-size: 0.85rem;
+}
+
+/* フィルター・ソートコントロール */
+.filter-controls {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-controls .btn {
+  transition: all 0.2s ease;
+}
+
+.filter-controls .btn.active {
+  background-color: var(--bs-primary);
+  color: white;
+  border-color: var(--bs-primary);
+  font-weight: 600;
+}
+
+/* ガントチャートテーブル */
+.table-responsive {
+  font-size: 0.85rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.gantt-table {
+  margin-bottom: 0;
+}
+
+/* テーブルヘッダー */
+.gantt-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--header-bg);
+  color: white;
+  z-index: 100;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: center;
+  border: none;
+  padding: 0.75rem 0.5rem;
+  white-space: nowrap;
+}
+
+/* 基本テーブル設定 */
+.gantt-table td,
+.gantt-table th {
+  padding: 0.6rem 0.4rem;
+  vertical-align: middle;
+  border: 1px solid var(--grid-color);
+}
+
+.gantt-table tbody tr {
+  transition: background-color 0.2s ease;
+  min-height: var(--row-height);
+}
+
+.gantt-table tbody tr:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 固定列 (受付No) */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  background-color: white;
+  z-index: 10;
+  box-shadow: var(--sticky-col-shadow);
+  font-weight: bold;
+}
+
+.gantt-table tbody tr:hover .sticky-col {
+  background-color: #f8f9fa;
+}
+
+/* 納期目標列の強調 */
+.delivery-target-header {
+  background: linear-gradient(135deg, #fff3cd, #ffeaa7) !important;
+  border-left: 4px solid #fdcb6e;
+  color: #212529 !important;
+}
+
+.delivery-target {
+  background: linear-gradient(135deg, #fff3cd, #ffeaa7) !important;
+  border-left: 4px solid #fdcb6e;
+  font-weight: 600;
+}
+
+/* 工程セル */
+.process-cell {
+  min-height: 70px;
+  padding: 0.4rem;
+  border-radius: 4px;
+  position: relative;
+}
+
+.process-cell-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 60px;
+}
+
+.process-cell .badge {
+  font-size: 0.75rem;
+  margin-bottom: 0.3rem;
+  font-weight: 600;
+  min-width: 60px;
+  text-align: center;
+  padding: 0.25rem 0.5rem;
+}
+
+.process-cell small {
+  line-height: 1.3;
+  margin-bottom: 0.15rem;
+  font-size: 0.7rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ステータス別背景色 */
+.status-completed {
+  background-color: var(--status-completed) !important;
+  border-left: 4px solid var(--status-completed-border);
+}
+
+.status-inprogress {
+  background-color: var(--status-inprogress) !important;
+  border-left: 4px solid var(--status-inprogress-border);
+}
+
+.status-notstarted {
+  background-color: var(--status-notstarted) !important;
+  border-left: 4px solid var(--status-notstarted-border);
+}
+
+.status-delayed {
+  background-color: var(--status-delayed) !important;
+  border-left: 4px solid var(--status-delayed-border);
+  animation: pulse 2s infinite;
+}
+
+.status-onhold {
+  background-color: var(--status-onhold) !important;
+  border-left: 4px solid var(--status-onhold-border);
+}
+
+/* 遅延アニメーション */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 1200px) {
+  .table-responsive {
+    font-size: 0.75rem;
+  }
+
+  .process-cell {
+    min-height: 60px;
+  }
+
+  .process-cell-content {
+    min-height: 50px;
+  }
+
+  .gantt-table thead th {
+    font-size: 0.8rem;
+    padding: 0.6rem 0.3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .gantt-table thead th {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.25rem;
+  }
+
+  .process-cell {
+    min-height: 50px;
+    padding: 0.2rem;
+  }
+
+  .process-cell-content {
+    min-height: 40px;
+  }
+
+  .process-cell small {
+    font-size: 0.6rem;
+  }
+
+  .process-cell .badge {
+    font-size: 0.65rem;
+    min-width: 50px;
+  }
+
+  .sticky-col {
+    font-size: 0.75rem;
+  }
+}
+
+/* ボタンホバーエフェクト */
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+/* ページネーション */
+.text-center.mt-4 {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.text-center.mt-4 .btn {
+  min-width: 80px;
+}
+
+/* アクセシビリティ改善 */
+.btn:focus,
+.form-control:focus,
+.form-select:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+/* プリント対応 */
+@media print {
+  .filter-controls,
+  .btn,
+  .pagination {
+    display: none;
+  }
+
+  .gantt-table {
+    font-size: 0.7rem;
+  }
+
+  .gantt-table thead th {
+    background: #2c3e50 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .status-completed,
+  .status-inprogress,
+  .status-delayed {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

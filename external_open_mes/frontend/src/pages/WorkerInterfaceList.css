@@ -1,0 +1,441 @@
+/* ==========================================================================
+   作業者インターフェース（リスト形式） スタイルシート
+   ========================================================================== */
+
+:root {
+  /* ステータス色 */
+  --status-not-started: #f8f9fa;
+  --status-not-started-text: #6c757d;
+  --status-in-progress: #d4edda;
+  --status-in-progress-text: #155724;
+  --status-completed: #f8d7da;
+  --status-completed-text: #721c24;
+  --status-delayed: #fff3cd;
+  --status-delayed-text: #856404;
+  --status-on-hold: #d1ecf1;
+  --status-on-hold-text: #0c5460;
+  --status-cancelled: #f5c6cb;
+  --status-cancelled-text: #721c24;
+
+  /* ボタン色 */
+  --btn-start-bg: #28a745;
+  --btn-start-hover: #218838;
+  --btn-end-bg: #dc3545;
+  --btn-end-hover: #c82333;
+  --btn-disabled-bg: #6c757d;
+}
+
+/* メインレイアウト */
+.worker-interface-list {
+  max-width: 100%;
+  padding: 20px;
+}
+
+/* 操作履歴 */
+.operation-history {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 10px;
+  background: #f8f9fa;
+}
+
+.operation-history::-webkit-scrollbar {
+  width: 8px;
+}
+
+.operation-history::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.operation-history::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.operation-history::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* 作業開始・終了ボタン */
+.btn-work-toggle {
+  min-width: 60px;
+  transition: all 0.3s ease;
+  font-weight: 600;
+}
+
+.btn-start {
+  background-color: var(--btn-start-bg);
+  border-color: var(--btn-start-bg);
+  color: white;
+}
+
+.btn-start:hover:not(:disabled) {
+  background-color: var(--btn-start-hover);
+  border-color: #1e7e34;
+  color: white;
+}
+
+.btn-end {
+  background-color: var(--btn-end-bg);
+  border-color: var(--btn-end-bg);
+  color: white;
+}
+
+.btn-end:hover:not(:disabled) {
+  background-color: var(--btn-end-hover);
+  border-color: #bd2130;
+  color: white;
+}
+
+.btn-work-toggle:disabled {
+  background-color: var(--btn-disabled-bg);
+  border-color: var(--btn-disabled-bg);
+  color: white;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* ステータスバッジ */
+.status-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.status-not-started {
+  background-color: var(--status-not-started);
+  color: var(--status-not-started-text);
+}
+
+.status-in-progress {
+  background-color: var(--status-in-progress);
+  color: var(--status-in-progress-text);
+}
+
+.status-completed {
+  background-color: var(--status-completed);
+  color: var(--status-completed-text);
+}
+
+.status-delayed {
+  background-color: var(--status-delayed);
+  color: var(--status-delayed-text);
+  animation: pulse 2s infinite;
+}
+
+.status-on-hold {
+  background-color: var(--status-on-hold);
+  color: var(--status-on-hold-text);
+}
+
+.status-cancelled {
+  background-color: var(--status-cancelled);
+  color: var(--status-cancelled-text);
+}
+
+/* 遅延アニメーション */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* テーブルスタイル */
+.table-responsive {
+  font-size: 0.9rem;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #343a40;
+  color: white;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+  background-color: #f8f9fa;
+  cursor: pointer;
+}
+
+/* カードヘッダー */
+.card-header.bg-dark {
+  background: linear-gradient(135deg, #343a40, #495057);
+}
+
+.card-header.bg-secondary {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+}
+
+/* サマリー数値 */
+.text-danger.fs-1 {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 1199px) {
+  .worker-interface-list {
+    padding: 15px;
+  }
+
+  .table-responsive {
+    font-size: 0.85rem;
+  }
+
+  .btn-work-toggle {
+    min-width: 50px;
+    font-size: 0.8rem;
+  }
+
+  .status-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+  }
+}
+
+@media (max-width: 767px) {
+  .worker-interface-list {
+    padding: 10px;
+  }
+
+  .card-header h4,
+  .card-header h5 {
+    font-size: 1rem;
+  }
+
+  .text-danger.fs-1 {
+    font-size: 2rem !important;
+  }
+
+  .table-responsive {
+    font-size: 0.75rem;
+  }
+
+  .table thead th {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.3rem;
+  }
+
+  .table tbody td {
+    padding: 0.5rem 0.3rem;
+  }
+
+  .btn-work-toggle {
+    min-width: 45px;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .status-badge {
+    font-size: 0.65rem;
+    padding: 2px 4px;
+  }
+
+  .operation-history {
+    max-height: 150px;
+    font-size: 0.8rem;
+  }
+
+  /* モバイル: 工程選択と作業者IDを縦並びに */
+  .col-md-4 {
+    margin-bottom: 10px;
+  }
+}
+
+/* テーブル列幅の最適化 */
+.table th:nth-child(1),
+.table td:nth-child(1) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  width: 10%;
+}
+
+.table th:nth-child(3),
+.table td:nth-child(3) {
+  width: 8%;
+}
+
+.table th:nth-child(4),
+.table td:nth-child(4) {
+  width: 15%;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table th:nth-child(5),
+.table td:nth-child(5) {
+  width: 12%;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table th:nth-child(6),
+.table td:nth-child(6) {
+  width: 12%;
+}
+
+.table th:nth-child(7),
+.table td:nth-child(7) {
+  width: 8%;
+  text-align: right;
+}
+
+.table th:nth-child(8),
+.table td:nth-child(8) {
+  width: 10%;
+}
+
+.table th:nth-child(9),
+.table td:nth-child(9) {
+  width: 15%;
+  text-align: center;
+}
+
+/* フォーム要素のスタイル改善 */
+.form-control-lg,
+.form-select-lg {
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.form-label {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* カードスタイル */
+.card {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+}
+
+.card-header {
+  border-radius: 8px 8px 0 0;
+  padding: 1rem;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+/* ボタンホバーエフェクト */
+.btn {
+  transition: all 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* アクセシビリティ改善 */
+.btn:focus,
+.form-control:focus,
+.form-select:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 高コントラストモード対応 */
+@media (prefers-contrast: high) {
+  .status-badge {
+    border: 2px solid currentColor;
+  }
+
+  .btn-work-toggle {
+    border: 2px solid currentColor;
+  }
+}
+
+/* ダークモード対応（将来的な拡張） */
+@media (prefers-color-scheme: dark) {
+  .worker-interface-list {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+  }
+
+  .card {
+    background-color: #2a2a2a;
+    border-color: #444;
+  }
+
+  .table {
+    color: #e0e0e0;
+  }
+
+  .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .operation-history {
+    background-color: #2a2a2a;
+    border-color: #444;
+  }
+}
+
+/* プリント対応 */
+@media print {
+  .worker-interface-list {
+    padding: 0;
+  }
+
+  .btn-work-toggle,
+  .operation-history,
+  .card-header .btn {
+    display: none;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #000;
+    page-break-inside: avoid;
+  }
+
+  .table {
+    font-size: 0.7rem;
+  }
+
+  .table thead th {
+    background-color: #000 !important;
+    color: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .status-badge {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

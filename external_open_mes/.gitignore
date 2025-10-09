@@ -1,0 +1,19 @@
+*.log
+*.pyc
+__pycache__/
+/db/data/
+/db/init/
+.env
+/venv/
+/script/data/
+*.ini
+*sqlite3
+.env.prod
+.env.prod.https
+
+# HTTPS (Let's Encrypt)
+# 証明書やアカウントキーなどの機密情報を含みます
+/certbot/conf/
+/certbot/www/
+/backend/src/temp_csv_uploads/
+GEMINI.md
