@@ -19,6 +19,15 @@ class ProductionPlan(models.Model):
         ('CANCELLED', '中止'),
     ]
 
+    # 各工程のステータス選択肢
+    PROCESS_STATUS_CHOICES = [
+        ('PENDING', '未着手'),
+        ('IN_PROGRESS', '着手中'),
+        ('COMPLETED', '完了'),
+        ('DELAYED', '遅延'),
+        ('ON_HOLD', '保留'),
+    ]
+
     plan_name = models.CharField(max_length=255, null=True, blank=True, verbose_name="計画名")
     # TODO: master.Productモデルが定義されたらForeignKeyに変更する
     # product = models.ForeignKey('master.Product', on_delete=models.PROTECT, verbose_name="製品")
@@ -177,6 +186,62 @@ class ProductionPlan(models.Model):
         null=True,
         blank=True,
         verbose_name="カット化粧板予定日"
+    )
+
+    # 各工程ステータス (フロントエンドとの整合性のため追加)
+    slit_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="スリットステータス"
+    )
+    cut_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="カットステータス"
+    )
+    base_material_cut_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="基材カットステータス"
+    )
+    molder_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="モルダーステータス"
+    )
+    v_cut_lapping_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="Vカットラッピングステータス"
+    )
+    post_processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="後加工ステータス"
+    )
+    packing_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="梱包ステータス"
+    )
+    decorative_board_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="化粧板貼ステータス"
+    )
+    decorative_board_cut_status = models.CharField(
+        max_length=20,
+        choices=PROCESS_STATUS_CHOICES,
+        default='PENDING',
+        verbose_name="カット化粧板ステータス"
     )
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")

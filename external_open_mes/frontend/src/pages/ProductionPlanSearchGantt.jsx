@@ -92,14 +92,10 @@ const ProductionPlanSearchGantt = () => {
       }
       const data = await response.json();
 
-      // ステータスを算出 (工程予定日と現在日時の比較)
-      const enrichedPlans = (data.results || []).map(plan => ({
-        ...plan,
-        ...calculateProcessStatuses(plan)
-      }));
-
-      setPlans(enrichedPlans);
-      setFilteredPlans(enrichedPlans);
+      // バックエンドから受け取った生産計画データをそのまま使用
+      // ステータスはバックエンドのDBフィールドから取得される
+      setPlans(data.results || []);
+      setFilteredPlans(data.results || []);
       setPagination({ count: data.count, next: data.next, previous: data.previous });
 
       // ページ情報更新
@@ -136,36 +132,6 @@ const ProductionPlanSearchGantt = () => {
       setLoading(false);
     }
   }, [buildSearchQuery, pageSize, filters]);
-
-  // 工程ステータス算出
-  const calculateProcessStatuses = (plan) => {
-    const now = new Date();
-    const statuses = {};
-
-    PROCESS_DEFINITIONS.forEach(({ key, statusKey }) => {
-      const scheduledDate = plan[key];
-      if (!scheduledDate) {
-        statuses[statusKey] = '未着手';
-        return;
-      }
-
-      const scheduled = new Date(scheduledDate);
-      // 実際の完了日時があれば完了、なければ予定日と現在日時で判定
-      // Note: 実際の完了日時フィールドがモデルにないため、簡易判定
-      if (scheduled < now) {
-        const daysDiff = Math.floor((now - scheduled) / (1000 * 60 * 60 * 24));
-        if (daysDiff > 2) {
-          statuses[statusKey] = '遅延';
-        } else {
-          statuses[statusKey] = '着手中';
-        }
-      } else {
-        statuses[statusKey] = '未着手';
-      }
-    });
-
-    return statuses;
-  };
 
   // 初期データ取得（マウント時のみ）
   useEffect(() => {
@@ -221,12 +187,12 @@ const ProductionPlanSearchGantt = () => {
         case 'reception':
           return (a.reception_no || '').localeCompare(b.reception_no || '');
         case 'progress':
-          const progressA = PROCESS_DEFINITIONS.filter(({ statusKey }) => a[statusKey] === '完了').length;
-          const progressB = PROCESS_DEFINITIONS.filter(({ statusKey }) => b[statusKey] === '完了').length;
+          const progressA = PROCESS_DEFINITIONS.filter(({ statusKey }) => a[statusKey] === 'COMPLETED').length;
+          const progressB = PROCESS_DEFINITIONS.filter(({ statusKey }) => b[statusKey] === 'COMPLETED').length;
           return progressB - progressA;
         case 'urgent':
-          const delayedA = PROCESS_DEFINITIONS.filter(({ statusKey }) => a[statusKey] === '遅延').length;
-          const delayedB = PROCESS_DEFINITIONS.filter(({ statusKey }) => b[statusKey] === '遅延').length;
+          const delayedA = PROCESS_DEFINITIONS.filter(({ statusKey }) => a[statusKey] === 'DELAYED').length;
+          const delayedB = PROCESS_DEFINITIONS.filter(({ statusKey }) => b[statusKey] === 'DELAYED').length;
           return delayedB - delayedA;
         default:
           return 0;
@@ -247,24 +213,36 @@ const ProductionPlanSearchGantt = () => {
     }
   };
 
+  // ステータス表示名を取得（英語コード→日本語）
+  const getStatusDisplay = (statusCode) => {
+    const statusMap = {
+      'PENDING': '未着手',
+      'IN_PROGRESS': '着手中',
+      'COMPLETED': '完了',
+      'DELAYED': '遅延',
+      'ON_HOLD': '保留',
+    };
+    return statusMap[statusCode] || '未着手';
+  };
+
   // ステータスクラス取得
-  const getStatusClass = (status) => {
-    switch (status) {
-      case '完了': return 'status-completed';
-      case '着手中': return 'status-inprogress';
-      case '遅延': return 'status-delayed';
-      case '保留': return 'status-onhold';
+  const getStatusClass = (statusCode) => {
+    switch (statusCode) {
+      case 'COMPLETED': return 'status-completed';
+      case 'IN_PROGRESS': return 'status-inprogress';
+      case 'DELAYED': return 'status-delayed';
+      case 'ON_HOLD': return 'status-onhold';
       default: return 'status-notstarted';
     }
   };
 
   // ステータスバッジクラス取得
-  const getBadgeClass = (status) => {
-    switch (status) {
-      case '完了': return 'bg-success';
-      case '着手中': return 'bg-warning';
-      case '遅延': return 'bg-danger';
-      case '保留': return 'bg-info';
+  const getBadgeClass = (statusCode) => {
+    switch (statusCode) {
+      case 'COMPLETED': return 'bg-success';
+      case 'IN_PROGRESS': return 'bg-warning';
+      case 'DELAYED': return 'bg-danger';
+      case 'ON_HOLD': return 'bg-info';
       default: return 'bg-secondary';
     }
   };
@@ -400,26 +378,26 @@ const ProductionPlanSearchGantt = () => {
           <label className="form-label fw-bold">ステータスフィルター:</label>
           <div className="d-flex flex-wrap gap-2">
             <button
-              className={`btn btn-sm btn-outline-success ${statusFilter === '完了' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('完了')}
+              className={`btn btn-sm btn-outline-success ${statusFilter === 'COMPLETED' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('COMPLETED')}
             >
               完了のみ
             </button>
             <button
-              className={`btn btn-sm btn-outline-warning ${statusFilter === '着手中' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('着手中')}
+              className={`btn btn-sm btn-outline-warning ${statusFilter === 'IN_PROGRESS' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('IN_PROGRESS')}
             >
               着手中のみ
             </button>
             <button
-              className={`btn btn-sm btn-outline-secondary ${statusFilter === '未着手' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('未着手')}
+              className={`btn btn-sm btn-outline-secondary ${statusFilter === 'PENDING' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('PENDING')}
             >
               未着手のみ
             </button>
             <button
-              className={`btn btn-sm btn-outline-danger ${statusFilter === '遅延' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('遅延')}
+              className={`btn btn-sm btn-outline-danger ${statusFilter === 'DELAYED' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('DELAYED')}
             >
               遅延のみ
             </button>
@@ -512,13 +490,14 @@ const ProductionPlanSearchGantt = () => {
                   {plan.delivery_date ? <strong>{formatDate(plan.delivery_date)}</strong> : '-'}
                 </td>
                 {PROCESS_DEFINITIONS.map(({ key, statusKey }) => {
-                  const status = plan[statusKey] || '未着手';
+                  const statusCode = plan[statusKey] || 'PENDING';
+                  const statusDisplay = getStatusDisplay(statusCode);
                   const scheduledDate = plan[key];
                   return (
-                    <td key={key} className={`text-center process-cell ${getStatusClass(status)}`}>
+                    <td key={key} className={`text-center process-cell ${getStatusClass(statusCode)}`}>
                       <div className="process-cell-content">
-                        <span className={`badge ${getBadgeClass(status)} mb-1`}>
-                          {status}
+                        <span className={`badge ${getBadgeClass(statusCode)} mb-1`}>
+                          {statusDisplay}
                         </span>
                         {scheduledDate && (
                           <small className="d-block">

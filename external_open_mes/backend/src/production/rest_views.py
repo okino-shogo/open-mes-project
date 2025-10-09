@@ -167,7 +167,21 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
             'decorative_board_cut': '化粧板カット'
         }
 
+        # 工程タイプとステータスフィールドのマッピング
+        status_field_map = {
+            'slit': 'slit_status',
+            'cut': 'cut_status',
+            'base_material_cut': 'base_material_cut_status',
+            'molder': 'molder_status',
+            'v_cut_lapping': 'v_cut_lapping_status',
+            'post_processing': 'post_processing_status',
+            'packing': 'packing_status',
+            'decorative_board': 'decorative_board_status',
+            'decorative_board_cut': 'decorative_board_cut_status'
+        }
+
         process_step = process_name_map.get(process_type, process_type)
+        status_field_name = status_field_map.get(process_type)
 
         # 作業者の取得（usernameで検索）
         from django.contrib.auth import get_user_model
@@ -197,6 +211,11 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                         remarks=f'作業者: {worker_id}'
                     )
 
+                    # ProductionPlanの工程ステータスを更新
+                    if status_field_name:
+                        setattr(production_plan, status_field_name, 'IN_PROGRESS')
+                        production_plan.save(update_fields=[status_field_name])
+
                     return Response({
                         'success': True,
                         'message': f'{process_step}工程を開始しました',
@@ -225,6 +244,11 @@ class ProductionPlanViewSet(viewsets.ModelViewSet):
                     work_progress.status = 'COMPLETED'
                     work_progress.quantity_completed = production_plan.planned_quantity or 0
                     work_progress.save()
+
+                    # ProductionPlanの工程ステータスを更新
+                    if status_field_name:
+                        setattr(production_plan, status_field_name, 'COMPLETED')
+                        production_plan.save(update_fields=[status_field_name])
 
                     return Response({
                         'success': True,
