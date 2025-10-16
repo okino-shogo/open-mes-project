@@ -36,6 +36,8 @@ import ModelDisplaySettings from './pages/ModelDisplaySettings.jsx';
 import PageDisplaySettings from './pages/PageDisplaySettings.jsx';
 import QrCodeActionSettings from './pages/QrCodeActionSettings.jsx';
 import ShelfQrCodeCreation from './pages/ShelfQrCodeCreation.jsx';
+import WorkerPerformanceList from './pages/WorkerPerformanceList.jsx';
+import WorkerPerformanceDetail from './pages/WorkerPerformanceDetail.jsx';
 import MobileLayout from './layouts/MobileLayout.jsx';
 import MobileTopPage from './pages/MobileTopPage.jsx';
 import MobileGoodsReceiptPage from './pages/mobile/MobileGoodsReceiptPage.jsx';
@@ -215,6 +217,8 @@ function AppContent() {
           <Route path="/system/page-display-settings" element={<StaffRoute><PageDisplaySettings /></StaffRoute>} />
           <Route path="/system/qr-code-actions" element={<StaffRoute><QrCodeActionSettings /></StaffRoute>} />
           <Route path="/system/shelf-qr-code" element={<StaffRoute><ShelfQrCodeCreation /></StaffRoute>} />
+          <Route path="/system/worker-performance" element={<StaffRoute><WorkerPerformanceList /></StaffRoute>} />
+          <Route path="/system/worker-performance/:workerId" element={<StaffRoute><WorkerPerformanceDetail /></StaffRoute>} />
           <Route path="/help" element={<Help />} />
         </Route>
 

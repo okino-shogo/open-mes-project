@@ -88,27 +88,53 @@
   margin-bottom: 0;
 }
 
-/* テーブルヘッダー */
-.gantt-table thead th {
+/* テーブルヘッダー - 1行目 */
+.gantt-table thead tr:first-child th {
   position: sticky;
   top: 0;
   background: var(--header-bg);
   color: white;
   z-index: 100;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   text-align: center;
   border: none;
-  padding: 0.75rem 0.5rem;
+  padding: 0.6rem 0.3rem;
   white-space: nowrap;
+}
+
+/* テーブルヘッダー - 2行目（工程名） */
+.gantt-table thead tr:nth-child(2) th {
+  position: sticky;
+  top: 43px; /* 1行目の高さ分だけ下にずらす（パディング削減により調整） */
+  background: var(--header-bg);
+  color: white;
+  z-index: 99;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-align: center;
+  border: none;
+  padding: 0.6rem 0.3rem;
+  white-space: nowrap;
+}
+
+/* 工程ヘッダーセル（2行目）を確実に表示 + 幅制限 */
+.gantt-table thead tr:nth-child(2) th.process-header-cell {
+  display: table-cell !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-width: 65px;
+  max-width: 81px;
+  width: 73px;
 }
 
 /* 基本テーブル設定 */
 .gantt-table td,
 .gantt-table th {
-  padding: 0.6rem 0.4rem;
+  padding: 0.4rem 0.25rem;
   vertical-align: middle;
   border: 1px solid var(--grid-color);
+  font-size: 0.8rem;
 }
 
 .gantt-table tbody tr {
@@ -129,10 +155,118 @@
   z-index: 10;
   box-shadow: var(--sticky-col-shadow);
   font-weight: bold;
+  max-width: 70px;
+  font-size: 0.8rem;
 }
 
 .gantt-table tbody tr:hover .sticky-col {
   background-color: #f8f9fa;
+}
+
+/* オーバーレイ（背景暗転） */
+.gantt-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 100;
+  animation: fadeIn 0.3s ease-in;
+  cursor: pointer;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 行選択状態（スポットライト効果） */
+.gantt-row-selected {
+  position: relative;
+  z-index: 101 !important;
+  background: white !important;
+  min-height: 220px !important;
+  height: auto !important;
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important;
+  border: 3px solid #2196f3 !important;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 選択行が存在する場合、テーブルコンテナをスクロール可能に */
+.table-responsive:has(.gantt-row-selected) {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scroll-behavior: smooth;
+}
+
+/* 選択行のテーブル全体を広げる */
+.gantt-table:has(.gantt-row-selected) {
+  min-width: max-content !important;
+  width: auto !important;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.gantt-row-selected:hover {
+  background: white !important;
+}
+
+.gantt-row-selected .sticky-col {
+  background-color: white !important;
+}
+
+.gantt-row-selected .process-cell {
+  min-height: 180px;
+  height: auto;
+  padding: 1rem;
+}
+
+.gantt-row-selected .process-cell small {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: initial;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-bottom: 0.3rem;
+}
+
+.gantt-row-selected .process-cell .badge {
+  font-size: 0.9rem;
+  min-width: 80px;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.gantt-row-selected td {
+  font-size: 0.95rem;
+  padding: 1rem 0.5rem;
+  min-height: 220px !important;
+  height: auto !important;
+  vertical-align: top !important;
+}
+
+/* クリック可能な行のカーソル */
+.gantt-table tbody tr {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gantt-table tbody tr:focus {
+  outline: 2px solid #007bff;
+  outline-offset: -2px;
 }
 
 /* 納期目標列の強調 */
@@ -151,7 +285,10 @@
 /* 工程セル */
 .process-cell {
   min-height: 70px;
-  padding: 0.4rem;
+  min-width: 65px;
+  max-width: 81px;
+  width: 73px;
+  padding: 0.2rem;
   border-radius: 4px;
   position: relative;
 }
@@ -165,20 +302,22 @@
 }
 
 .process-cell .badge {
-  font-size: 0.75rem;
-  margin-bottom: 0.3rem;
+  font-size: 0.65rem;
+  margin-bottom: 0.15rem;
   font-weight: 600;
-  min-width: 60px;
+  min-width: 50px;
   text-align: center;
-  padding: 0.25rem 0.5rem;
+  padding: 0.15rem 0.3rem;
 }
 
 .process-cell small {
-  line-height: 1.3;
-  margin-bottom: 0.15rem;
-  font-size: 0.7rem;
+  line-height: 1.1;
+  margin-bottom: 0.05rem;
+  font-size: 0.6rem;
   text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ステータス別背景色 */

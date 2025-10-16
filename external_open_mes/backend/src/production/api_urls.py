@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import rest_views
+from .views.worker_performance_views import WorkerPerformanceView
 
 router = DefaultRouter()
 router.register(r'plans', rest_views.ProductionPlanViewSet, basename='production-plan')
@@ -12,4 +13,11 @@ app_name = 'production_api'
 
 urlpatterns = [
     path('', include(router.urls)),
+    # 作業者パフォーマンスAPI
+    path('worker-performance/<uuid:worker_id>/',
+         WorkerPerformanceView.as_view(),
+         name='worker-performance-all'),
+    path('worker-performance/<uuid:worker_id>/<str:process>/',
+         WorkerPerformanceView.as_view(),
+         name='worker-performance-process'),
 ]

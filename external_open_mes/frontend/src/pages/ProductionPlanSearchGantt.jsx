@@ -49,6 +49,9 @@ const ProductionPlanSearchGantt = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('delivery');
 
+  // 行選択状態（Phase 1）
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
+
   const pageSize = 100;
 
   // 検索クエリ構築
@@ -228,6 +231,13 @@ const ProductionPlanSearchGantt = () => {
       }
     });
 
+    console.log('🔍 フィルター適用後:', {
+      statusFilter,
+      totalPlans: plans.length,
+      filteredCount: filtered.length,
+      processCount: PROCESS_DEFINITIONS.length
+    });
+
     setFilteredPlans(filtered);
   }, [plans, statusFilter, sortBy]);
 
@@ -291,8 +301,30 @@ const ProductionPlanSearchGantt = () => {
     }
   };
 
+  // 行選択ハンドラー（Phase 1）
+  const handleRowClick = (planId, event) => {
+    // 入力要素をクリックした場合は無視
+    if (event.target.tagName === 'INPUT' ||
+        event.target.tagName === 'SELECT' ||
+        event.target.tagName === 'BUTTON') {
+      return;
+    }
+
+    // 選択状態をトグル
+    setSelectedPlanId(prevId => prevId === planId ? null : planId);
+  };
+
   return (
     <div className="production-plan-search-gantt container-fluid mt-4">
+      {/* オーバーレイ（行選択時に表示） */}
+      {selectedPlanId && (
+        <div
+          className="gantt-overlay"
+          onClick={() => setSelectedPlanId(null)}
+          aria-hidden="true"
+        />
+      )}
+
       <h2 className="text-center mb-4">生産計画検索 (工程スケジュール)</h2>
 
       {/* 検索フィルターセクション */}
@@ -488,20 +520,20 @@ const ProductionPlanSearchGantt = () => {
       <div className="table-responsive">
         <table className="table table-striped table-hover table-bordered table-sm gantt-table">
           <thead>
-            <tr>
-              <th rowSpan="2" className="text-center align-middle sticky-col">受付No</th>
-              <th rowSpan="2" className="text-center align-middle">連番</th>
-              <th rowSpan="2" className="text-center align-middle">工程</th>
-              <th rowSpan="2" className="text-center align-middle">現場名</th>
-              <th rowSpan="2" className="text-center align-middle">追加内容</th>
-              <th rowSpan="2" className="text-center align-middle">品名</th>
-              <th rowSpan="2" className="text-center align-middle">数量</th>
-              <th rowSpan="2" className="text-center align-middle delivery-target-header">納期目標</th>
+            <tr key="header-row-1">
+              <th rowSpan={2} className="text-center align-middle sticky-col">受付No</th>
+              <th rowSpan={2} className="text-center align-middle">連番</th>
+              <th rowSpan={2} className="text-center align-middle">工程</th>
+              <th rowSpan={2} className="text-center align-middle">現場名</th>
+              <th rowSpan={2} className="text-center align-middle">追加内容</th>
+              <th rowSpan={2} className="text-center align-middle">品名</th>
+              <th rowSpan={2} className="text-center align-middle">数量</th>
+              <th rowSpan={2} className="text-center align-middle delivery-target-header">納期目標</th>
               <th colSpan={PROCESS_DEFINITIONS.length} className="text-center">工程スケジュール</th>
             </tr>
-            <tr>
+            <tr key="header-row-2">
               {PROCESS_DEFINITIONS.map(({ label }) => (
-                <th key={label} className="text-center">{label}</th>
+                <th key={label} className="text-center process-header-cell">{label}</th>
               ))}
             </tr>
           </thead>
@@ -522,7 +554,21 @@ const ProductionPlanSearchGantt = () => {
               </tr>
             )}
             {!loading && !error && filteredPlans.map(plan => (
-              <tr key={plan.id}>
+              <tr
+                key={plan.id}
+                onClick={(e) => handleRowClick(plan.id, e)}
+                className={selectedPlanId === plan.id ? 'gantt-row-selected' : ''}
+                role="button"
+                tabIndex={0}
+                aria-selected={selectedPlanId === plan.id}
+                aria-label={`受付No ${plan.reception_no} の生産計画`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleRowClick(plan.id, e);
+                  }
+                }}
+              >
                 <td className="text-center sticky-col">{plan.reception_no || ''}</td>
                 <td className="text-center">{plan.additional_no || ''}</td>
                 <td className="text-center">{plan.process || ''}</td>

@@ -44,6 +44,7 @@ const SideMenu = ({ isOpen, isStaffOrSuperuser, onVersionClick, onLinkClick, onL
           <div className="menu-category-title">管理者メニュー</div>
           <Link to="/system/settings" className="menu-subcategory-link" onClick={onLinkClick}>システム設定</Link>
           <Link to="/user/management" className="menu-subcategory-link" onClick={onLinkClick}>ユーザー管理</Link>
+          <Link to="/system/worker-performance" className="menu-subcategory-link" onClick={onLinkClick}>作業者パフォーマンス</Link>
           <Link to="/system/qr-code-actions" className="menu-subcategory-link" onClick={onLinkClick}>QRコードアクション設定</Link>
           <Link to="/system/shelf-qr-code" className="menu-subcategory-link" onClick={onLinkClick}>倉庫棚番QR作成</Link>
         </>
